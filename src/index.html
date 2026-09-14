@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tableau de bord Veille</title>
+  <link rel="stylesheet" href="./styles/tokens.css">
+  <link rel="stylesheet" href="./styles/app.css">
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- ============================================================ en-tête -->
+  <header class="topbar">
+    <!-- Tête de barre : en « Édition », elle a exactement la largeur du volet
+         de gauche, de sorte que le premier onglet commence là où commence la
+         zone d'édition. -->
+    <div class="topbar__lead">
+      <!-- Lanceur : la seule commande commune aux deux applications. -->
+      <div class="launcher">
+        <button class="btn btn-secondary btn-icon" id="launcher-open"
+                aria-haspopup="menu" aria-expanded="false"
+                title="Changer d'application" style="width:26px;height:26px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"></path>
+          </svg>
+        </button>
+        <div class="launcher__menu" id="launcher-menu" role="menu" hidden></div>
+      </div>
+
+      <div class="topbar__brand" id="brand">VEILLE</div>
+    </div>
+
+    <!-- Onglets : sur la premiere ligne, a la place que prend la recherche
+         dans « Veille ». Il n'y a donc plus de seconde barre. -->
+    <div class="tabs" id="tabs" role="tablist" aria-label="Documents ouverts" hidden></div>
+
+    <div class="topbar__search" id="veille-search">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path>
+      </svg>
+      <input class="input" id="search" type="search" autocomplete="off"
+             placeholder="Rechercher un mot-clé dans tous les fils…"
+             aria-label="Rechercher un mot-clé dans tous les fils">
+    </div>
+
+    <div class="topbar__tools" id="veille-tools">
+      <div class="topbar__status" id="sync-status">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4"></path><path d="M21 3v6h-6"></path>
+        </svg>
+        <span id="sync-label">Jamais synchronisé</span>
+      </div>
+
+      <button class="btn btn-secondary" id="sync-all">Tout synchroniser</button>
+
+      <button class="btn btn-primary" id="open-panel">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+          <path d="M12 5v14M5 12h14"></path>
+        </svg>
+        Ajouter un fil
+      </button>
+    </div>
+
+    <!-- Outils de l'éditeur : masqués tant que « Veille » est à l'écran. -->
+    <div class="topbar__tools" id="edition-tools" hidden>
+      <!-- Les trois regards portes sur le meme document. -->
+      <div class="modes" id="mode-seg" role="group" aria-label="Affichage du document">
+        <button class="modes__btn" id="mode-edit" aria-pressed="true"
+                title="Modifier — texte mis en forme"></button>
+        <button class="modes__btn" id="mode-view" aria-pressed="false"
+                title="Voir — rendu en lecture seule"></button>
+        <button class="modes__btn" id="mode-code" aria-pressed="false"
+                title="Code Markdown — la source du fichier"></button>
+      </div>
+      <!-- Zoom du document : les deux crans, et la valeur qui les sépare —
+           un clic dessus revient à 100 %. Ctrl + molette sur la zone d'édition
+           fait bouger la même valeur. -->
+      <div class="zoom" id="zoom-group" role="group" aria-label="Zoom du document">
+        <button class="zoom__btn" id="zoom-out"
+                title="Réduire le document (Ctrl + molette)"
+                aria-label="Réduire le document"></button>
+        <button class="zoom__level" id="zoom-level"
+                title="Revenir à 100 %">100 %</button>
+        <button class="zoom__btn" id="zoom-in"
+                title="Agrandir le document (Ctrl + molette)"
+                aria-label="Agrandir le document"></button>
+      </div>
+
+      <!-- « Focus » : un poussoir. Les deux volets se retirent, le document
+           reste seul à l'écran ; le même bouton les ramène. Le pictogramme
+           seul, comme l'enregistrement qui le suit : le nom reste pour qui
+           écoute la page (`aria-label`), l'infobulle dit ce que le prochain
+           clic fera. -->
+      <button class="btn btn-secondary btn-icon" id="focus-toggle"
+              aria-pressed="false" aria-label="Focus"></button>
+
+      <button class="btn btn-primary btn-icon" id="doc-save"
+              title="Enregistrer (Ctrl+S)"></button>
+    </div>
+
+    <!-- Le thème ne dépend pas de l'application à l'écran : son bouton reste
+         en place quand le reste de la barre change. -->
+    <div class="themer">
+      <button class="btn btn-secondary btn-icon" id="theme-open"
+              aria-haspopup="menu" aria-expanded="false"
+              title="Thème de l'application" style="width:26px;height:26px"></button>
+      <div class="themer__menu" id="theme-menu" role="menu" hidden></div>
+    </div>
+  </header>
+
+  <div class="body" id="body-veille">
+
+    <!-- ====================================================== rail replié -->
+    <nav class="rail" id="rail" aria-label="Fils suivis">
+      <button class="btn btn-secondary btn-icon" id="rail-expand" title="Déplier les fils"
+              style="width:30px;height:30px">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <path d="m9 18 6-6-6-6"></path>
+        </svg>
+      </button>
+      <div class="rail__sep"></div>
+      <div id="rail-feeds" style="display:contents"></div>
+    </nav>
+
+    <!-- ================================================ volet des fils -->
+    <aside class="panel" id="panel" hidden aria-label="Gérer les fils">
+      <div class="panel__head">
+        <h6 style="margin:0">Gérer les fils</h6>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-icon" id="panel-collapse" title="Replier"
+                style="width:28px;height:28px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="m15 18-6-6 6-6"></path>
+          </svg>
+        </button>
+      </div>
+
+      <form class="panel__add" id="add-form">
+        <div class="field">
+          <label for="new-feed">URL du site ou du flux</label>
+          <div style="display:flex;gap:var(--space-2)">
+            <input class="input" id="new-feed" type="text" autocomplete="off"
+                   placeholder="https://exemple.fr/rss.xml">
+            <button class="btn btn-primary" type="submit" id="add-submit" style="flex:none">Ajouter</button>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:var(--space-2);font-size:11.5px;color:color-mix(in srgb, var(--color-text) 55%, transparent)">
+          <span>Détection automatique du flux</span>
+          <span aria-hidden="true">·</span>
+          <button class="btn btn-ghost" type="button" id="opml-import" style="font-size:11.5px">Importer OPML</button>
+          <button class="btn btn-ghost" type="button" id="opml-export" style="font-size:11.5px">Exporter</button>
+        </div>
+      </form>
+
+      <div class="panel__list" id="panel-list"></div>
+
+      <div class="panel__foot">
+        <h6 style="margin:0;font-size:11px">Rafraîchissement</h6>
+        <div class="seg" id="refresh-seg">
+          <label class="seg-opt"><input type="radio" name="freq" value="15" checked>15 min</label>
+          <label class="seg-opt"><input type="radio" name="freq" value="60">1 h</label>
+          <label class="seg-opt"><input type="radio" name="freq" value="1440">1 j</label>
+        </div>
+        <button class="btn btn-secondary btn-block" id="resync-all">Tout recollecter</button>
+        <p class="hint" style="margin:0">Relit chaque flux en entier au lieu de
+          s'arrêter à un « rien de neuf ». Complète au passage ce qui manquait
+          aux articles déjà collectés, leur illustration notamment.</p>
+
+        <h6 style="margin:var(--space-2) 0 0;font-size:11px">Vignettes</h6>
+        <div class="seg" id="thumb-seg">
+          <label class="seg-opt"><input type="radio" name="thumb" value="1" checked>Affichées</label>
+          <label class="seg-opt"><input type="radio" name="thumb" value="0">Masquées</label>
+        </div>
+        <p class="hint" style="margin:0">Une photo est chargée depuis le serveur
+          du média, qui voit alors votre adresse IP. Masquées, les cartes gardent
+          le monogramme du fil et rien ne sort de la machine.</p>
+
+        <h6 style="margin:var(--space-2) 0 0;font-size:11px">Bloc réservé</h6>
+        <div class="seg" id="reserved-seg">
+          <label class="seg-opt"><input type="radio" name="reserved" value="1" checked>Affiché</label>
+          <label class="seg-opt"><input type="radio" name="reserved" value="0">Masqué</label>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ====================================================== grille -->
+    <main class="main" id="main">
+      <div class="scope">
+        <div style="min-width:0">
+          <h2 class="scope__title" id="scope-title">Tous les articles</h2>
+          <div class="scope__meta" id="scope-meta"></div>
+        </div>
+        <div class="spacer"></div>
+        <div class="scope__filters">
+          <button class="chip" data-filter="tous" aria-pressed="true">Tous</button>
+          <button class="chip" data-filter="nonlus" aria-pressed="false">Non lus</button>
+          <button class="chip" data-filter="favoris" aria-pressed="false">Favoris</button>
+          <button class="btn btn-ghost" id="read-all" style="font-size:12px">Tout marquer comme lu</button>
+        </div>
+      </div>
+
+      <div class="keyword" id="keyword" hidden>
+        <span class="tag tag-accent" id="keyword-label"></span>
+        <button class="btn btn-ghost" id="keyword-clear" style="font-size:12px">Effacer</button>
+      </div>
+
+      <div class="grid" id="grid"></div>
+
+      <div class="empty" id="empty" hidden>
+        <h4>Aucun article ne correspond</h4>
+        <p>Élargissez la période, changez de filtre ou effacez le mot-clé.</p>
+      </div>
+
+      <div class="count-line" id="count-line"></div>
+    </main>
+
+    <!-- ============================================== volet de lecture -->
+    <aside class="reader" id="reader" hidden aria-label="Article">
+      <div class="reader__head">
+        <span class="reader__kicker" id="reader-kicker"></span>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-icon" id="reader-close" title="Fermer"
+                style="width:28px;height:28px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 6 6 18M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div class="reader__scroll" id="reader-scroll">
+        <div class="reader__date" id="reader-date"></div>
+        <h3 class="reader__title" id="reader-title"></h3>
+        <div class="reader__hero grayscale" id="reader-hero"></div>
+        <div id="reader-body"></div>
+        <div class="reader__source">Extrait du flux · texte complet si le fil le fournit</div>
+      </div>
+
+      <div class="reader__foot">
+        <button class="btn btn-primary" id="reader-open">Ouvrir la source</button>
+        <button class="btn btn-secondary" id="reader-fav">★ Favori</button>
+        <div class="spacer"></div>
+        <button class="btn btn-secondary btn-icon" id="reader-next" title="Article suivant"
+                style="width:36px;height:36px">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M12 5v14M5 12l7 7 7-7"></path>
+          </svg>
+        </button>
+      </div>
+    </aside>
+
+  </div>
+
+  <!-- ================================================== corps « Édition » -->
+  <div class="body" id="body-edition" hidden>
+
+    <!-- Volet gauche : les fichiers du projet en cours. -->
+    <aside class="panel panel--files" id="files-panel" aria-label="Fichiers du projet">
+      <div class="panel__head">
+        <h6 style="margin:0">Projet</h6>
+        <div class="spacer"></div>
+        <button class="btn btn-ghost btn-icon" id="project-settings"
+                title="Paramètres du projet" style="width:24px;height:24px"></button>
+        <button class="btn btn-ghost btn-icon" id="project-open"
+                title="Ouvrir un dossier…" style="width:24px;height:24px"></button>
+        <button class="btn btn-ghost btn-icon" id="project-refresh"
+                title="Actualiser l'arborescence" style="width:24px;height:24px"></button>
+      </div>
+      <div class="panel__list" id="files-tree"></div>
+      <div class="panel__foot">
+        <div class="files__root" id="files-root"></div>
+      </div>
+    </aside>
+
+    <!-- Centre : onglets et zone d'édition. -->
+    <main class="editor" id="editor">
+      <div class="editor__empty" id="editor-empty">
+        <p>Aucun document ouvert.</p>
+        <p class="hint" style="margin:0">Choisissez un fichier dans le volet de gauche.
+          Les documents Markdown alimentent le sommaire à droite.</p>
+      </div>
+      <textarea class="editor__area" id="editor-area" hidden spellcheck="true"
+                aria-label="Zone d'édition" wrap="soft"></textarea>
+      <!-- Rendu de « Modifier » et « Voir ». Le contenu vient de marked, puis
+           de l'assainisseur de js/markdown.js — jamais de marked directement. -->
+      <div class="editor__rich" id="editor-rich" hidden spellcheck="true"
+           tabindex="0"></div>
+    </main>
+
+    <!-- Volet droit : deux contenus qui se relaient, le sélecteur de sa tête
+         disant lequel est à l'écran — le sommaire du document, ou les champs
+         de son bloc YAML. -->
+    <aside class="outline" id="outline-panel" aria-label="Sommaire et propriétés du document">
+      <div class="panel__head">
+        <div class="seg" id="aside-seg" role="group" aria-label="Contenu du volet droit">
+          <label class="seg-opt"><input type="radio" name="aside" value="outline" checked>Sommaire</label>
+          <label class="seg-opt"><input type="radio" name="aside" value="front">Propriétés</label>
+        </div>
+      </div>
+      <div class="panel__list" id="outline-list"></div>
+
+      <!-- Les cinq clés que l'application sait poser en tête du document. Le
+           champ quitté écrit dans la source ; il n'y a rien à valider. -->
+      <div class="panel__list meta" id="frontmatter-pane" hidden>
+        <div class="field">
+          <label for="fm-title">Titre</label>
+          <input class="input" id="fm-title" type="text" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="fm-subtitle">Sous-titre</label>
+          <input class="input" id="fm-subtitle" type="text" autocomplete="off">
+        </div>
+        <div class="field">
+          <label for="fm-photo">Photo</label>
+          <div class="meta__row">
+            <input class="input" id="fm-photo" type="text" autocomplete="off"
+                   placeholder="images/photo.jpg">
+            <button class="btn btn-secondary" id="fm-photo-browse" type="button"
+                    title="Choisir une image du projet">Parcourir…</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fm-abstract">Titre du résumé</label>
+          <!-- Sur plusieurs lignes : la valeur part alors dans le fichier en
+               bloc littéral YAML (« abstract-title: | »). -->
+          <textarea class="input" id="fm-abstract" rows="3" spellcheck="true"
+                    placeholder="Résumé"></textarea>
+        </div>
+        <div class="field">
+          <label for="fm-depth">Profondeur du sommaire</label>
+          <input class="input" id="fm-depth" type="number" min="1" max="6" step="1">
+        </div>
+        <p class="hint" id="fm-hint" style="margin-top:var(--space-3)"></p>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<!-- ============================================ Paramètres du projet -->
+<div class="modal" id="project-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="project-dialog-title">
+    <div class="modal__head">
+      <h6 id="project-dialog-title" style="margin:0">Paramètres du projet</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="project-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field">
+        <h6>Justification des paragraphes</h6>
+        <div class="seg" id="align-seg">
+          <label class="seg-opt"><input type="radio" name="align" value="gauche" checked>Gauche</label>
+          <label class="seg-opt"><input type="radio" name="align" value="justifie">Justifié</label>
+        </div>
+        <p class="hint" style="margin:0">S'applique au document affiché en
+          « Modifier » et « Voir ». Le code Markdown garde son alignement à
+          gauche : y justifier des lignes de source les rendrait illisibles.</p>
+      </div>
+
+      <div class="modal__field">
+        <h6>Interligne</h6>
+        <div class="seg" id="leading-seg">
+          <label class="seg-opt"><input type="radio" name="leading" value="135">Serré</label>
+          <label class="seg-opt"><input type="radio" name="leading" value="165" checked>Normal</label>
+          <label class="seg-opt"><input type="radio" name="leading" value="200">Aéré</label>
+        </div>
+      </div>
+
+      <div class="modal__field">
+        <h6>Contour de la zone d'édition</h6>
+        <div class="seg" id="ring-seg">
+          <label class="seg-opt"><input type="radio" name="ring" value="1" checked>Affiché</label>
+          <label class="seg-opt"><input type="radio" name="ring" value="0">Masqué</label>
+        </div>
+        <p class="hint" style="margin:0">Le liseré rouge qui entoure la zone
+          quand elle a le clavier. Le masquer ne change rien au document : c'est
+          la pastille de l'onglet qui signale les modifications non
+          enregistrées.</p>
+      </div>
+
+      <p class="hint" style="margin:0">Ces réglages accompagnent le dossier
+        ouvert : chaque projet garde les siens.</p>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ Propriétés de l'image -->
+<div class="modal" id="image-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="image-dialog-title">
+    <div class="modal__head">
+      <h6 id="image-dialog-title" style="margin:0">Propriétés de l'image</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="image-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <!-- Les explications de chaque champ ne vivent plus sous lui : elles
+         s'affichent dans la barre d'état, au survol ou à la saisie. -->
+    <div class="modal__body">
+      <!-- Le fichier lui-même : le chemin qui part dans le document, relatif
+           à lui. « Parcourir… » en désigne un autre sans toucher au reste. -->
+      <div class="modal__field"
+           data-hint="Le fichier affiché, en lien relatif au document.">
+        <h6><label for="image-file">Fichier</label></h6>
+        <div class="meta__row">
+          <input class="input" id="image-file" type="text" autocomplete="off"
+                 placeholder="images/photo.jpg">
+          <button class="btn btn-secondary" id="image-browse" type="button">Parcourir…</button>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Laissez vide pour n'afficher aucune légende.">
+        <h6><label for="image-caption">Légende</label></h6>
+        <input class="input" id="image-caption" type="text" autocomplete="off"
+               placeholder="Sous l'image, en petit">
+      </div>
+
+      <div class="modal__field"
+           data-hint="Largeur de l'image, de 5 à 100 % de la colonne de texte.">
+        <h6><label for="image-size">Taille</label></h6>
+        <div style="display:flex;align-items:center;gap:var(--space-2)">
+          <input class="input" id="image-size" type="number" min="5" max="100" step="5"
+                 style="width:90px">
+          <span style="font-size:12px">% de la largeur du texte</span>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Place l'image dans la colonne de texte, si elle est plus étroite que lui.">
+        <h6>Alignement</h6>
+        <div class="seg" id="image-align">
+          <label class="seg-opt"><input type="radio" name="imgalign" value="gauche" checked>Gauche</label>
+          <label class="seg-opt"><input type="radio" name="imgalign" value="centre">Centré</label>
+          <label class="seg-opt"><input type="radio" name="imgalign" value="droite">Droite</label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barre d'état : le chemin de l'image au repos, l'explication du champ
+         parcouru le reste du temps. `aria-live` la fait lire à haute voix. -->
+    <div class="modal__status" id="image-status" aria-live="polite"></div>
+  </div>
+</div>
+
+<!-- ============================================ Insertion d'un tableau -->
+<div class="modal" id="table-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="table-dialog-title">
+    <div class="modal__head">
+      <h6 id="table-dialog-title" style="margin:0">Insérer un tableau</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="table-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field" id="table-size"
+           data-hint="Le nombre de colonnes, et le nombre de lignes hors ligne de titre.">
+        <h6>Dimensions</h6>
+        <div style="display:flex;align-items:center;gap:var(--space-2)">
+          <label for="table-cols" style="font-size:12px">Colonnes</label>
+          <input class="input" id="table-cols" type="number" min="1" max="12" step="1"
+                 value="2" style="width:74px">
+          <label for="table-rows" style="font-size:12px;margin-left:var(--space-3)">Lignes</label>
+          <input class="input" id="table-rows" type="number" min="1" max="50" step="1"
+                 value="2" style="width:74px">
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="La première ligne devient l'en-tête, fermé par la barre de « = » dans le fichier.">
+        <h6>Ligne de titre</h6>
+        <div class="seg" id="table-header">
+          <label class="seg-opt"><input type="radio" name="tblhead" value="oui" checked>Oui</label>
+          <label class="seg-opt"><input type="radio" name="tblhead" value="non">Non</label>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Laissez vide pour n'afficher aucune légende.">
+        <h6><label for="table-caption">Légende</label></h6>
+        <input class="input" id="table-caption" type="text" autocomplete="off"
+               placeholder="Au-dessus du tableau, en petit">
+      </div>
+
+      <div class="modal__field"
+           data-hint="Un pourcentage par colonne, séparés par des virgules. Ils s'écrivent en tbl-colwidths.">
+        <h6><label for="table-widths">Largeurs des colonnes</label></h6>
+        <input class="input" id="table-widths" type="text" autocomplete="off"
+               placeholder="50, 50">
+      </div>
+
+      <div class="modal__field"
+           data-hint="La place que le tableau prend dans la colonne de texte, écrite en width.">
+        <h6><label for="table-width">Largeur du tableau</label></h6>
+        <div style="display:flex;align-items:center;gap:var(--space-2)">
+          <input class="input" id="table-width" type="number" min="5" max="100" step="5"
+                 value="100" style="width:90px">
+          <span style="font-size:12px">% de la largeur du texte</span>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Place le tableau dans la colonne de texte, s'il est plus étroit qu'elle. L'alignement d'une colonne, lui, se règle depuis le menu du tableau.">
+        <h6>Alignement du tableau</h6>
+        <div class="seg" id="table-align">
+          <label class="seg-opt"><input type="radio" name="tblalign" value="gauche" checked>Gauche</label>
+          <label class="seg-opt"><input type="radio" name="tblalign" value="centre">Centré</label>
+          <label class="seg-opt"><input type="radio" name="tblalign" value="droite">Droite</label>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Un filet autour de chaque cellule, plutôt qu'un simple trait sous le titre.">
+        <h6>Bordures</h6>
+        <div class="seg" id="table-bordered">
+          <label class="seg-opt"><input type="radio" name="tblborder" value="oui" checked>Oui</label>
+          <label class="seg-opt"><input type="radio" name="tblborder" value="non">Non</label>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Une ligne sur deux sur fond gris, pour suivre une rangée du regard.">
+        <h6>Alternance des lignes</h6>
+        <div class="seg" id="table-striped">
+          <label class="seg-opt"><input type="radio" name="tblstripe" value="oui">Oui</label>
+          <label class="seg-opt"><input type="radio" name="tblstripe" value="non" checked>Non</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal__status" id="table-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <button class="btn btn-secondary" id="table-cancel" type="button">Annuler</button>
+      <button class="btn btn-primary" id="table-insert" type="button">Insérer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================ Insertion d'un shortcode -->
+<div class="modal" id="shortcode-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="shortcode-dialog-title">
+    <div class="modal__head">
+      <h6 id="shortcode-dialog-title" style="margin:0">Insérer un shortcode</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="shortcode-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field"
+           data-hint="Le shortcode à écrire. « pagebreak » n'attend rien, les deux autres si.">
+        <h6>Shortcode</h6>
+        <div class="seg" id="shortcode-seg">
+          <label class="seg-opt"><input type="radio" name="shortcode" value="pagebreak" checked>pagebreak</label>
+          <label class="seg-opt"><input type="radio" name="shortcode" value="include">include</label>
+          <label class="seg-opt"><input type="radio" name="shortcode" value="meta">meta</label>
+        </div>
+      </div>
+
+      <!-- Les deux arguments restent en place quel que soit le shortcode
+           choisi : les faire paraître et disparaître ferait sauter la boîte
+           sous les yeux. La barre d'état dit lequel sera écrit. -->
+      <div class="modal__field" id="shortcode-file-field"
+           data-hint="Le fichier à inclure, désigné relativement au document — le projet reste déplaçable.">
+        <h6><label for="shortcode-file">Fichier à inclure</label></h6>
+        <div class="meta__row">
+          <input class="input" id="shortcode-file" type="text" autocomplete="off"
+                 placeholder="parties/chapitre.qmd">
+          <button class="btn btn-secondary" id="shortcode-browse" type="button">Parcourir…</button>
+        </div>
+      </div>
+
+      <div class="modal__field" id="shortcode-meta-field"
+           data-hint="La propriété à reprendre du bloc YAML en tête du document.">
+        <h6><label for="shortcode-key">Propriété</label></h6>
+        <select class="input" id="shortcode-key"></select>
+      </div>
+    </div>
+
+    <!-- Barre d'état : le texte exact qui partira dans le document. -->
+    <div class="modal__status" id="shortcode-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <button class="btn btn-secondary" id="shortcode-cancel" type="button">Annuler</button>
+      <button class="btn btn-primary" id="shortcode-insert" type="button">Insérer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Embarquees dans vendor/ : la CSP interdit tout CDN. Scripts classiques,
+     charges avant le module qui les utilise. -->
+<script src="./vendor/marked.min.js"></script>
+<script src="./vendor/turndown.js"></script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,1078 @@
+/* Mise en page du tableau de bord.
+   Les jetons et les classes de composants (.btn, .input, .tag, .seg…) viennent
+   de tokens.css, qui est le système de design du modèle. Ce fichier n'ajoute
+   que la structure : rail, volets, grille de cartes, volet de lecture. */
+
+/* Largeur du volet de fichiers. Partagée avec la tête de la barre du haut,
+   pour que le premier onglet commence exactement où commence l'éditeur. */
+:root {
+  --files-width: clamp(220px, 22%, 300px);
+  --outline-width: clamp(200px, 20%, 280px);
+  /* Mise en page du document, redéfinie par « Paramètres du projet ». */
+  --doc-align: left;
+  --doc-leading: 1.65;
+  /* Zoom du document : un multiplicateur posé par `ui/zoom.js`. Il n'agit que
+     sur la taille de base des deux surfaces d'édition — le rendu et la source ;
+     tout ce qu'elles portent à l'intérieur se dit en `em` pour le suivre. */
+  --doc-zoom: 1;
+}
+
+html, body { height: 100%; }
+body { overflow: hidden; }
+
+.app {
+  height: 100dvh;
+  min-height: 640px;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+/* ------------------------------------------------------------- en-tête */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  /* Aucune gouttière ici : elle décalerait le premier onglet de la largeur du
+     volet. Chaque groupe porte son propre espacement. */
+  gap: 0;
+  /* Basse : les onglets y tiennent, il n'y a plus de seconde barre. Le
+     rembourrage horizontal est porté par les groupes, pas par la barre : sa
+     boîte de contenu doit faire la même largeur que `.body`, faute de quoi les
+     22 % des deux `clamp` ne se résoudraient pas sur la même référence. */
+  padding: var(--space-1) 0;
+  min-height: 38px;
+  background: var(--color-bg);
+  border-bottom: var(--rule) solid var(--color-divider);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.topbar .btn { height: 26px; }
+.topbar .btn-icon { width: 26px; height: 26px; padding: 0; }
+
+.topbar__lead {
+  display: flex; align-items: center; gap: var(--space-3);
+  flex: none; min-width: 0;
+  /* Le rembourrage est *dans* la largeur (`box-sizing: border-box`) : il ne
+     décale donc pas le bord droit sur lequel s'aligne le premier onglet. */
+  padding-left: var(--space-4);
+  padding-right: var(--space-3);
+}
+/* En « Édition » seulement : le rail et le volet de « Veille » n'ont pas cette
+   largeur, et rien ne s'aligne sur eux. */
+[data-app="edition"] .topbar__lead { flex: 0 0 var(--files-width); }
+
+.topbar__brand {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  /* Elle ne se coupe ni ne se comprime : la tête de barre est étroite. */
+  flex: none; white-space: nowrap;
+}
+
+.topbar__search {
+  flex: 1;
+  max-width: 520px;
+  margin-right: var(--space-3);
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.topbar__search svg { position: absolute; left: 10px; opacity: 0.5; }
+.topbar__search .input { padding-left: 32px; width: 100%; }
+
+.topbar__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  white-space: nowrap;
+}
+/* Rotation continue de l'icône pendant « Tout synchroniser ». */
+.topbar__status.is-busy svg { animation: spin 1.1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .topbar__status.is-busy svg { animation: none; }
+}
+
+/* --------------------------------------------------------------- corps */
+
+.body { flex: 1; display: flex; align-items: stretch; min-height: 0; }
+
+/* Rail replié : un monogramme par fil. */
+.rail {
+  width: 60px;
+  flex: none;
+  border-right: var(--rule) solid var(--color-divider);
+  padding: var(--space-4) 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  overflow-y: auto;
+}
+.rail__sep { width: 24px; height: 2px; background: var(--color-divider); flex: none; }
+
+.mono {
+  display: grid;
+  place-items: center;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  border: 1px solid var(--color-divider);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  position: relative;
+  flex: none;
+}
+.mono:hover { border-color: var(--color-accent); }
+.mono[aria-pressed="true"] { background: var(--color-text); color: var(--color-bg); }
+.mono--rail { width: 34px; height: 34px; font-size: 13px; }
+.mono--row  { width: 18px; height: 18px; font-size: 10px; cursor: default; }
+.mono__dot {
+  position: absolute; top: -3px; right: -3px;
+  width: 7px; height: 7px; background: var(--color-accent);
+}
+
+/* Volet « Gérer les fils ». */
+.panel {
+  flex: 0 0 clamp(280px, 30%, 340px);
+  min-height: 0;
+  border-right: var(--rule) solid var(--color-divider);
+  background: var(--color-surface);
+  display: flex;
+  flex-direction: column;
+}
+.panel__head,
+.panel__foot { padding: var(--space-3) var(--space-4); }
+.panel__head {
+  display: flex; align-items: center; gap: var(--space-2);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.panel__add {
+  padding: var(--space-4);
+  border-bottom: var(--rule) solid var(--color-divider);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.panel__add .input { background: var(--color-bg); }
+.panel__list { flex: 1; overflow: auto; padding: var(--space-3) var(--space-4); }
+.panel__foot {
+  border-top: var(--rule) solid var(--color-divider);
+  display: flex; flex-direction: column; gap: var(--space-2);
+}
+.panel__foot .seg { background: var(--color-bg); }
+
+.group { margin-bottom: var(--space-4); }
+.group__head {
+  display: flex; align-items: baseline; gap: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.group__head h6 { margin: 0; font-size: 11px; }
+.group__count { font-size: 11px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+
+.feed-row {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-divider);
+  /* `position` et le fond opaque servent au glissement : la ligne saisie
+     passe au-dessus de ses voisines au lieu de transparaître au travers. */
+  position: relative;
+  background: var(--color-surface);
+}
+.feed-row__name {
+  flex: 1; min-width: 0; text-align: left;
+  border: 0; background: none; cursor: pointer; padding: 0;
+  font-family: var(--font-body); font-size: 13.5px; line-height: 1.3;
+  color: var(--color-text);
+}
+.feed-row__url {
+  display: block; font-size: 11px; overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+.feed-row__unread { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.feed-row .btn-icon { width: 22px; height: 22px; color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+
+/* Poignée de glissement : discrète, elle s'affirme au survol de la ligne. */
+.feed-row__grip {
+  display: flex; align-items: center; flex: 0 0 auto;
+  margin-left: -2px;
+  cursor: grab; touch-action: none;
+  color: color-mix(in srgb, var(--color-text) 22%, transparent);
+}
+.feed-row:hover .feed-row__grip { color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.feed-row__grip--idle { cursor: default; opacity: 0.25; }
+
+/* La ligne saisie flotte au-dessus des autres, qui s'écartent sous elle. */
+.feed-row--dragging {
+  z-index: 2; cursor: grabbing;
+  border-bottom-color: var(--color-accent);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}
+.feed-row--dragging .feed-row__grip { cursor: grabbing; color: var(--color-accent); }
+.panel__list--dragging { cursor: grabbing; user-select: none; }
+.panel__list--dragging .feed-row:not(.feed-row--dragging) {
+  transition: transform 120ms ease;
+}
+
+/* Ligne en cours de renommage : les champs prennent toute la largeur. */
+.feed-row--editing { align-items: flex-start; }
+.feed-edit { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.feed-edit__input { height: 28px; font-size: 12.5px; }
+.feed-edit__actions { display: flex; gap: var(--space-2); }
+
+.hint {
+  border: 1px dashed var(--color-divider);
+  padding: var(--space-3);
+  font-size: 11.5px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+/* -------------------------------------------------------------- grille */
+
+.main {
+  flex: 1; min-width: 0; min-height: 0; overflow: auto;
+  padding: var(--space-6);
+  display: flex; flex-direction: column; gap: var(--space-4);
+}
+
+.scope {
+  display: flex; align-items: flex-end; gap: var(--space-4); flex-wrap: wrap;
+  padding-bottom: var(--space-3);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.scope__title { margin: 0 0 2px; text-wrap: balance; }
+.scope__meta {
+  font-size: 12px; overflow-wrap: anywhere;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.scope__filters { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; min-width: 0; }
+
+.chip {
+  cursor: pointer;
+  padding: 6px 12px;
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--color-divider);
+  background: transparent;
+  color: var(--color-text);
+}
+.chip:hover { border-color: var(--color-accent); }
+.chip[aria-pressed="true"] { background: var(--color-text); color: var(--color-bg); }
+
+.keyword { display: flex; align-items: center; gap: var(--space-2); font-size: 12px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(292px, 100%), 1fr));
+  gap: var(--space-4);
+  align-content: start;
+}
+
+.card {
+  display: flex; flex-direction: column;
+  border: 1px solid var(--color-divider);
+  background: var(--color-surface);
+}
+.card__thumb {
+  height: 120px; flex: none;
+  border-bottom: 1px solid var(--color-divider);
+  background: var(--color-neutral-200);
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.card__thumb span {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 34px; letter-spacing: 0.04em; color: var(--color-neutral-400);
+}
+.card__body {
+  padding: var(--space-3);
+  display: flex; flex-direction: column; gap: var(--space-2); flex: 1;
+}
+.card__meta { display: flex; align-items: center; gap: var(--space-2); }
+.card__unread { width: 7px; height: 7px; flex: none; background: var(--color-accent); }
+.card__kicker {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  color: var(--color-accent-700);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.card__time { font-size: 11px; margin-left: auto; flex: none; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.card__title {
+  margin: 0; font-size: 17px; line-height: 1.22; text-wrap: pretty;
+  cursor: pointer;
+}
+.card__excerpt {
+  margin: 0; font-size: 13px; line-height: 1.5; flex: 1; text-wrap: pretty;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+.card__actions {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-divider);
+}
+.card__actions .btn-icon { width: 30px; height: 30px; }
+.card__actions .btn--open { flex: 1; justify-content: flex-start; }
+
+/* Un article lu s'efface sans disparaître. */
+.card.is-read .card__kicker { color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.card.is-read .card__title  { color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+.card.is-active .btn--open  { background: color-mix(in srgb, var(--color-text) 12%, transparent); }
+.card .btn--fav.is-on { color: var(--color-accent); }
+
+.reserved {
+  border: 1px dashed var(--color-divider);
+  padding: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-2);
+  min-height: 180px;
+}
+.reserved h6 { margin: 0; font-size: 11px; color: color-mix(in srgb, var(--color-text) 55%, transparent); }
+.reserved p { margin: 0; font-size: 13px; line-height: 1.5; text-wrap: pretty; color: color-mix(in srgb, var(--color-text) 65%, transparent); }
+
+.empty { border: 1px dashed var(--color-divider); padding: var(--space-8); }
+.empty h4 { margin: 0 0 var(--space-2); }
+.empty p  { margin: 0; font-size: 13.5px; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
+
+.count-line {
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-3);
+}
+
+/* ---------------------------------------------------- volet de lecture */
+
+.reader {
+  flex: 0 0 clamp(320px, 38%, 400px);
+  min-width: 0; min-height: 0;
+  border-left: var(--rule) solid var(--color-divider);
+  background: var(--color-bg);
+  display: flex; flex-direction: column;
+}
+.reader__head {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.reader__kicker {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  color: var(--color-accent-700);
+}
+.reader__scroll {
+  flex: 1; overflow: auto; padding: var(--space-4);
+  display: flex; flex-direction: column; gap: var(--space-3);
+}
+.reader__date { font-size: 11.5px; color: color-mix(in srgb, var(--color-text) 50%, transparent); }
+.reader__title { margin: 0; text-wrap: pretty; }
+.reader__hero {
+  height: 170px; background: var(--color-neutral-200);
+  border: 1px solid var(--color-divider);
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+/* La photo occupe toute la vignette, sur la carte comme dans le volet ;
+   l'aplat gris reste visible pendant le chargement et si l'image ne vient
+   jamais.
+
+   `stretch` plutôt que `height: 100%` : le cadre est un élément flex, sa
+   hauteur n'est pas une base de pourcentage fiable et l'image reprenait son
+   ratio intrinsèque — 214 px au lieu de 120 — pour recouvrir le titre.
+   `overflow: hidden` sur le cadre garde ce débordement impossible.
+
+   `object-position: top` cadre par le haut : sur une photo de presse le sujet
+   est rarement au centre, et toutes les vignettes s'alignent pareil. */
+.card__thumb img, .reader__hero img {
+  grid-area: 1 / 1;
+  align-self: stretch; justify-self: stretch;
+  width: 100%; min-height: 0;
+  object-fit: cover; object-position: top;
+  display: block;
+}
+.reader__hero span {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 44px; color: var(--color-neutral-400);
+}
+.reader__scroll p { margin: 0; font-size: 14px; line-height: 1.6; text-wrap: pretty; }
+.reader__source {
+  font-size: 11.5px;
+  color: color-mix(in srgb, var(--color-text) 45%, transparent);
+  border-top: 1px solid var(--color-divider);
+  padding-top: var(--space-2);
+}
+.reader__foot {
+  border-top: var(--rule) solid var(--color-divider);
+  padding: var(--space-3) var(--space-4);
+  display: flex; gap: var(--space-2); align-items: center;
+}
+.reader__foot .btn { justify-content: flex-start; }
+
+/* ------------------------------------------------------------- divers */
+
+.spacer { flex: 1; min-width: 0; }
+[hidden] { display: none !important; }
+
+/* Bandeau d'erreur : un fil injoignable, un OPML illisible. */
+/* Message transitoire, posé en haut à droite : c'est là qu'on vient de cliquer
+   pour enregistrer, et le regard n'a pas à traverser l'écran pour savoir si
+   c'est fait. Au-dessus de tout le reste — une boîte de dialogue ouverte ne
+   doit pas le masquer. */
+.toast {
+  position: fixed; top: var(--space-4); right: var(--space-4);
+  max-width: min(420px, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-text); color: var(--color-bg);
+  font-size: 13px; line-height: 1.4;
+  /* Les jetons de rayon du modèle valent tous zéro — les angles vifs font son
+     aspect. Le message passager est la seule chose qui flotte au-dessus de la
+     page sans s'y rattacher : ses coins s'arrondissent ici, et nulle part
+     ailleurs, plutôt que de toucher au système de design. */
+  border-radius: 8px;
+  box-shadow: var(--shadow-md);
+  z-index: 90;
+}
+/* Vert pour ce qui a abouti, rouge pour ce qui a échoué : la couleur dit le
+   sens avant que la phrase ne soit lue. Les deux prennent les bouts d'une
+   rampe plutôt que `--color-bg`, qui donnerait une encre noire sur fond
+   sombre en thème foncé. */
+.toast--ok { background: var(--color-ok-700); color: var(--color-ok-100); }
+.toast--error { background: var(--color-accent-700); color: var(--color-accent-100); }
+
+/* Sous 1150 px, le volet de lecture prend la place du volet des fils —
+   c'est la bascule que fait déjà le modèle. */
+@media (max-width: 1150px) {
+  .app.has-reader .panel { display: none; }
+  .app.has-reader .rail  { display: flex; }
+}
+@media (max-width: 900px) {
+  .reader { flex-basis: 320px; }
+  .topbar { gap: var(--space-3); flex-wrap: wrap; }
+}
+
+/* ==================================================================
+   Lanceur d'applications et coque « Édition »
+   ================================================================== */
+
+/* Le sélecteur de thème reprend la mécanique du lanceur — un bouton, un menu
+   posé sous lui : les deux partagent donc les mêmes règles. Le thème se tient
+   au bout de la barre, après les outils de l'application. */
+.launcher, .themer { position: relative; flex: none; }
+.themer { padding-right: var(--space-4); }
+.launcher__menu, .themer__menu {
+  position: absolute; top: calc(100% + var(--space-2)); left: 0; z-index: 40;
+  min-width: 260px;
+  /* Jamais plus large que la fenêtre, quelle qu'elle soit. */
+  max-width: calc(100vw - 2 * var(--space-4));
+  background: var(--color-bg);
+  border: var(--rule-frame) solid var(--color-text);
+  /* Le trait est fin : c'est l'ombre qui détache la surface de la page. */
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column;
+}
+/* Le lanceur ouvre son menu vers la droite, depuis le bord gauche de la barre ;
+   le thème est à l'autre bout, et le sien doit donc s'aligner sur son bord
+   droit — aligné à gauche, il sortirait de la fenêtre. Le décalage est celui
+   du rembourrage de `.themer`, pour que le menu tombe sous le bouton. */
+.themer__menu { left: auto; right: var(--space-4); }
+.launcher__item, .themer__item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3);
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-body); color: var(--color-text);
+}
+.launcher__item + .launcher__item,
+.themer__item + .themer__item { border-top: 1px solid var(--color-divider); }
+.launcher__item:hover, .themer__item:hover { background: var(--color-surface); }
+.launcher__item[aria-current="true"],
+.themer__item[aria-current="true"] { background: var(--color-text); color: var(--color-bg); }
+.launcher__mark, .themer__mark {
+  display: grid; place-items: center; flex: none;
+  width: 30px; height: 30px;
+  border: 1px solid currentColor;
+}
+.launcher__text, .themer__text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.launcher__name, .themer__name {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase;
+}
+.launcher__desc, .themer__desc { font-size: 11.5px; opacity: 0.7; }
+
+.topbar__tools {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin-left: auto; padding-right: var(--space-4);
+}
+
+/* ------------------------------------------------- zone d'édition seule */
+
+/* `data-focus` est posé sur la racine par `ui/focus.js` : les deux volets se
+   retirent, et la tête de la barre du haut cesse de réserver la largeur du
+   volet gauche — sinon les onglets resteraient calés sur un volet absent. Les
+   poignées de redimensionnement partent avec les volets, qui les portent. */
+[data-focus] .panel--files,
+[data-focus] .outline { display: none; }
+[data-app="edition"][data-focus] .topbar__lead { flex: none; }
+
+/* Un poussoir de la barre du haut : enfoncé, il prend l'accent, comme le
+   regard choisi parmi les trois. */
+.topbar .btn[aria-pressed="true"] {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-bg);
+}
+
+/* ------------------------------------------------------- volet fichiers */
+
+/* `min-width: 0` est ce qui rend la poignée maîtresse de la largeur : sans
+   lui, un volet est au moins aussi large que ce qu'il contient, et un nom de
+   fichier long imposait sa mesure au volet entier — la poignée butait sur le
+   plus long des noms. Le nom, lui, s'abrège (voir `.tree__name`). Le volet du
+   sommaire, à droite, garde sa mesure : rien n'y est plus large que son propre
+   mobilier, dont le sélecteur de tête, qu'il vaut mieux ne pas rogner. */
+.panel--files { flex: 0 0 var(--files-width); position: relative; min-width: 0; }
+.files__root {
+  font-size: 10.5px; overflow-wrap: anywhere; line-height: 1.35;
+  color: color-mix(in srgb, var(--color-text) 50%, transparent);
+}
+
+.tree__row {
+  display: flex; align-items: center; gap: var(--space-2);
+  width: 100%; padding: 4px 6px;
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: 12.5px; line-height: 1.3;
+  color: var(--color-text);
+}
+.tree__row:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.tree__row--active { background: var(--color-text); color: var(--color-bg); }
+.tree__row--dir { font-weight: 600; }
+/* Un fichier non éditable reste visible : le masquer laisserait croire que le
+   projet ne le contient pas. */
+.tree__row--inert { opacity: 0.4; cursor: default; }
+.tree__row--inert:hover { background: none; }
+.tree__icon { display: flex; flex: none; opacity: 0.65; }
+/* `min-width: 0` défait la taille minimale automatique du bloc flexible : sans
+   lui, la boîte du nom garde la largeur du texte entier et les points de
+   suspension n'arrivent jamais — la ligne déborde au lieu de s'abréger. */
+.tree__name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ------------------------------------------------------ zone d'édition */
+
+.editor {
+  flex: 1; min-width: 0; min-height: 0;
+  display: flex; flex-direction: column;
+  background: var(--color-bg);
+}
+
+/* Les onglets occupent, dans la barre du haut, la place que prend la
+   recherche dans « Veille » : ils défilent plutôt que de la faire grandir. */
+.tabs {
+  display: flex; align-items: center; gap: 1px;
+  flex: 1; min-width: 0;
+  overflow-x: auto; scrollbar-width: thin;
+}
+.tab {
+  display: flex; align-items: center; gap: 6px;
+  flex: none; max-width: 190px; height: 26px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  background: none; cursor: pointer;
+  font-family: var(--font-body); font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 62%, transparent);
+}
+.tab:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.tab--active {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border-color: var(--color-divider);
+  /* Le trait d'accent marque l'onglet courant sans le déplacer d'un pixel. */
+  box-shadow: inset 0 2px 0 var(--color-accent);
+}
+.tab__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tab__dot { width: 6px; height: 6px; flex: none; background: var(--color-accent); }
+.tab__close { display: flex; flex: none; opacity: 0.4; }
+.tab__close:hover { opacity: 1; color: var(--color-accent); }
+
+/* Les trois regards portés sur le document, en un seul bloc. */
+.modes { display: flex; flex: none; border: 1px solid var(--color-divider); }
+.modes__btn {
+  display: grid; place-items: center;
+  width: 26px; height: 26px;
+  border: 0; background: none; cursor: pointer;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.modes__btn + .modes__btn { border-left: 1px solid var(--color-divider); }
+.modes__btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.modes__btn[aria-pressed="true"] { background: var(--color-accent); color: var(--color-bg); }
+.modes__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* Zoom du document, sur le même gabarit que les trois regards : un seul bloc
+   cerné d'un filet, la valeur au milieu. */
+.zoom { display: flex; flex: none; align-items: stretch; border: 1px solid var(--color-divider); }
+.zoom__btn {
+  display: grid; place-items: center;
+  width: 24px; height: 26px;
+  border: 0; background: none; cursor: pointer;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.zoom__btn:hover:not(:disabled) { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* Au bout de la course : le cran reste en place, éteint. */
+.zoom__btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.zoom__level {
+  /* Une largeur fixe : « 90 % » et « 100 % » ne doivent pas déplacer les
+     crans de part et d'autre à chaque changement. */
+  width: 46px; height: 26px; flex: none;
+  border: 0; border-inline: 1px solid var(--color-divider);
+  background: none; cursor: pointer;
+  font-family: var(--font-body); font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text);
+}
+.zoom__level:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* Hors de la taille du modèle, la valeur se signale : c'est elle qui explique
+   qu'un document ne paraisse pas comme les autres. */
+.zoom__level--off { color: var(--color-accent); font-weight: 700; }
+
+.editor__area {
+  flex: 1; min-height: 0; width: 100%;
+  padding: var(--space-6);
+  border: 0; outline: none; resize: none;
+  background: var(--color-bg); color: var(--color-text);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: calc(13.5px * var(--doc-zoom)); line-height: 1.7;
+  tab-size: 2;
+}
+.editor__empty {
+  flex: 1; display: flex; flex-direction: column; justify-content: center;
+  gap: var(--space-3); padding: var(--space-8);
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
+/* ------------------------------------------------------- volet sommaire */
+
+.outline {
+  flex: 0 0 var(--outline-width);
+  position: relative;
+  min-height: 0;
+  border-left: var(--rule) solid var(--color-divider);
+  background: var(--color-surface);
+  display: flex; flex-direction: column;
+}
+.outline .panel__head {
+  padding: var(--space-3) var(--space-4);
+  display: flex; align-items: center;
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+/* Le sélecteur prend toute la tête du volet : ses deux moitiés restent
+   lisibles quand on resserre le volet jusqu'à sa largeur minimale. */
+.outline .panel__head .seg { width: 100%; }
+.outline .panel__head .seg-opt {
+  flex: 1; justify-content: center; padding-inline: 6px; font-size: 12px;
+}
+
+/* Les propriétés du document, dans le volet plutôt que dans une boîte. */
+.meta .field + .field { margin-top: var(--space-3); }
+/* Un chemin de fichier et le bouton qui va le chercher : ici comme dans les
+   propriétés de l'image, le champ prend la place, le bouton garde la sienne. */
+.meta__row { display: flex; align-items: center; gap: var(--space-2); }
+.meta__row .input { flex: 1; min-width: 0; }
+.meta__row .btn { flex: none; white-space: nowrap; }
+.outline__item {
+  display: block; width: 100%; padding: 5px 8px;
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: 12.5px; line-height: 1.35;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+.outline__item:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+/* Le niveau se lit au poids et au retrait, sans numérotation. */
+.outline__item[data-level="1"] {
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 12px; letter-spacing: 0.03em; text-transform: uppercase;
+}
+.outline__item[data-level="2"] { font-weight: 600; }
+.outline__item[data-level="3"],
+.outline__item[data-level="4"],
+.outline__item[data-level="5"],
+.outline__item[data-level="6"] {
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+}
+
+@media (max-width: 1100px) {
+  /* Le sommaire cède avant l'arbre : on peut écrire sans lui, pas sans
+     savoir quel fichier on ouvre. */
+  .outline { display: none; }
+}
+
+/* ------------------------------------------------- rendu « Modifier » / « Voir » */
+
+.editor__rich {
+  flex: 1; min-height: 0; overflow: auto;
+  /* Le texte occupe toute la largeur du volet, comme en mode source. */
+  padding: var(--space-6);
+  user-select: text;
+  outline: none;
+  font-family: var(--font-body);
+  font-size: calc(15px * var(--doc-zoom));
+  line-height: var(--doc-leading);
+  color: var(--color-text);
+}
+/* La justification ne vaut que pour la prose : titres, tableaux et blocs de
+   code gardent leur alignement propre. */
+.editor__rich p,
+.editor__rich li,
+.editor__rich blockquote { text-align: var(--doc-align); }
+.editor__rich--live { background: var(--color-bg); }
+/* Le bloc est focalisable (`tabindex="0"`) même en lecture seule : sans cela
+   les flèches et « Page suivante » n'auraient aucune prise, la page elle-même
+   étant en `overflow: hidden`. Le liseré dit où va le clavier — les paramètres
+   du projet peuvent le ramener à rien en mettant `--doc-ring` à zéro. */
+.editor__rich:focus-visible { box-shadow: inset 0 0 0 var(--doc-ring, 2px) var(--color-accent); }
+
+.editor__rich h1,
+.editor__rich h2,
+.editor__rich h3,
+.editor__rich h4,
+.editor__rich h5,
+.editor__rich h6 {
+  font-family: var(--font-heading);
+  font-weight: var(--font-heading-weight);
+  line-height: 1.15;
+  margin: var(--space-6) 0 var(--space-3);
+}
+/* Les tailles se disent en `em` — donc en part de la taille de base, que le
+   zoom multiplie : sans cela, un titre garderait ses 28 px quand le texte
+   grandit. */
+.editor__rich h1 { font-size: 1.87em; }
+.editor__rich h2 { font-size: 1.4em; }
+.editor__rich h3 { font-size: 1.13em; }
+.editor__rich h4,
+.editor__rich h5,
+.editor__rich h6 { font-size: 0.93em; letter-spacing: 0.03em; text-transform: uppercase; }
+.editor__rich > :first-child { margin-top: 0; }
+
+.editor__rich p { margin: 0 0 var(--space-4); }
+.editor__rich ul,
+.editor__rich ol { margin: 0 0 var(--space-4); padding-left: var(--space-6); }
+.editor__rich li { margin-bottom: var(--space-1); }
+.editor__rich blockquote {
+  margin: 0 0 var(--space-4);
+  padding-left: var(--space-4);
+  /* Un filet, pas une barre : il signale la citation sans peser dans la page. */
+  border-left: 1px solid var(--color-accent);
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
+}
+.editor__rich hr { height: 2px; border: 0; background: var(--color-divider); margin: var(--space-6) 0; }
+.editor__rich a { color: var(--color-accent-700); }
+
+.editor__rich code {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--color-surface);
+  padding: 1px 4px;
+}
+.editor__rich pre {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border-left: 1px solid var(--color-divider);
+  /* Un bloc de code large défile chez lui, il ne pousse pas la page. */
+  overflow-x: auto;
+  /* La tabulation qu'écrit la touche du même nom tombe toutes les 4 colonnes. */
+  tab-size: 4;
+}
+.editor__rich pre code { background: none; padding: 0; }
+
+/* Liste des langages, posée dans le coin haut droit du bloc. C'est du mobilier
+   d'éditeur : `chrome` la retire avant toute conversion, et elle ne paraît
+   qu'en « Modifier ». Le bloc lui réserve sa place à droite pour qu'une
+   première ligne longue ne passe pas dessous. */
+.editor__rich pre { position: relative; }
+.editor__rich pre:has(.code-lang) { padding-right: 104px; }
+.code-lang { position: absolute; top: 4px; right: 4px; user-select: none; }
+.code-lang__select {
+  max-width: 96px;
+  font-family: var(--font-body); font-size: 11px;
+  color: color-mix(in srgb, var(--color-text) 70%, transparent);
+  background: var(--color-bg);
+  border: 1px solid var(--color-divider);
+  padding: 1px 2px;
+}
+.code-lang__select:hover { border-color: var(--color-text); color: var(--color-text); }
+.code-lang__select:focus-visible { outline: 2px solid var(--color-accent); outline-offset: -2px; }
+
+.editor__rich table {
+  border-collapse: collapse;
+  margin: 0 0 var(--space-4);
+  font-size: 0.9em;
+  display: block; overflow-x: auto;
+}
+.editor__rich th,
+.editor__rich td { border: 1px solid var(--color-divider); padding: 5px 9px; text-align: left; }
+.editor__rich th { background: var(--color-surface); font-weight: 700; }
+.editor__rich img { max-width: 100%; height: auto; }
+
+/* Le pointeur annonce la bordure saisissable : dans la première ligne d'un
+   tableau, elle déplace la séparation entre deux colonnes. */
+.editor__rich--sizing { cursor: col-resize; }
+
+/* Tableau en grille Pandoc. Les largeurs de colonnes viennent du `<colgroup>`
+   qu'écrit `tables.js` : la table doit donc rester une vraie table — un
+   `display: block` ferait ignorer les colonnes — et poser ses largeurs elle-même
+   plutôt que de suivre le contenu. */
+.editor__rich table.tbl {
+  display: table; table-layout: fixed; width: 100%;
+}
+.editor__rich table.tbl th,
+.editor__rich table.tbl td {
+  border: 0; padding: 5px 9px;
+  /* Une cellule tient plusieurs lignes : elles commencent toutes en haut. */
+  vertical-align: top;
+}
+/* L'alignement est porté par l'attribut `align`, que la grille sait dire ; une
+   déclaration de style l'emporterait sur lui sans ces deux lignes. */
+.editor__rich table.tbl [align="center"] { text-align: center; }
+.editor__rich table.tbl [align="right"] { text-align: right; }
+/* Sans « bordures », seul un trait ferme la ligne de titre — comme la barre de
+   « = » de la source. */
+.editor__rich table.tbl thead th { border-bottom: 2px solid var(--color-text); }
+.editor__rich table.tbl--bordered th,
+.editor__rich table.tbl--bordered td { border: 1px solid var(--color-divider); }
+.editor__rich table.tbl--striped tbody tr:nth-child(even) { background: var(--color-surface); }
+/* La légende se lit au-dessus, comme chez Quarto, et centrée sur le tableau —
+   à la manière d'un ouvrage imprimé, comme la légende d'une figure. */
+.editor__rich table.tbl caption {
+  caption-side: top;
+  padding: 0 0 var(--space-2);
+  text-align: center; font-style: italic;
+  /* En part du tableau, lui-même en part du texte : la légende suit le zoom. */
+  font-size: 0.93em; line-height: 1.4;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+
+/* ----------------------------------------- menu contextuel de mise en forme */
+
+.ctx {
+  position: fixed; z-index: 60;
+  min-width: 210px;
+  /* Trois colonnes tiennent large : sur une fenêtre étroite, la dernière passe
+     à la ligne plutôt que de sortir de l'écran. */
+  max-width: calc(100vw - 16px);
+  padding: var(--space-1) 0;
+  background: var(--color-bg);
+  border: var(--rule-frame) solid var(--color-text);
+  /* Le trait est fin : c'est l'ombre qui détache la surface de la page. */
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column;
+}
+/* Deux colonnes côte à côte : la mise en forme du texte, puis l'insertion.
+   Le filet qui les sépare tient lieu de séparateur — les colonnes montent
+   toutes deux jusqu'en haut, la plus courte n'étirant pas ses entrées. */
+.ctx__cols { display: flex; align-items: stretch; flex-wrap: wrap; }
+.ctx__col { display: flex; flex-direction: column; min-width: 0; }
+.ctx__col + .ctx__col { border-left: 1px solid var(--color-divider); }
+.ctx__item {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 5px var(--space-3);
+  border: 0; background: none; cursor: pointer; text-align: left;
+  font-family: var(--font-body); font-size: 12.5px;
+  color: var(--color-text);
+}
+.ctx__item:hover:not(:disabled) { background: var(--color-accent); color: var(--color-bg); }
+/* Une commande sans objet — enregistrer un document déjà à jour — est montrée
+   éteinte plutôt que retirée : le menu garde ses places. */
+.ctx__item:disabled { opacity: 0.4; cursor: not-allowed; }
+/* Poussoir enfoncé : la mise en forme est déjà posée sur la sélection, et
+   cliquer la retirera. */
+.ctx__item--on { background: var(--color-surface); font-weight: 700; }
+.ctx__item--on .ctx__mark { border-color: var(--color-accent); background: var(--color-accent); color: var(--color-bg); }
+.ctx__item--on:hover .ctx__mark { border-color: var(--color-bg); }
+/* Aperçu du format, à gauche de l'intitulé : la lettre porte l'effet. */
+.ctx__mark {
+  display: grid; place-items: center;
+  width: 20px; height: 20px; flex: none;
+  border: 1px solid var(--color-divider);
+  font-size: 12px;
+}
+.ctx__sep { height: 1px; background: var(--color-divider); margin: var(--space-1) 0; }
+.ctx__title {
+  padding: var(--space-2) var(--space-3) 2px;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+.ctx__swatches { display: flex; gap: 4px; padding: 2px var(--space-3) var(--space-2); }
+.ctx__swatch {
+  width: 22px; height: 20px; flex: none;
+  border: 1px solid var(--color-divider); cursor: pointer;
+}
+.ctx__swatch:hover { border-color: var(--color-text); box-shadow: inset 0 0 0 2px var(--color-bg); }
+/* « Sans couleur » : l'absence se montre par une barre, elle ne s'écrit pas. */
+.ctx__swatch--none {
+  background: var(--color-bg);
+  background-image: linear-gradient(
+    to top right,
+    transparent calc(50% - 1px),
+    var(--color-accent) calc(50% - 1px),
+    var(--color-accent) calc(50% + 1px),
+    transparent calc(50% + 1px)
+  );
+}
+
+/* Couleur en vigueur sur la sélection : un second clic la retire. */
+.ctx__swatch--on { border-color: var(--color-text); border-width: 2px; box-shadow: inset 0 0 0 2px var(--color-bg); }
+
+/* Un shortcode se lit comme une consigne, pas comme du texte : très discret, et
+   — lorsqu'il occupe sa ligne à lui seul — centré entre deux tirets. Les tirets
+   sont posés par la feuille de style et non par le document : ils ne partent
+   donc jamais dans le fichier. */
+.editor__rich .shortcode {
+  color: color-mix(in srgb, var(--color-text) 40%, transparent);
+  font-size: 0.92em;
+}
+.editor__rich p:has(> .shortcode:only-child) { text-align: center; }
+.editor__rich p:has(> .shortcode:only-child) .shortcode::before { content: "———— "; }
+.editor__rich p:has(> .shortcode:only-child) .shortcode::after { content: " ————"; }
+
+/* Les deux classes du span à attributs de Pandoc que l'application pose —
+   `[texte]{.smallcaps}`, `[texte]{.underline}` — relues par `markdown.js` sur
+   l'arbre rendu. Pandoc les connaît toutes deux : elles survivent à la
+   compilation, en HTML comme en PDF. */
+.editor__rich .smallcaps { font-variant: small-caps; }
+.editor__rich .underline { text-decoration: underline; text-underline-offset: 2px; }
+
+/* La surbrillance vient du même span, par son `style` : la teinte est dans le
+   document, le peu d'air autour du texte est affaire de feuille de style. */
+.editor__rich span[style*="background-color"] { padding: 0 2px; }
+
+/* L'appel d'une note de bas de page — `[^1]` — et le même appel en tête de sa
+   définition : l'accent les fait retrouver d'un coup d'œil dans la page. */
+.editor__rich .fn {
+  color: var(--color-accent);
+  font-weight: 600;
+}
+
+/* La case d'une liste à cocher : un clic la coche, d'où le curseur. */
+.editor__rich li input[type="checkbox"] {
+  margin-right: 0.35em;
+  accent-color: var(--color-accent);
+}
+.editor__rich--live li input[type="checkbox"] { cursor: pointer; }
+
+/* Un fichier écrit ailleurs peut porter ces deux balises ; l'application n'en
+   écrit plus, mais elle sait encore les afficher. */
+.editor__rich mark { padding: 0 2px; }
+.editor__rich u { text-underline-offset: 2px; }
+
+/* -------------------------------------------- poignées de redimensionnement */
+
+/* Posée en absolu par-dessus la bordure du volet : elle n'occupe aucune place
+   dans la rangée, et ne fausse donc pas l'alignement des onglets sur la
+   largeur du volet de gauche. La zone de prise déborde des deux côtés du
+   trait, qui reste fin. */
+.resizer {
+  position: absolute; top: 0; bottom: 0;
+  width: 9px; z-index: 6;
+  cursor: col-resize;
+}
+.resizer--files { right: -5px; }
+.resizer--outline { left: -5px; }
+.resizer::after {
+  content: ""; position: absolute; inset: 0 4px;
+  background: transparent;
+  transition: background 120ms ease;
+}
+.resizer:hover::after,
+.resizer:focus-visible::after { background: var(--color-accent); }
+.resizer:focus-visible { outline: none; }
+
+/* Pendant le glissement : le curseur ne change pas au survol des textes, et la
+   sélection ne s'étend pas sous le pointeur. */
+body.is-resizing { cursor: col-resize; user-select: none; }
+body.is-resizing .resizer::after { background: var(--color-accent); }
+
+/* ------------------------------------------------------ boîte de dialogue */
+
+.modal {
+  position: fixed; inset: 0; z-index: 80;
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--space-6);
+  background: color-mix(in srgb, var(--color-text) 45%, transparent);
+}
+.modal__box {
+  width: 100%; max-width: 420px;
+  max-height: 100%; overflow: hidden;
+  background: var(--color-bg);
+  border: var(--rule-frame) solid var(--color-text);
+  /* Le trait est fin : c'est l'ombre qui détache la surface de la page. */
+  box-shadow: var(--shadow-md);
+  display: flex; flex-direction: column;
+}
+.modal__head {
+  display: flex; align-items: center; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+/* C'est le corps qui défile, pas la boîte : l'en-tête et la barre d'état
+   restent en vue quand les champs débordent. */
+.modal__body {
+  padding: var(--space-4);
+  overflow: auto;
+  display: flex; flex-direction: column; gap: var(--space-6);
+}
+.modal__field { display: flex; flex-direction: column; gap: var(--space-2); }
+.modal__field h6 { margin: 0; font-size: 11px; }
+/* Le champ parcouru se signale, puisque son explication apparaît en bas. */
+.modal__field:hover h6, .modal__field:focus-within h6 { color: var(--color-accent); }
+/* Le segment tient toute la largeur du champ et ses choix se la partagent à
+   parts égales : « Gauche », « Centré » et « Droite » n'ont pas la même
+   longueur, mais rien ne justifie que leurs boutons diffèrent. */
+.modal__field .seg { background: var(--color-surface); display: flex; }
+.modal__field .seg-opt { flex: 1; justify-content: center; }
+
+/* Pied de boîte : les commandes qui engagent, à droite. */
+.modal__foot {
+  flex: none;
+  display: flex; justify-content: flex-end; gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--rule) solid var(--color-divider);
+}
+
+/* Barre d'état : une hauteur plancher d'une ligne, pour que la boîte ne
+   sursaute pas quand le texte change d'un champ à l'autre. Un chemin sans
+   espace peut être plus long que la boîte : il se casse plutôt qu'il ne
+   l'élargit. */
+.modal__status {
+  flex: none;
+  /* Deux lignes réservées d'emblée : une explication plus longue que la
+     précédente redimensionnerait sinon la boîte sous les yeux. */
+  min-height: 48px;
+  overflow-wrap: anywhere;
+  display: flex; align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-top: var(--rule) solid var(--color-divider);
+  background: var(--color-surface);
+  font-size: 11.5px; line-height: 1.35;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+
+/* Figure : l'image, sa légende, et la largeur que portent les propriétés. */
+.editor__rich figure { margin: var(--space-4) 0; max-width: 100%; }
+/* La largeur vit sur la figure ; l'image la remplit, et la légende s'aligne
+   dessus plutôt que sur la colonne de texte. */
+.editor__rich figure img { display: block; width: 100%; }
+/* Légende centrée sous l'image et en italique, à la manière d'un ouvrage
+   imprimé : rien ne la marque plus sur le côté, un filet vertical n'ayant
+   pas de sens sous un texte qui n'est pas aligné à gauche. */
+.editor__rich figcaption {
+  margin-top: var(--space-2);
+  text-align: center; font-style: italic;
+  font-size: 0.83em; line-height: 1.4;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}

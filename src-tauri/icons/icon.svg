@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Source vectorielle de l'icône : « V » sur fond accent, sans arrondi,
+       au ton du système de design (accent #ec3013, papier #f3f2f2). -->
+  <rect width="1024" height="1024" fill="#ec3013"/>
+  <path d="M184 205 L512 819 L840 205" fill="none" stroke="#f3f2f2"
+        stroke-width="174" stroke-linecap="butt" stroke-linejoin="miter"/>
+</svg>
