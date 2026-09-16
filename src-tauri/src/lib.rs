@@ -51,6 +51,11 @@ pub fn run() {
             let database = Arc::new(Db::open(&path)?);
             seed_if_empty(&database)?;
 
+            // Un dossier ouvert par une version antérieure n'a pas encore de
+            // témoin : on le lui pose avant toute chose, pour qu'il paraisse
+            // dans la liste des projets comme les autres.
+            commands::files::adopt_legacy_root(&database);
+
             // Le projet rouvert au lancement doit pouvoir montrer ses images
             // dès la première seconde, sans attendre qu'on le rechoisisse.
             if let Ok(settings) = database.settings() {
@@ -80,10 +85,17 @@ pub fn run() {
             commands::sync_feed,
             commands::sync_all,
             commands::prune_articles,
+            commands::list_projects,
+            commands::create_project,
             commands::open_project,
+            commands::forget_project,
+            commands::close_project,
             commands::project_tree,
             commands::read_document,
             commands::write_document,
+            commands::rename_file,
+            commands::duplicate_file,
+            commands::delete_file,
             commands::document_outline,
             commands::get_project_settings,
             commands::save_project_settings,

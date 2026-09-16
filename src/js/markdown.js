@@ -11,11 +11,20 @@
 
 import { expand, toGrid, CLASSES } from './tables.js';
 import { splitFront } from './frontmatter.js';
+import { readAttrs } from './anchors.js';
 
 /** Balises conservées, et pour chacune les attributs tolérés. */
+/** L'espace insécable, et la façon dont le fichier l'écrit. */
+export const NBSP = '\u00a0';
+export const BLANK = '&nbsp;';
+
 const ALLOWED = {
   p: [], br: [], hr: [],
-  h1: [], h2: [], h3: [], h4: [], h5: [], h6: [],
+  // Un titre peut porter un signet — `## Titre {#mon-signet}`, la syntaxe
+  // d'attributs de Pandoc. `data-attrs` garde au passage ce que l'application
+  // ne sait pas lire, pour le rendre au fichier intact, comme pour un tableau.
+  h1: ['id', 'data-attrs'], h2: ['id', 'data-attrs'], h3: ['id', 'data-attrs'],
+  h4: ['id', 'data-attrs'], h5: ['id', 'data-attrs'], h6: ['id', 'data-attrs'],
   strong: [], b: [], em: [], i: [], u: [], s: [], strike: [], del: [], ins: [],
   // `sup` porte l'appel de note — `[^1]` — dont la classe dit qu'il en est un.
   sup: ['class'], sub: [], small: [], mark: [],
@@ -98,6 +107,18 @@ const STYLE_VALUE =
  * reconstruit donc la déclaration à partir de ce qu'on a su lire, plutôt que
  * de laisser passer la chaîne d'origine.
  */
+/**
+ * Un identifiant de signet acceptable.
+ *
+ * Ni espace ni accolade : c'est ce qui le distingue d'un morceau de texte, et
+ * ce qui garantit qu'il ressorte du fichier tel qu'il y est entré. Les lettres
+ * accentuées passent — Pandoc les accepte, et un document français en porte.
+ */
+function safeId(value) {
+  const id = String(value ?? '');
+  return id.length <= 128 && /^[\p{L}\p{N}][\p{L}\p{N}_.:-]*$/u.test(id);
+}
+
 function safeStyle(value) {
   const kept = [];
   for (const decl of value.split(';')) {
@@ -148,6 +169,7 @@ function clean(node) {
   for (const { name, value } of [...node.attributes]) {
     if (!attrs.includes(name)) continue;
     if ((name === 'href' || name === 'src') && !safeUrl(value)) continue;
+    if (name === 'id' && !safeId(value)) continue;
     if (name === 'class' && KEEP_CLASSES[tag]) {
       const kept = value.split(/\s+/).filter((c) => KEEP_CLASSES[tag].includes(c));
       if (kept.length) out.setAttribute('class', kept.join(' '));
@@ -179,6 +201,64 @@ function clean(node) {
 
   for (const child of [...node.childNodes]) out.append(clean(child));
   return out;
+}
+
+/**
+ * Un lien Markdown dans une légende : `[le texte](l'adresse)`.
+ *
+ * La légende ne vit pas en HTML dans le fichier : elle transite par le texte
+ * entre crochets de Pandoc, que `marked` laisse **brut** dans l'attribut `alt`
+ * — il n'analyse pas la description d'une image comme du texte enrichi. La
+ * syntaxe du lien y survit donc telle quelle, et ces deux fonctions font
+ * l'aller-retour entre cette chaîne et la `<figcaption>` de l'aperçu.
+ *
+ * L'adresse s'arrête au premier `)` : une parenthèse dans une URL doit être
+ * écrite `%29`, comme le veut déjà Pandoc pour un lien sans chevrons.
+ */
+export const CAPTION_LINK = /\[([^\]]*)\]\(([^)\s]*)\)/g;
+
+/** Remplit un nœud d'une légende, ses liens devenus des `<a>`. */
+export function captionInto(node, source) {
+  // Le nœud vient tantôt du document affiché, tantôt de celui du `DOMParser` :
+  // c'est le sien qui fabrique, jamais le `document` global.
+  const doc = node.ownerDocument;
+  node.textContent = '';
+  let last = 0;
+  for (const found of String(source).matchAll(CAPTION_LINK)) {
+    const [whole, text, href] = found;
+    // Ni texte ni adresse : il n'y a pas de lien à poser, seulement des
+    // crochets que la légende garde tels qu'ils ont été écrits.
+    if (!text || !href) continue;
+    if (found.index > last) {
+      node.append(doc.createTextNode(source.slice(last, found.index)));
+    }
+    const a = doc.createElement('a');
+    a.setAttribute('href', href);
+    a.textContent = text;
+    node.append(a);
+    last = found.index + whole.length;
+  }
+  if (last < source.length) node.append(doc.createTextNode(source.slice(last)));
+}
+
+/** La légende telle qu'elle s'écrit dans le fichier, liens compris. */
+export function captionSource(node) {
+  if (!node) return '';
+  let out = '';
+  for (const child of node.childNodes) {
+    if (child.nodeType === Node.TEXT_NODE) out += child.nodeValue;
+    else if (child.tagName === 'A') {
+      out += `[${child.textContent}](${child.getAttribute('href') ?? ''})`;
+    } else out += child.textContent;
+  }
+  return out.trim();
+}
+
+/** La légende en texte seul — ce que porte l'`alt` d'une image. */
+export function captionText(source) {
+  return String(source).replace(CAPTION_LINK, (whole, text, href) =>
+    text && href ? text : whole,
+  ).trim();
 }
 
 /**
@@ -223,8 +303,11 @@ function liftFigures(doc) {
     const caption = img.getAttribute('alt') ?? '';
     if (caption) {
       const legend = doc.createElement('figcaption');
-      legend.textContent = caption;
+      captionInto(legend, caption);
       figure.append(legend);
+      // L'`alt` sert l'accessibilité : la syntaxe des liens n'a rien à y faire,
+      // seul leur texte compte.
+      img.setAttribute('alt', captionText(caption));
     }
 
     // Une image seule dans son paragraphe : la figure prend sa place plutôt
@@ -284,6 +367,45 @@ const SPAN = /\[([^[\]]*)\]\{([^{}]*)\}/g;
  * l'application sache rendre est laissée telle quelle : mieux vaut la montrer
  * que de l'escamoter.
  */
+/**
+ * Relève le signet d'un titre, et ce qu'il porte d'autre entre accolades.
+ *
+ * `marked` ne connaît pas les attributs de Pandoc et les laisserait en texte
+ * dans le titre — le signet se lirait à l'écran, et le sommaire porterait les
+ * accolades. On les relève donc ici, comme `liftFigures` relève celles d'une
+ * image. La syntaxe elle-même est lue par `readAttrs`, que la source lit aussi :
+ * une seule lecture, pour que le rendu et le fichier ne puissent pas en avoir
+ * deux idées différentes.
+ *
+ * Le bloc d'attributs termine la ligne du titre : il vit donc dans son
+ * **dernier nœud de texte**. Le retirer là plutôt que de réécrire
+ * `textContent` est ce qui laisse intact le gras, le code et les spans qu'un
+ * titre peut porter — les réécrire les aplatirait en texte.
+ *
+ * L'identifiant est extrait, le reste des accolades survit tel quel dans
+ * `data-attrs` : une classe ou une clé que l'application ne sait pas lire
+ * revient au fichier telle qu'elle y était, sans que rien ici ait à la
+ * comprendre. Les valeurs entre guillemets — `key="a b"` — sont donc gardées
+ * d'un bloc, et non découpées sur les espaces.
+ */
+function liftHeadings(doc) {
+  for (const head of doc.body.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+    const walker = doc.createTreeWalker(head, NodeFilter.SHOW_TEXT);
+    let last = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) last = node;
+    if (!last) continue;
+
+    // `null` quand il n'y a pas de bloc d'attributs, ou quand les accolades ne
+    // portent rien : le titre garde alors son texte tel qu'il est écrit.
+    const block = readAttrs(last.nodeValue);
+    if (!block) continue;
+
+    if (block.id) head.setAttribute('id', block.id);
+    if (block.attrs) head.setAttribute('data-attrs', block.attrs);
+    last.nodeValue = last.nodeValue.slice(0, block.at);
+  }
+}
+
 function liftSpans(doc) {
   const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
   const found = [];
@@ -300,17 +422,12 @@ function liftSpans(doc) {
     let at = 0;
 
     for (const match of text.matchAll(SPAN)) {
-      const attrs = match[2];
-      const classes = SPAN_CLASSES.filter((c) => new RegExp(`(^|\\s)\\.${c}(\\s|$)`).test(attrs));
-      const style = attrs.match(/style\s*=\s*"([^"]*)"/)?.[1];
+      const span = spanFor(doc, match[2]);
       // Rien de connu là-dedans : on n'y touche pas, et le texte du passage
       // rejoindra la tranche suivante tel qu'il est écrit.
-      if (!classes.length && !style) continue;
+      if (!span) continue;
 
       if (match.index > at) frag.append(doc.createTextNode(text.slice(at, match.index)));
-      const span = doc.createElement('span');
-      if (classes.length) span.className = classes.join(' ');
-      if (style) span.setAttribute('style', style);
       span.textContent = match[1];
       frag.append(span);
       at = match.index + match[0].length;
@@ -318,6 +435,91 @@ function liftSpans(doc) {
     if (at < text.length) frag.append(doc.createTextNode(text.slice(at)));
     node.replaceWith(frag);
   }
+
+  liftSplitSpans(doc);
+}
+
+/**
+ * Le `<span>` que portent des attributs de Pandoc, ou `null` s'ils ne disent
+ * rien que l'application sache rendre.
+ */
+function spanFor(doc, attrs) {
+  const classes = SPAN_CLASSES.filter((c) => new RegExp(`(^|\\s)\\.${c}(\\s|$)`).test(attrs));
+  const style = attrs.match(/style\s*=\s*"([^"]*)"/)?.[1];
+  if (!classes.length && !style) return null;
+
+  const span = doc.createElement('span');
+  if (classes.length) span.className = classes.join(' ');
+  if (style) span.setAttribute('style', style);
+  return span;
+}
+
+/**
+ * Les spans dont le texte porte lui-même une mise en forme :
+ * `[Arrivée (`IE507`)]{.underline}`.
+ *
+ * `marked` a fait du code, du gras ou de l'italique des balises, si bien que le
+ * crochet ouvrant et `]{…}` ne sont plus dans le même nœud de texte — et la
+ * lecture d'un seul nœud, plus haut, ne les voit pas. On cherche donc, parmi
+ * les enfants d'un même élément, un nœud de texte qui ouvre un crochet sans le
+ * fermer, puis le premier crochet qui suit dans un nœud de texte frère : si
+ * c'est `]{…}`, tout ce qui les sépare — balises comprises — entre dans le
+ * span. L'intérieur des balises n'est pas lu : un crochet dans du code n'est
+ * que du code.
+ */
+function liftSplitSpans(doc) {
+  const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+  const parents = new Set();
+
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.nodeValue.includes('[')) continue;
+    if (node.parentElement?.closest('code, pre')) continue;
+    parents.add(node.parentNode);
+  }
+
+  for (const parent of parents) {
+    let child = parent.firstChild;
+    while (child) child = spanAcross(doc, child) ?? child.nextSibling;
+  }
+}
+
+/**
+ * Tente d'ouvrir un span au dernier crochet de `start`. Rend le nœud d'où
+ * reprendre la lecture quand un span a été posé, `null` sinon.
+ */
+function spanAcross(doc, start) {
+  if (start.nodeType !== Node.TEXT_NODE) return null;
+  const open = start.nodeValue.lastIndexOf('[');
+  if (open < 0 || start.nodeValue.includes(']', open)) return null;
+
+  for (let node = start.nextSibling; node; node = node.nextSibling) {
+    if (node.nodeType !== Node.TEXT_NODE) continue;
+
+    const close = node.nodeValue.search(/[[\]]/);
+    if (close < 0) continue;
+    // Un autre crochet s'ouvre avant que celui-ci ne se ferme : ce n'est pas
+    // un span, ou pas celui-là.
+    if (node.nodeValue[close] === '[') return null;
+
+    const match = node.nodeValue.slice(close).match(/^\]\{([^{}]*)\}/);
+    const span = match && spanFor(doc, match[1]);
+    if (!span) return null;
+
+    // Le texte de tête perd son crochet, celui de queue sa fermeture : ce qui
+    // reste entre les deux coupures est le contenu du span.
+    const first = start.splitText(open);
+    first.nodeValue = first.nodeValue.slice(1);
+    const rest = node.splitText(close);
+    rest.nodeValue = rest.nodeValue.slice(match[0].length);
+
+    const inner = [];
+    for (let n = first; n !== rest; n = n.nextSibling) inner.push(n);
+    span.append(...inner);
+    rest.before(span);
+    if (!start.nodeValue) start.remove();
+    return rest;
+  }
+  return null;
 }
 
 /**
@@ -415,6 +617,7 @@ export function toFragment(markdown, resolve = null) {
   const html = globalThis.marked.parse(expand(expandFootnotes(body)), { gfm: true, breaks: false });
   const doc = new DOMParser().parseFromString(html, 'text/html');
   liftFigures(doc);
+  liftHeadings(doc);
   liftSpans(doc);
   liftFootnotes(doc);
   liftShortcodes(doc);
@@ -467,6 +670,87 @@ function make() {
     emDelimiter: '*',
     strongDelimiter: '**',
     linkStyle: 'inlined',
+
+    // Une **ligne vide voulue** : un paragraphe qui ne porte qu'une espace
+    // insécable. Deux retours à la ligne n'en font pas une — Markdown les
+    // ramène à une séparation de blocs —, et `<br>` est du HTML en ligne, que
+    // le document ne porte pas. `&nbsp;` seule vit dans les deux mondes :
+    // CommonMark et Pandoc la lisent, et le paragraphe qu'elle occupe fait une
+    // ligne blanche en HTML comme en PDF.
+    //
+    // Cela se dit ici et non dans une règle : `turndown` tient pour vide tout
+    // nœud dont le texte n'est que du blanc — et en JavaScript, l'insécable en
+    // est —, si bien qu'aucune règle ne serait consultée pour ce paragraphe.
+    // `blankReplacement` est le seul endroit où l'on puisse le rattraper.
+    blankReplacement: (_content, node) =>
+      (node.nodeName === 'P' && node.textContent === NBSP
+        ? `\n\n${BLANK}\n\n`
+        : (node.isBlock ? '\n\n' : '')),
+  });
+
+  // Un titre rend son signet, dans la syntaxe d'attributs de Pandoc :
+  // `## Titre {#mon-signet}`. Sans cette règle, `turndown` écrirait le titre
+  // seul et le signet disparaîtrait du fichier au premier aller-retour — les
+  // liens qui le visent tomberaient dans le vide.
+  //
+  // La règle est écrite en entier plutôt que de laisser celle de `turndown`
+  // faire les dièses : celle-ci ne saurait pas où poser les accolades, qui
+  // viennent après le texte du titre et non avant.
+  service.addRule('titre', {
+    filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+    replacement: (content, node) => {
+      const level = Number(node.nodeName.charAt(1));
+      const attrs = [];
+      // L'identifiant d'abord : c'est l'ordre que Pandoc écrit lui-même.
+      if (node.id) attrs.push(`#${node.id}`);
+      const rest = node.getAttribute('data-attrs');
+      if (rest) attrs.push(rest);
+
+      // Un titre vide n'a pas de signet à porter : ce serait un bloc
+      // d'attributs suspendu à rien, que Pandoc lirait comme du texte.
+      const text = content.trim();
+      if (!text) return '';
+
+      const suffix = attrs.length ? ` {${attrs.join(' ')}}` : '';
+      return `\n\n${'#'.repeat(level)} ${text}${suffix}\n\n`;
+    },
+  });
+
+  // Une liste **aérée** — une ligne vide entre deux entrées — est celle dont les
+  // entrées portent un paragraphe : c'est ce que `marked` en fait, et ce que
+  // CommonMark comme Pandoc appellent une liste « loose ». La différence se voit
+  // à la compilation, l'espacement des entrées n'étant pas le même.
+  //
+  // `turndown` ne sait pas le dire : sa règle ramène toujours une entrée à une
+  // seule fin de ligne, et l'aération serait donc perdue au premier
+  // aller-retour. La règle est reprise en entier — préfixe et indentation
+  // compris — pour lui ajouter cette ligne vide.
+  service.addRule('entree-de-liste', {
+    filter: 'li',
+    replacement: (content, node, options) => {
+      const text = content
+        .replace(/^\n+/, '')
+        .replace(/\n+$/, '\n')
+        .replace(/\n/gm, '\n    ')
+        // L'indentation a suivi jusqu'à la dernière fin de ligne : les espaces
+        // qu'elle y a semés ne tiennent rien. Seules les lignes faites de blanc
+        // se vident — deux espaces en fin de ligne, eux, sont un saut de ligne.
+        .replace(/^[ \t]+$/gm, '');
+
+      const list = node.parentNode;
+      let prefix = `${options.bulletListMarker}   `;
+      if (list.nodeName === 'OL') {
+        const start = list.getAttribute('start');
+        const rank = [...list.children].indexOf(node);
+        prefix = `${start ? Number(start) + rank : rank + 1}.  `;
+      }
+
+      // La fin de ligne de `turndown`, puis la ligne vide de l'aération. La
+      // dernière entrée n'en porte pas : ce qui suit la liste a la sienne.
+      const end = node.nextSibling && !/\n$/.test(text) ? '\n' : '';
+      const air = node.nextSibling && loose(list) ? '\n' : '';
+      return prefix + text + end + air;
+    },
   });
 
   // Le barré est du GFM : turndown ne le connaît pas dans son jeu de base,
@@ -491,9 +775,8 @@ function make() {
       if (!img) return '';
 
       const src = img.getAttribute('data-src') || img.getAttribute('src') || '';
-      const caption = node.querySelector('figcaption')?.textContent.trim()
-        ?? img.getAttribute('alt')
-        ?? '';
+      const legend = node.querySelector('figcaption');
+      const caption = legend ? captionSource(legend) : (img.getAttribute('alt') ?? '');
 
       const style = node.getAttribute('style') ?? '';
       const left = /margin-left:\s*auto/.test(style);
@@ -613,6 +896,13 @@ function make() {
   // `<mark>`, qu'ils viennent de la saisie ou d'un fichier écrit ailleurs —
   // est déplié, et son texte survit seul.
   return service;
+}
+
+/** Une liste est aérée quand ses entrées portent un paragraphe. */
+function loose(list) {
+  return [...list.children].some(
+    (li) => li.nodeName === 'LI' && [...li.children].some((n) => n.nodeName === 'P'),
+  );
 }
 
 /** HTML → Markdown, dans la forme que lit déjà le reste de l'application. */

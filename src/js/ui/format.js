@@ -17,13 +17,20 @@
 import { el, icon, replace, PATH } from './dom.js';
 import * as store from '../store.js';
 import * as api from '../api.js';
-import { imageResolver } from './editor.js';
-import { toMarkdown } from '../markdown.js';
+import { imageResolver, flush } from './editor.js';
+import { toMarkdown, NBSP } from '../markdown.js';
 import * as image from './image.js';
 import * as table from './table.js';
 import * as code from './code.js';
 import * as shortcode from './shortcode.js';
 import * as frontmatter from './frontmatter.js';
+import * as anchor from './anchor.js';
+import * as link from './link.js';
+import * as ctxMenu from './menu.js';
+import * as clipboard from './clipboard.js';
+import { headingsIn, idsIn, readHeading, writeHeading } from '../anchors.js';
+import { labelOf } from '../keys.js';
+import * as lists from '../lists.js';
 
 const rich = document.getElementById('editor-rich');
 const area = document.getElementById('editor-area');
@@ -225,6 +232,16 @@ export function wire() {
       image.close();
       shortcode.close();
 
+      // Un lien a le sien : ses propriétés, ou son retrait. Chaque regard lit
+      // ce qu'il montre — le nœud `<a>` dans le rendu, `[texte](cible)` sous le
+      // curseur dans la source.
+      const found = host === rich ? richLinkAt(ev.target) : sourceLinkAt();
+      if (found) {
+        close();
+        openLinkMenu(found, ev.clientX, ev.clientY);
+        return;
+      }
+
       // Un shortcode a le sien : ses propriétés, ou son retrait. Il ne vaut
       // que dans le rendu — dans la source, le shortcode n'est que du texte,
       // et c'est le menu de mise en forme qui s'ouvre.
@@ -307,16 +324,43 @@ function open(x, y, cell = null) {
 
   const ink = activeColor(INK, source);
   const back = activeColor(BACK, source);
+  // Relevé une fois pour toutes : il décide si l'entrée du signet paraît, et ce
+  // qu'elle annonce.
+  const head = headingAt(source);
+  // La liste sous le curseur, s'il y en a une : c'est elle qui se serre ou
+  // s'aère, et sans elle l'espacement n'a rien sur quoi porter.
+  const listed = listAt(source);
+
+  // Ce que la sélection permet : sans elle, il n'y a rien à couper ni à copier.
+  // « Coller » ne se juge pas de même — savoir ce que le presse-papiers contient
+  // demande de le lire, et cela ne se fait qu'au geste de l'utilisateur, pas à
+  // l'ouverture d'un menu.
+  const filled = clipboard.filled(source);
 
   // Deux colonnes : ce qui met en forme le texte à gauche, ce qui insère
   // quelque chose dans le document à droite. Le menu reste ainsi court, et les
-  // deux familles ne se confondent pas dans une seule liste.
+  // deux familles ne se confondent pas dans une seule liste. Le presse-papiers
+  // ouvre la première : c'est là qu'on va le chercher.
   const format = el(
     'div.ctx__col',
     {},
     [
+      el('div.ctx__title', {}, 'Historique'),
+      item('Annuler', pictogram(PATH.undo), false, undo, labelOf('undo'), !store.canUndo()),
+      item('Rétablir', pictogram(PATH.redo), false, redo, labelOf('redo'), !store.canRedo()),
+      el('div.ctx__sep'),
+      el('div.ctx__title', {}, 'Presse-papiers'),
+      item('Couper', pictogram(PATH.cut), false,
+        () => clipboard.cut(source), labelOf('clip.cut'), !filled),
+      item('Copier', pictogram(PATH.copy), false,
+        () => clipboard.copy(source), labelOf('clip.copy'), !filled),
+      item('Coller', pictogram(PATH.paste), false,
+        () => clipboard.paste(source), labelOf('clip.paste')),
+      el('div.ctx__sep'),
       el('div.ctx__title', {}, 'Format du texte'),
-      ...ACTIONS.map((a) => item(a.label, sample(a), isActive(a, source), () => apply(a, source))),
+      ...ACTIONS.map((a) => item(
+        a.label, sample(a), isActive(a, source), () => apply(a, source), labelOf(`format.${a.id}`),
+      )),
       el('div.ctx__sep'),
       el('div.ctx__title', {}, 'Surbrillance'),
       swatches([...HIGHLIGHTS, NONE], back, (color) => paint(BACK, color, source)),
@@ -339,18 +383,53 @@ function open(x, y, cell = null) {
     {},
     [
       el('div.ctx__title', {}, 'Paragraphe'),
-      ...BLOCKS.map((b) =>
-        item(b.label, badge(b.badge), blockActive(b, source), () => applyBlock(b, source)),
-      ),
+      ...BLOCKS.map((b) => item(
+        b.label, badge(b.badge), blockActive(b, source),
+        () => applyBlock(b, source), labelOf(`block.${b.tag}`),
+      )),
       // La citation contient le bloc au lieu de le remplacer : un titre cité
       // reste un titre. Elle a donc sa propre bascule, et non une entrée de
       // plus dans la liste ci-dessus.
-      item('Citation', badge('>'), quoteActive(source), () => applyQuote(source)),
+      item('Citation', badge('>'), quoteActive(source), () => applyQuote(source), labelOf('block.quote')),
       el('div.ctx__sep'),
       el('div.ctx__title', {}, 'Listes'),
-      ...LISTS.map((l) =>
-        item(l.label, badge(l.badge), listActive(l, source), () => applyList(l, source)),
-      ),
+      ...LISTS.map((l) => item(
+        l.label, badge(l.badge), listActive(l, source),
+        () => applyList(l, source), labelOf(`list.${l.id}`),
+      )),
+      // L'espacement ne paraît que dans une liste : ailleurs il n'y aurait rien
+      // à serrer, et une entrée éteinte n'apprendrait pas où elle s'applique.
+      ...(listed
+        ? [
+          item('Liste serrée', pictogram(PATH.listTight), !listed.loose,
+            () => setSpacing(false, source)),
+          item('Liste aérée', pictogram(PATH.listLoose), listed.loose,
+            () => setSpacing(true, source)),
+        ]
+        : []),
+      el('div.ctx__sep'),
+      el('div.ctx__title', {}, 'Retrait'),
+      item('Augmenter le retrait', pictogram(PATH.indent), false,
+        () => shift(1, source), '', !canShift(1, source)),
+      item('Réduire le retrait', pictogram(PATH.outdent), false,
+        () => shift(-1, source), '', !canShift(-1, source)),
+      // Le signet ne paraît que dans un titre : ailleurs il n'y a rien à
+      // marquer, et une entrée éteinte n'apprendrait pas où elle s'applique.
+      // L'intitulé porte le signet en vigueur — un signet ne se voit pas dans le
+      // document, c'est le seul endroit où l'on puisse le lire.
+      ...(head
+        ? [
+          el('div.ctx__sep'),
+          el('div.ctx__title', {}, 'Titre'),
+          item(
+            head.id ? `Signet : #${head.id}…` : 'Poser un signet…',
+            pictogram(PATH.bookmark),
+            false,
+            () => editAnchor(source),
+            labelOf('anchor'),
+          ),
+        ]
+        : []),
     ],
   );
 
@@ -358,18 +437,20 @@ function open(x, y, cell = null) {
     'div.ctx__col',
     {},
     el('div.ctx__title', {}, 'Insertion'),
-    item('Insérer une image…', pictogram(PATH.image), false, () => insertImage(source)),
-    item('Insérer un tableau…', pictogram(PATH.table), false, () => insertTable(source)),
-    item('Insérer un bloc de code', pictogram(PATH.code), false, () => insertCode(source)),
-    item('Insérer une ligne horizontale', pictogram(PATH.rule), false, () => insertRule(source)),
-    item('Insérer une note de bas de page', badge('¹'), false, () => insertFootnote(source)),
-    item('Insérer un shortcode…', pictogram(PATH.braces), false, () => insertShortcode(source)),
+    item('Insérer un lien…', pictogram(PATH.link), false, () => insertLink(source), labelOf('insert.link')),
+    item('Insérer une image…', pictogram(PATH.image), false, () => insertImage(source), labelOf('insert.image')),
+    item('Insérer un tableau…', pictogram(PATH.table), false, () => insertTable(source), labelOf('insert.table')),
+    item('Insérer un bloc de code', pictogram(PATH.code), false, () => insertCode(source), labelOf('insert.code')),
+    item('Insérer une ligne horizontale', pictogram(PATH.rule), false, () => insertRule(source), labelOf('insert.rule')),
+    item('Insérer une ligne vide', pictogram(PATH.blank), false, () => insertBlank(source), labelOf('insert.blank')),
+    item('Insérer une note de bas de page', badge('¹'), false, () => insertFootnote(source), labelOf('insert.footnote')),
+    item('Insérer un shortcode…', pictogram(PATH.braces), false, () => insertShortcode(source), labelOf('insert.shortcode')),
     el('div.ctx__sep'),
     el('div.ctx__title', {}, 'Document'),
     // Rien ne se pose ici au point d'insertion : l'entrée porte le volet droit
     // sur les propriétés du document, qui s'écrivent en tête du fichier, dans
     // son bloc YAML.
-    item('Propriétés du document', pictogram(PATH.sliders), false, () => frontmatter.reveal()),
+    item('Propriétés du document', pictogram(PATH.sliders), false, () => frontmatter.reveal(), labelOf('frontmatter')),
   );
 
   // Le tableau n'ouvre pas un menu à lui : la mise en forme du texte reste
@@ -397,9 +478,17 @@ function tableMenu(cell) {
   const alignment = (label, path, value) =>
     item(label, pictogram(path), align === value, () => table.alignColumn(cell, value));
 
+  // Ce qui ne peut pas s'appliquer ne paraît pas : la dernière rangée et la
+  // dernière colonne ne se retirent pas — c'est le tableau entier qu'on veut
+  // alors, et sa propre commande est juste en dessous.
+  const rows = cell.closest('table')?.querySelectorAll('tr').length ?? 0;
+  const cols = cell.closest('tr')?.children.length ?? 0;
+
   return el('div.ctx__col', {}, [
     el('div.ctx__title', {}, 'Tableau'),
     item('Propriétés du tableau…', pictogram(PATH.sliders), false, () => table.properties(cell)),
+    item('Couper le tableau', pictogram(PATH.cut), false, () => table.cut(cell)),
+    item('Copier le tableau', pictogram(PATH.copy), false, () => table.copy(cell)),
     el('div.ctx__sep'),
     el('div.ctx__title', {}, 'Alignement de la colonne'),
     alignment('Gauche', PATH.alignLeft, 'left'),
@@ -415,17 +504,36 @@ function tableMenu(cell) {
     item('Insérer une colonne à droite', pictogram(PATH.columnRight), false,
       () => table.insertColumn(cell, 'right')),
     el('div.ctx__sep'),
+    rows > 1
+      ? item('Supprimer la ligne', pictogram(PATH.rowRemove), false, () => table.deleteRow(cell))
+      : null,
+    cols > 1
+      ? item('Supprimer la colonne', pictogram(PATH.columnRemove), false,
+        () => table.deleteColumn(cell))
+      : null,
     item('Supprimer le tableau', pictogram(PATH.trash), false, () => table.remove(cell)),
   ]);
 }
 
-function item(label, preview, active, run) {
+/**
+ * Une entrée du menu.
+ *
+ * `keys` est l'intitulé de sa frappe, tiré de `labelOf` — jamais écrit ici : la
+ * table de `keys.js` est le seul endroit qui nomme les raccourcis, et un
+ * intitulé recopié dans ce module finirait par ne plus lui correspondre.
+ *
+ * `off` éteint l'entrée sans la retirer : une commande sans objet — couper alors
+ * que rien n'est sélectionné — garde sa place, et le menu dit ainsi ce qu'il
+ * sait faire, et pourquoi il ne le fait pas ici.
+ */
+function item(label, preview, active, run, keys = '', off = false) {
   const node = el(
     'button.ctx__item',
     {
       // Un poussoir, pas une commande : l'état compte autant que l'intitulé.
       role: 'menuitemcheckbox',
       'aria-checked': String(active),
+      disabled: off || null,
       onclick: () => {
         close();
         // L'action peut être asynchrone — le sélecteur de fichier l'est.
@@ -434,6 +542,7 @@ function item(label, preview, active, run) {
     },
     preview ?? el('span.ctx__mark'),
     el('span', {}, label),
+    keys ? el('span.ctx__keys', {}, keys) : null,
   );
   if (active) node.classList.add('ctx__item--on');
   return node;
@@ -514,6 +623,56 @@ function queryState(command) {
   } catch {
     return false;
   }
+}
+
+/** Le rang de la ligne où commence la sélection de la source. */
+function lineRank() {
+  return area.value.slice(0, area.selectionStart).split('\n').length - 1;
+}
+
+/** Où commence, dans le texte, la ligne de ce rang. */
+function offsetOf(lines, rank) {
+  let at = 0;
+  for (let i = 0; i < rank; i++) at += lines[i].length + 1;
+  return at;
+}
+
+/** Les bornes, dans le texte, des lignes que la sélection touche. */
+function lineSpan() {
+  const { selectionStart: a, selectionEnd: b, value } = area;
+  const from = value.lastIndexOf('\n', a - 1) + 1;
+  const stop = value.indexOf('\n', b);
+  return { from, to: stop < 0 ? value.length : stop };
+}
+
+/** Ces mêmes lignes, une à une. */
+function selectedLines() {
+  const { from, to } = lineSpan();
+  return area.value.slice(from, to).split('\n');
+}
+
+/** Réécrit ces lignes par `run`, et laisse la sélection dessus. */
+function mapLines(run) {
+  const { from, to } = lineSpan();
+  replaceRange(from, to, run(area.value.slice(from, to).split('\n')).join('\n'));
+}
+
+/**
+ * Réécrit une tranche de la source.
+ *
+ * La sélection se repose sur ce qu'on vient d'écrire : c'est ce qui permet
+ * d'enchaîner deux crans de retrait sans recliquer dans le texte.
+ */
+function replaceRange(from, to, text) {
+  const tab = store.activeTab();
+  if (!tab) return;
+
+  const next = area.value.slice(0, from) + text + area.value.slice(to);
+  area.value = next;
+  area.setSelectionRange(from, from + text.length);
+  area.focus({ preventScroll: true });
+  store.edit(tab.path, next);
+  store.reoutline(tab.path).catch(() => {});
 }
 
 /** La première ligne non vide que touche la sélection de la source. */
@@ -787,6 +946,179 @@ function checkbox(checked = false) {
  * titre, et la marque se pose donc devant la ligne entière, marque de bloc
  * comprise.
  */
+// ------------------------------------------- espacement d'une liste et retrait
+
+/** Les balises qui font bloc dans une entrée de liste. */
+const LI_BLOCK = /^(?:P|UL|OL|PRE|BLOCKQUOTE|TABLE|H[1-6]|HR|FIGURE|DIV)$/;
+
+/**
+ * La liste sous le curseur, et si elle est aérée — ou `null` s'il n'y en a pas.
+ *
+ * Le mode décide de ce qu'on regarde, comme partout ailleurs : les lignes du
+ * Markdown dans la source, le nœud de la liste dans le rendu.
+ */
+function listAt(source) {
+  if (source) {
+    const lines = area.value.split('\n');
+    const found = lists.bounds(lines, lineRank());
+    return found ? { loose: lists.isLoose(lines, found.from, found.to) } : null;
+  }
+
+  const node = ancestor((n) => n.nodeName === 'UL' || n.nodeName === 'OL');
+  return node ? { node, loose: looseRich(node) } : null;
+}
+
+/** Une liste est aérée quand ses entrées portent un paragraphe. */
+function looseRich(node) {
+  return [...node.children].some(
+    (li) => li.nodeName === 'LI' && [...li.children].some((n) => n.nodeName === 'P'),
+  );
+}
+
+/**
+ * Serre ou aère la liste sous le curseur.
+ *
+ * Dans la source, c'est une affaire de lignes vides ; dans le rendu, de
+ * paragraphes — les deux disent la même chose, et `markdown.js` fait la
+ * traduction dans les deux sens.
+ */
+function setSpacing(loose, source) {
+  if (source) {
+    const lines = area.value.split('\n');
+    const found = lists.bounds(lines, lineRank());
+    if (!found) return;
+
+    const { from, to, base } = found;
+    const next = loose ? lists.spread(lines, from, to, base) : lists.tighten(lines, from, to);
+    replaceRange(offsetOf(lines, from), offsetOf(lines, to) + lines[to].length, next.join('\n'));
+    return;
+  }
+
+  const node = ancestor((n) => n.nodeName === 'UL' || n.nodeName === 'OL');
+  if (!node) return;
+  if (loose) spreadRich(node);
+  else tightenRich(node);
+  commit();
+}
+
+/** Aère : le texte de tête de chaque entrée passe dans un paragraphe. */
+function spreadRich(node) {
+  for (const li of [...node.children]) {
+    if (li.nodeName !== 'LI') continue;
+    if ([...li.children].some((n) => n.nodeName === 'P')) continue;
+
+    const p = document.createElement('p');
+    // Seul ce qui précède le premier bloc y passe : une sous-liste reste où
+    // elle est, et son entrée garde son rang.
+    while (li.firstChild && !isLiBlock(li.firstChild)) p.append(li.firstChild);
+    if (p.childNodes.length) li.prepend(p);
+  }
+}
+
+/** Serre : le paragraphe d'une entrée se déplie. */
+function tightenRich(node) {
+  for (const li of [...node.children]) {
+    if (li.nodeName !== 'LI') continue;
+
+    const paragraphs = [...li.children].filter((n) => n.nodeName === 'P');
+    // Deux paragraphes dans une entrée ne se serrent pas : la ligne vide qui
+    // les sépare porte du sens, et les fondre changerait le texte.
+    if (paragraphs.length !== 1) continue;
+    paragraphs[0].replaceWith(...paragraphs[0].childNodes);
+  }
+}
+
+const isLiBlock = (node) =>
+  node.nodeType === Node.ELEMENT_NODE && LI_BLOCK.test(node.nodeName);
+
+/**
+ * Augmente ou réduit le retrait.
+ *
+ * Quatre espaces : la mesure qu'une entrée de liste demande pour s'imbriquer.
+ * Dans la source, c'est bien ce qui s'écrit, ligne à ligne, sur ce que la
+ * sélection touche. Dans le rendu, où il n'y a pas de lignes, ce sont les
+ * entrées de liste qui changent de rang — ce que ces mêmes quatre espaces
+ * diront une fois le Markdown écrit.
+ */
+function shift(step, source) {
+  if (source) {
+    mapLines((lines) => (step > 0 ? lists.indent(lines) : lists.outdent(lines)));
+    return;
+  }
+
+  const items = touchedItems();
+  if (!items.length) return;
+  // Imbriquer se fait de haut en bas, remonter de bas en haut : dans les deux
+  // cas, l'entrée qui bouge trouve ainsi ses voisines encore en place.
+  for (const li of step > 0 ? items : [...items].reverse()) {
+    if (step > 0) nest(li);
+    else unnest(li);
+  }
+  commit();
+}
+
+/** Y a-t-il un retrait à poser, à retirer ? Sinon l'entrée s'éteint. */
+function canShift(step, source) {
+  if (source) return step > 0 ? Boolean(store.activeTab()) : lists.indented(selectedLines());
+
+  const items = touchedItems();
+  return step > 0
+    ? items.some((li) => li.previousElementSibling?.nodeName === 'LI')
+    : items.some((li) => li.parentElement?.parentElement?.nodeName === 'LI');
+}
+
+/**
+ * Les entrées de liste que la sélection touche.
+ *
+ * Une entrée qui en contient une autre n'est pas celle qu'on vise : c'est la
+ * plus profonde que la sélection atteigne vraiment, sans quoi un curseur posé
+ * dans une sous-entrée ferait bouger toute la branche.
+ */
+function touchedItems() {
+  const range = target();
+  if (!range) return [];
+
+  const all = [...rich.querySelectorAll('li')].filter((li) => range.intersectsNode(li));
+  return all.filter((li) => !all.some((other) => other !== li && li.contains(other)));
+}
+
+/**
+ * Imbrique l'entrée sous celle qui la précède.
+ *
+ * La première entrée d'une liste n'a rien où s'imbriquer : en Markdown, une
+ * sous-liste est le contenu d'une entrée, et sans entrée au-dessus, les quatre
+ * espaces feraient un bloc de code.
+ */
+function nest(li) {
+  const host = li.previousElementSibling;
+  if (host?.nodeName !== 'LI') return;
+
+  const list = li.parentElement;
+  const last = host.lastElementChild;
+  if (last?.nodeName === list.nodeName) last.append(li);
+  else {
+    const made = document.createElement(list.nodeName);
+    made.append(li);
+    host.append(made);
+  }
+}
+
+/** Remonte l'entrée d'un rang. Ce qui la suivait la suit encore. */
+function unnest(li) {
+  const list = li.parentElement;
+  const host = list?.parentElement;
+  if (host?.nodeName !== 'LI') return;
+
+  const after = [...list.children].slice([...list.children].indexOf(li) + 1);
+  host.after(li);
+  if (after.length) {
+    const tail = document.createElement(list.nodeName);
+    tail.append(...after);
+    li.append(tail);
+  }
+  if (!list.children.length) list.remove();
+}
+
 function applyQuote(source) {
   if (source) return prefixLines('> ', QUOTE, true);
 
@@ -819,8 +1151,7 @@ const QUOTES = /^(?:> )+/;
  * l'on pose la citation elle-même, ou un bloc **dans** la citation.
  */
 function prefixLines(mark, carried, quoting = false) {
-  const tab = store.activeTab();
-  if (!tab) return;
+  if (!store.activeTab()) return;
 
   const { selectionStart: a, selectionEnd: b, value } = area;
   const from = value.lastIndexOf('\n', a - 1) + 1;
@@ -846,13 +1177,7 @@ function prefixLines(mark, carried, quoting = false) {
     return `${quotes}${typeof mark === 'function' ? mark(rank) : mark}${bare}`;
   });
 
-  const text = out.join('\n');
-  const next = value.slice(0, from) + text + value.slice(to);
-  area.value = next;
-  area.setSelectionRange(from, from + text.length);
-  area.focus({ preventScroll: true });
-  store.edit(tab.path, next);
-  store.reoutline(tab.path).catch(() => {});
+  replaceRange(from, to, out.join('\n'));
 }
 
 /**
@@ -1144,6 +1469,27 @@ function insertRule(source) {
 }
 
 /**
+ * Insère une ligne vide.
+ *
+ * Deux retours à la ligne n'en font pas une : Markdown les ramène à une
+ * séparation de blocs, et le blanc qu'on croyait poser disparaît à la
+ * compilation. `<br>` non plus — c'est du HTML en ligne, que le document ne
+ * porte pas. Reste l'espace insécable, seule dans son paragraphe : CommonMark
+ * et Pandoc la lisent toutes deux, et le paragraphe qu'elle occupe fait une
+ * ligne blanche en HTML comme en PDF.
+ *
+ * Le fichier l'écrit `&nbsp;`, que l'on voit ; le rendu porte le caractère,
+ * qu'on ne voit pas — c'est bien une ligne vide.
+ */
+function insertBlank(source) {
+  if (source) {
+    insertSource(`${fresh()}&nbsp;\n\n`);
+    return;
+  }
+  insertBlock(el('p', {}, NBSP));
+}
+
+/**
  * Insère une note de bas de page, dans la syntaxe de Pandoc.
  *
  * L'appel — `[^3]` — se pose au point d'insertion ; sa définition —
@@ -1231,6 +1577,274 @@ function write(source, text, block) {
   // c'est ce que la feuille de style fait de tout bloc de cette forme.
   if (block) insertBlock(el('p', {}, node));
   else insertRich(node);
+}
+
+// ------------------------------------------------------ signets et liens
+
+/**
+ * La ligne de la source où se trouve le curseur, et son rang.
+ *
+ * `currentLine` rend la première ligne non vide que touche la sélection : cela
+ * suffit pour reconnaître un bloc, pas pour en réécrire un — il faut alors
+ * savoir *laquelle* des lignes on réécrit.
+ */
+function sourceLine() {
+  const { selectionStart: a, value } = area;
+  const from = value.lastIndexOf('\n', a - 1) + 1;
+  const stop = value.indexOf('\n', from);
+  const to = stop < 0 ? value.length : stop;
+  return { at: value.slice(0, from).split('\n').length - 1, text: value.slice(from, to) };
+}
+
+/**
+ * Le titre où se trouve le curseur, s'il y en a un.
+ *
+ * Chaque regard lit ce qu'il montre : le nœud dans le rendu, la ligne dans la
+ * source — la même règle que la barre de recherche. Elle évite d'avoir à faire
+ * correspondre un rang de ligne à un nœud du rendu, correspondance qu'un titre
+ * cité ou logé dans une cellule mettrait en défaut.
+ */
+function headingAt(source) {
+  if (!source) {
+    const node = ancestor((n) => /^H[1-6]$/.test(n.nodeName));
+    if (!node) return null;
+    return {
+      level: Number(node.nodeName.charAt(1)),
+      text: node.textContent.trim(),
+      id: node.id || null,
+      node,
+    };
+  }
+
+  const line = sourceLine();
+  const read = readHeading(line.text);
+  return read && read.text ? { ...read, at: line.at } : null;
+}
+
+/** Les signets déjà posés, tels que le regard en cours les voit. */
+function takenIds(source) {
+  if (source) return idsIn(store.activeTab()?.content ?? '');
+  return [...rich.querySelectorAll('[id]')].map((n) => n.id).filter(Boolean);
+}
+
+/** Les titres du document, tels que le regard en cours les voit. */
+function headingList(source) {
+  if (source) {
+    return headingsIn(store.activeTab()?.content ?? '').map((h) => ({
+      key: h.line, level: h.level, text: h.text, id: h.id,
+    }));
+  }
+  return [...rich.querySelectorAll('h1, h2, h3, h4, h5, h6')].map((node) => ({
+    key: node,
+    level: Number(node.nodeName.charAt(1)),
+    text: node.textContent.trim(),
+    id: node.id || null,
+  }));
+}
+
+/** Le texte sélectionné, dans le regard en cours. */
+function selectedText(source) {
+  if (source) return area.value.slice(area.selectionStart, area.selectionEnd).trim();
+  return (target()?.toString() ?? '').trim();
+}
+
+/**
+ * Pose, change ou retire le signet du titre où se trouve le curseur.
+ *
+ * Le titre est relevé **avant** d'ouvrir la boîte : celle-ci donne le clavier à
+ * son champ, et la sélection du document est alors perdue.
+ */
+function editAnchor(source) {
+  const head = headingAt(source);
+  if (!head) return;
+
+  // Son propre signet n'est pas un doublon de lui-même.
+  const taken = takenIds(source).filter((id) => id !== head.id);
+
+  anchor.open({ level: head.level, text: head.text, id: head.id, taken }, (id) => {
+    if (source) writeAnchorSource(head.at, id);
+    else writeAnchorRich(head.node, id);
+  });
+}
+
+/** Le signet, posé sur le nœud du titre. `null` le retire. */
+function writeAnchorRich(node, id) {
+  // Le rendu peut avoir été rebâti pendant que la boîte était ouverte.
+  if (!node?.isConnected) return;
+  if (id) node.setAttribute('id', id);
+  else node.removeAttribute('id');
+  commit();
+}
+
+/** Le signet, réécrit sur la ligne du titre. `null` le retire. */
+function writeAnchorSource(at, id) {
+  const tab = store.activeTab();
+  if (!tab) return;
+
+  const lines = area.value.split('\n');
+  if (lines[at] === undefined) return;
+
+  lines[at] = writeHeading(lines[at], id);
+  const next = lines.join('\n');
+  // Le curseur en fin de ligne réécrite : c'est là qu'on regarde ce qui vient
+  // d'être posé, et la ligne peut avoir changé de longueur sous lui.
+  const end = lines.slice(0, at + 1).reduce((n, l) => n + l.length + 1, 0) - 1;
+
+  area.value = next;
+  area.setSelectionRange(end, end);
+  area.focus({ preventScroll: true });
+  store.edit(tab.path, next);
+  store.reoutline(tab.path).catch(() => {});
+}
+
+/**
+ * Insère un lien, décrit dans sa boîte.
+ *
+ * Les quatre sortes de cible ne changent rien à ce qui s'écrit : un lien est
+ * toujours `[texte](cible)`. La boîte rend aussi, s'il y a lieu, le signet à
+ * poser sur le titre visé — un lien vers un titre qui n'en a pas dépendrait
+ * sinon de l'identifiant que l'outil de compilation lui inventerait, et ceux de
+ * Pandoc, de Quarto et de GitHub ne s'accordent pas.
+ */
+function insertLink(source) {
+  if (!store.activeTab()) return;
+
+  link.open(
+    { label: selectedText(source), headings: headingList(source), ids: takenIds(source) },
+    (out) => (source ? writeLinkSource(out) : writeLinkRich(out)),
+  );
+}
+
+/** Le lien du rendu sous le pointeur, s'il y en a un. */
+function richLinkAt(node) {
+  const a = node.closest?.('a[href]');
+  if (!a || !rich.contains(a)) return null;
+  return { node: a, label: a.textContent.trim(), href: a.getAttribute('href') };
+}
+
+/** Un lien — et non une image — dans une ligne de la source. */
+const SOURCE_LINK = /(!?)\[([^\]]*)\]\(([^()\s]*)\)/g;
+
+/**
+ * Le lien de la source où se trouve le curseur, s'il y en a un.
+ *
+ * Seule la ligne du curseur est lue : un lien ne s'écrit pas sur deux. Les
+ * bornes rendues sont celles de la zone entière, et `text` garde ce qu'elles
+ * couvraient — de quoi vérifier, au moment d'écrire, que rien n'a bougé.
+ */
+function sourceLinkAt() {
+  const { selectionStart: a, value } = area;
+  const from = value.lastIndexOf('\n', a - 1) + 1;
+  const stop = value.indexOf('\n', from);
+  const line = value.slice(from, stop < 0 ? value.length : stop);
+
+  for (const match of line.matchAll(SOURCE_LINK)) {
+    const start = from + match.index;
+    const end = start + match[0].length;
+    if (match[1] || a < start || a > end) continue;
+    return { from: start, to: end, text: match[0], label: match[2], href: match[3] };
+  }
+  return null;
+}
+
+/**
+ * Le menu propre à un lien : ses propriétés, ou son retrait.
+ *
+ * Le lien est relevé **avant** d'ouvrir la boîte, comme le titre d'un signet :
+ * elle prend le clavier, et la sélection du document est alors perdue.
+ */
+function openLinkMenu(found, x, y) {
+  ctxMenu.open(x, y, [
+    ctxMenu.title('Lien'),
+    ctxMenu.item('Modifier les propriétés…', PATH.sliders, () => editLink(found)),
+    ctxMenu.separator(),
+    ctxMenu.item('Supprimer le lien', PATH.trash, () => unlink(found)),
+  ]);
+}
+
+/**
+ * Rouvre la boîte du lien sur le lien visé, et le réécrit à la validation.
+ *
+ * Ce qui repart dans le document remplace le lien, au même endroit : dans la
+ * source, ses bornes redeviennent la sélection, et l'écriture d'un lien neuf
+ * fait le reste — signet du titre visé compris.
+ */
+function editLink(found) {
+  const source = !found.node;
+  link.open(
+    { label: found.label, href: found.href, headings: headingList(source), ids: takenIds(source) },
+    (out) => {
+      if (source) {
+        if (area.value.slice(found.from, found.to) !== found.text) return;
+        area.setSelectionRange(found.from, found.to);
+        writeLinkSource(out);
+        return;
+      }
+
+      // Le rendu peut avoir été rebâti pendant que la boîte était ouverte.
+      if (!found.node.isConnected) return;
+      if (out.signet) writeAnchorRich(out.signet.key, out.signet.id);
+      found.node.setAttribute('href', out.href);
+      // Le texte n'est réécrit que s'il a changé : le remplacer aplatirait le
+      // gras ou le code que le lien peut porter.
+      if (out.label !== found.label) found.node.textContent = out.label;
+      commit();
+    },
+  );
+}
+
+/**
+ * Retire le lien, et lui seul : son texte reste où il était — c'est la cible
+ * qu'on supprime, pas ce qu'on lit.
+ */
+function unlink(found) {
+  if (found.node) {
+    if (!found.node.isConnected) return;
+    found.node.replaceWith(...found.node.childNodes);
+    commit();
+    return;
+  }
+
+  if (area.value.slice(found.from, found.to) !== found.text) return;
+  area.setSelectionRange(found.from, found.to);
+  insertSource(found.label);
+}
+
+function writeLinkRich(out) {
+  // Le signet d'abord : c'est lui qui rend la cible atteignable, et le lien
+  // n'aurait rien à viser sans elle.
+  if (out.signet) writeAnchorRich(out.signet.key, out.signet.id);
+
+  const node = document.createElement('a');
+  node.setAttribute('href', out.href);
+  node.textContent = out.label;
+  insertRich(node);
+}
+
+function writeLinkSource(out) {
+  if (!store.activeTab()) return;
+
+  if (out.signet) {
+    const at = out.signet.key;
+    const lines = area.value.split('\n');
+    if (lines[at] !== undefined) {
+      const before = lines[at];
+      const after = writeHeading(before, out.signet.id);
+      // Là où commence la ligne visée : de quoi savoir si le point d'insertion
+      // la suit, et a donc glissé de ce que la ligne a gagné.
+      const start = lines.slice(0, at).reduce((n, l) => n + l.length + 1, 0);
+      const { selectionStart: a, selectionEnd: b } = area;
+
+      lines[at] = after;
+      area.value = lines.join('\n');
+
+      const slide = start < a ? after.length - before.length : 0;
+      area.setSelectionRange(a + slide, b + slide);
+    }
+  }
+  // Une seule écriture pour les deux changements : `insertSource` repart de la
+  // zone telle qu'on vient de la laisser.
+  insertSource(`[${out.label}](${out.href})`);
 }
 
 /** Les retours qui manquent devant le point d'insertion pour ouvrir un bloc. */
@@ -1328,6 +1942,104 @@ function insertSource(text, caret = text.length) {
   area.setSelectionRange(a + caret, a + caret);
   area.focus({ preventScroll: true });
   store.edit(tab.path, next);
+  store.reoutline(tab.path).catch(() => {});
+}
+
+// ------------------------------------------------------------ raccourcis
+
+/**
+ * Exécute une commande du menu par son identifiant.
+ *
+ * C'est la porte unique par laquelle les raccourcis clavier atteignent ce
+ * module : `ui/keys.js` n'a ainsi rien à savoir de ses fonctions, et une
+ * commande ne peut pas répondre autrement à la touche qu'à l'entrée de menu
+ * — c'est le même appel.
+ *
+ * Les identifiants sont ceux de `keys.js`, bâtis sur les tables de ce
+ * module : `format.gras` désigne l'action dont l'`id` est `gras`, `block.h2`
+ * le bloc dont la balise est `h2`, `list.ul` la liste dont l'`id` est `ul`.
+ */
+export function command(id, source) {
+  const [family, name] = id.split('.');
+
+  if (family === 'format') {
+    const action = ACTIONS.find((a) => a.id === name);
+    if (action) apply(action, source);
+    return;
+  }
+
+  if (family === 'block') {
+    if (name === 'quote') {
+      applyQuote(source);
+      return;
+    }
+    const block = BLOCKS.find((b) => b.tag === name);
+    if (block) applyBlock(block, source);
+    return;
+  }
+
+  if (family === 'list') {
+    const list = LISTS.find((l) => l.id === name);
+    if (list) applyList(list, source);
+    return;
+  }
+
+  if (family === 'insert') {
+    const run = {
+      link: insertLink,
+      image: insertImage,
+      table: insertTable,
+      code: insertCode,
+      rule: insertRule,
+      blank: insertBlank,
+      footnote: insertFootnote,
+      shortcode: insertShortcode,
+    }[name];
+    // Le sélecteur de fichier d'une image est asynchrone, comme dans le menu.
+    if (run) Promise.resolve(run(source)).catch(store.fail);
+    return;
+  }
+
+  if (id === 'undo') {
+    undo();
+    return;
+  }
+  if (id === 'redo') {
+    redo();
+    return;
+  }
+
+  if (id === 'anchor') {
+    editAnchor(source);
+    return;
+  }
+  if (id === 'frontmatter') frontmatter.reveal();
+}
+
+// --------------------------------------------------------------- annuler
+
+/**
+ * Défait, refait.
+ *
+ * `flush` d'abord, comme pour « Réactualiser » : ce qui vient d'être saisi doit
+ * être rendu au Markdown avant qu'on ne remonte l'histoire, sans quoi le
+ * premier Ctrl+Z laisserait les derniers mots dans le DOM et défairait le pas
+ * d'avant. Le sommaire suit : il est calculé sur le texte, qui vient de changer.
+ */
+function undo() {
+  history(store.undo);
+}
+
+function redo() {
+  history(store.redo);
+}
+
+function history(run) {
+  const tab = store.activeTab();
+  if (!tab) return;
+
+  flush();
+  if (!run(tab.path)) return;
   store.reoutline(tab.path).catch(() => {});
 }
 

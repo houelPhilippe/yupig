@@ -74,6 +74,14 @@
         <button class="modes__btn" id="mode-code" aria-pressed="false"
                 title="Code Markdown — la source du fichier"></button>
       </div>
+      <!-- Réactualiser l'affichage : le rendu se refait d'après le Markdown,
+           qui est la seule vérité. Ce qui vient d'être saisi y part d'abord,
+           le bouton ne perd donc rien ; il est éteint en « Code Markdown »,
+           où l'affichage est déjà le Markdown. -->
+      <button class="btn btn-secondary btn-icon" id="doc-rebuild"
+              title="Réactualiser l’affichage d’après le Markdown"
+              aria-label="Réactualiser l’affichage"></button>
+
       <!-- Zoom du document : les deux crans, et la valeur qui les sépare —
            un clic dessus revient à 100 %. Ctrl + molette sur la zone d'édition
            fait bouger la même valeur. -->
@@ -263,7 +271,7 @@
         <button class="btn btn-ghost btn-icon" id="project-settings"
                 title="Paramètres du projet" style="width:24px;height:24px"></button>
         <button class="btn btn-ghost btn-icon" id="project-open"
-                title="Ouvrir un dossier…" style="width:24px;height:24px"></button>
+                title="Projets…" style="width:24px;height:24px"></button>
         <button class="btn btn-ghost btn-icon" id="project-refresh"
                 title="Actualiser l'arborescence" style="width:24px;height:24px"></button>
       </div>
@@ -275,13 +283,59 @@
 
     <!-- Centre : onglets et zone d'édition. -->
     <main class="editor" id="editor">
+
+      <!-- Barre de recherche : elle cherche dans ce que le mode montre — la
+           source en « Code Markdown », le texte rendu en « Modifier ». Elle se
+           retire donc en « Voir », qui ne se modifie pas. -->
+      <div class="find" id="find-bar" hidden role="search"
+           aria-label="Rechercher dans le document">
+        <div class="find__row">
+          <input class="input find__field" id="find-query" type="text"
+                 placeholder="Rechercher" aria-label="Texte à rechercher"
+                 autocomplete="off" spellcheck="false">
+          <div class="find__opts" role="group" aria-label="Façon de chercher">
+            <button class="find__opt" id="find-case" type="button"
+                    aria-pressed="false" title="Respecter la casse">Aa</button>
+            <button class="find__opt" id="find-word" type="button"
+                    aria-pressed="false" title="Mot entier">«mot»</button>
+            <button class="find__opt" id="find-regex" type="button"
+                    aria-pressed="false" title="Expression régulière">.*</button>
+          </div>
+          <span class="find__count" id="find-count" aria-live="polite"></span>
+          <button class="btn btn-ghost btn-icon find__nav" id="find-prev" type="button"
+                  title="Occurrence précédente (Maj+Entrée)"
+                  aria-label="Occurrence précédente"></button>
+          <button class="btn btn-ghost btn-icon find__nav" id="find-next" type="button"
+                  title="Occurrence suivante (Entrée)"
+                  aria-label="Occurrence suivante"></button>
+          <button class="btn btn-ghost btn-icon find__nav" id="find-close" type="button"
+                  title="Fermer (Échap)" aria-label="Fermer la recherche"></button>
+        </div>
+        <div class="find__row">
+          <input class="input find__field" id="find-replacement" type="text"
+                 placeholder="Remplacer par" aria-label="Texte de remplacement"
+                 autocomplete="off" spellcheck="false">
+          <button class="btn btn-secondary" id="find-replace" type="button">Remplacer</button>
+          <button class="btn btn-secondary" id="find-replace-all" type="button">Tout remplacer</button>
+        </div>
+      </div>
+
       <div class="editor__empty" id="editor-empty">
         <p>Aucun document ouvert.</p>
         <p class="hint" style="margin:0">Choisissez un fichier dans le volet de gauche.
-          Les documents Markdown alimentent le sommaire à droite.</p>
+          Les documents Markdown alimentent le sommaire à droite. Sans projet
+          ouvert, le bouton « Projets… » du volet en propose la liste.</p>
       </div>
-      <textarea class="editor__area" id="editor-area" hidden spellcheck="true"
-                aria-label="Zone d'édition" wrap="soft"></textarea>
+      <!-- La source et, derrière elle, le calque qui porte les marques de
+           recherche : `CSS.highlights` ne sait pas entrer dans un `<textarea>`,
+           et sa sélection ne se voit pas tant que le clavier est ailleurs. Le
+           calque ne montre que des aplats — ses glyphes sont transparents, le
+           texte lisible reste celui de la zone de saisie posée par-dessus. -->
+      <div class="editor__source" id="editor-source" hidden>
+        <div class="editor__backdrop" id="editor-backdrop" aria-hidden="true"></div>
+        <textarea class="editor__area" id="editor-area" spellcheck="true"
+                  aria-label="Zone d'édition" wrap="soft"></textarea>
+      </div>
       <!-- Rendu de « Modifier » et « Voir ». Le contenu vient de marked, puis
            de l'assainisseur de js/markdown.js — jamais de marked directement. -->
       <div class="editor__rich" id="editor-rich" hidden spellcheck="true"
@@ -293,9 +347,21 @@
          de son bloc YAML. -->
     <aside class="outline" id="outline-panel" aria-label="Sommaire et propriétés du document">
       <div class="panel__head">
-        <div class="seg" id="aside-seg" role="group" aria-label="Contenu du volet droit">
-          <label class="seg-opt"><input type="radio" name="aside" value="outline" checked>Sommaire</label>
-          <label class="seg-opt"><input type="radio" name="aside" value="front">Propriétés</label>
+        <!-- L'intitulé dit en toutes lettres ce que le sélecteur désigne ;
+             `ui/aside.js` l'écrit d'après l'état. -->
+        <h6 style="margin:0" id="aside-title">Sommaire</h6>
+        <div class="spacer"></div>
+        <!-- Les deux moitiés ne portent que leur pictogramme : le volet est
+             étroit, et le mot n'y apprend rien que l'infobulle ne dise mieux.
+             Le nom reste dans l'`aria-label`. Les icônes sont posées par
+             `ui/aside.js` — le balisage ne dessine pas. -->
+        <div class="seg seg--icons" id="aside-seg" role="group" aria-label="Contenu du volet droit">
+          <label class="seg-opt" title="Sommaire">
+            <input type="radio" name="aside" value="outline" aria-label="Sommaire" checked>
+          </label>
+          <label class="seg-opt" title="Propriétés du document">
+            <input type="radio" name="aside" value="front" aria-label="Propriétés du document">
+          </label>
         </div>
       </div>
       <div class="panel__list" id="outline-list"></div>
@@ -336,11 +402,24 @@
     </aside>
 
   </div>
+
+  <!-- Barre d'état : ce que l'on sait du document sans avoir à le regarder —
+       sa sorte, et l'endroit du texte où se trouve le curseur. Elle ne paraît
+       qu'en « Édition », un document ouvert : une barre vide n'apprendrait
+       rien et prendrait la place d'une ligne de texte. Tout y est à droite,
+       loin des volets, là où le regard ne va que lorsqu'il la cherche. -->
+  <footer class="statusbar" id="statusbar" hidden>
+    <div class="spacer"></div>
+    <!-- La position ne se dit qu'en « Code Markdown » : c'est la seule vue qui
+         ait des lignes. -->
+    <span class="statusbar__item" id="status-position" hidden></span>
+    <span class="statusbar__item" id="status-kind"></span>
+  </footer>
 </div>
 
 <!-- ============================================ Paramètres du projet -->
 <div class="modal" id="project-dialog" hidden>
-  <div class="modal__box" role="dialog" aria-modal="true"
+  <div class="modal__box modal__box--wide" role="dialog" aria-modal="true"
        aria-labelledby="project-dialog-title">
     <div class="modal__head">
       <h6 id="project-dialog-title" style="margin:0">Paramètres du projet</h6>
@@ -349,41 +428,70 @@
               title="Fermer" style="width:26px;height:26px"></button>
     </div>
 
-    <div class="modal__body">
-      <div class="modal__field">
-        <h6>Justification des paragraphes</h6>
-        <div class="seg" id="align-seg">
-          <label class="seg-opt"><input type="radio" name="align" value="gauche" checked>Gauche</label>
-          <label class="seg-opt"><input type="radio" name="align" value="justifie">Justifié</label>
+    <!-- Deux colonnes : les réglages d'ensemble à gauche, les espacements —
+         treize lignes — à droite. Sur une seule colonne, la boîte devenait plus
+         haute que l'écran et se parcourait au défilement. Sous la largeur de
+         deux colonnes, elles se remettent l'une sous l'autre : mieux vaut
+         défiler que serrer les champs à l'illisible. -->
+    <div class="modal__body modal__body--split">
+
+      <div class="modal__col">
+        <div class="modal__field">
+          <h6>Justification des paragraphes</h6>
+          <div class="seg" id="align-seg">
+            <label class="seg-opt"><input type="radio" name="align" value="gauche" checked>Gauche</label>
+            <label class="seg-opt"><input type="radio" name="align" value="justifie">Justifié</label>
+          </div>
+          <p class="hint" style="margin:0">S'applique au document affiché en
+            « Modifier » et « Voir ». Le code Markdown garde son alignement à
+            gauche : y justifier des lignes de source les rendrait illisibles.</p>
         </div>
-        <p class="hint" style="margin:0">S'applique au document affiché en
-          « Modifier » et « Voir ». Le code Markdown garde son alignement à
-          gauche : y justifier des lignes de source les rendrait illisibles.</p>
+
+        <div class="modal__field">
+          <h6>Interligne</h6>
+          <div class="seg" id="leading-seg">
+            <label class="seg-opt"><input type="radio" name="leading" value="135">Serré</label>
+            <label class="seg-opt"><input type="radio" name="leading" value="165" checked>Normal</label>
+            <label class="seg-opt"><input type="radio" name="leading" value="200">Aéré</label>
+          </div>
+        </div>
+
+        <div class="modal__field">
+          <h6>Contour de la zone d'édition</h6>
+          <div class="seg" id="ring-seg">
+            <label class="seg-opt"><input type="radio" name="ring" value="1" checked>Affiché</label>
+            <label class="seg-opt"><input type="radio" name="ring" value="0">Masqué</label>
+          </div>
+          <p class="hint" style="margin:0">Le liseré rouge qui entoure la zone
+            quand elle a le clavier. Le masquer ne change rien au document :
+            c'est la pastille de l'onglet qui signale les modifications non
+            enregistrées.</p>
+        </div>
+
+        <p class="hint" style="margin:0">Ces réglages accompagnent le dossier
+          ouvert : chaque projet garde les siens.</p>
       </div>
 
-      <div class="modal__field">
-        <h6>Interligne</h6>
-        <div class="seg" id="leading-seg">
-          <label class="seg-opt"><input type="radio" name="leading" value="135">Serré</label>
-          <label class="seg-opt"><input type="radio" name="leading" value="165" checked>Normal</label>
-          <label class="seg-opt"><input type="radio" name="leading" value="200">Aéré</label>
+      <!-- Mise en page : l'espace au-dessus et au-dessous de chaque sorte de
+           bloc. Les lignes de la grille ne sont pas écrites ici —
+           `ui/project.js` les bâtit d'après sa table `SPACING`, seul endroit
+           qui nomme ces réglages ; des lignes tenues à la main dans ce fichier
+           finiraient par ne plus lui correspondre. Un champ laissé vide vaut la
+           mesure du modèle, que son `placeholder` affiche. -->
+      <div class="modal__col">
+        <div class="modal__field">
+          <h6>Mise en page</h6>
+          <div class="spacing" id="spacing-grid"></div>
+          <div class="spacing__foot">
+            <p class="hint" style="margin:0">Mesures en pixels, à 100 % de zoom :
+              le zoom du document les agrandit avec le texte. Un champ vide
+              reprend la mesure du modèle.</p>
+            <button class="btn btn-secondary" id="spacing-reset" type="button"
+                    title="Rendre tous les espacements à la mesure du modèle">Rétablir</button>
+          </div>
         </div>
       </div>
 
-      <div class="modal__field">
-        <h6>Contour de la zone d'édition</h6>
-        <div class="seg" id="ring-seg">
-          <label class="seg-opt"><input type="radio" name="ring" value="1" checked>Affiché</label>
-          <label class="seg-opt"><input type="radio" name="ring" value="0">Masqué</label>
-        </div>
-        <p class="hint" style="margin:0">Le liseré rouge qui entoure la zone
-          quand elle a le clavier. Le masquer ne change rien au document : c'est
-          la pastille de l'onglet qui signale les modifications non
-          enregistrées.</p>
-      </div>
-
-      <p class="hint" style="margin:0">Ces réglages accompagnent le dossier
-        ouvert : chaque projet garde les siens.</p>
     </div>
   </div>
 </div>
@@ -414,11 +522,30 @@
         </div>
       </div>
 
+      <!-- La légende s'écrit dans la syntaxe de Pandoc, liens compris :
+           `Photo de [l'Insee](https://insee.fr)`. Le bouton pose les crochets
+           autour du texte sélectionné plutôt que de les faire taper. -->
       <div class="modal__field"
            data-hint="Laissez vide pour n'afficher aucune légende.">
         <h6><label for="image-caption">Légende</label></h6>
-        <input class="input" id="image-caption" type="text" autocomplete="off"
-               placeholder="Sous l'image, en petit">
+        <div class="meta__row">
+          <input class="input" id="image-caption" type="text" autocomplete="off"
+                 placeholder="Sous l'image, en petit">
+          <button class="btn btn-secondary btn-icon" id="image-link" type="button"
+                  title="Lier le texte sélectionné" disabled
+                  style="width:26px;height:26px"></button>
+        </div>
+      </div>
+
+      <!-- N'apparaît qu'une fois un texte sélectionné et le bouton cliqué. -->
+      <div class="modal__field" id="image-link-field" hidden
+           data-hint="L'adresse du lien. Videz-la pour retirer le lien.">
+        <h6><label for="image-link-url">Adresse du lien</label></h6>
+        <div class="meta__row">
+          <input class="input" id="image-link-url" type="text" autocomplete="off"
+                 placeholder="https://exemple.fr">
+          <button class="btn btn-secondary" id="image-link-apply" type="button">Lier</button>
+        </div>
       </div>
 
       <div class="modal__field"
@@ -592,6 +719,191 @@
     <div class="modal__foot">
       <button class="btn btn-secondary" id="shortcode-cancel" type="button">Annuler</button>
       <button class="btn btn-primary" id="shortcode-insert" type="button">Insérer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================================================== Signet d'un titre -->
+<!-- Un signet est l'identifiant que porte un titre — `## Titre {#mon-signet}`,
+     la syntaxe d'attributs de Pandoc. Il ne se voit pas dans le document :
+     c'est une cible, pas du texte. La barre d'état montre la ligne exacte qui
+     partira dans le fichier. -->
+<div class="modal" id="anchor-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="anchor-dialog-title">
+    <div class="modal__head">
+      <h6 id="anchor-dialog-title" style="margin:0">Signet du titre</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="anchor-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field"
+           data-hint="L'identifiant du titre. Un lien le vise par « #identifiant », en HTML comme en PDF.">
+        <h6><label for="anchor-id">Identifiant</label></h6>
+        <div class="meta__row">
+          <input class="input" id="anchor-id" type="text" autocomplete="off"
+                 spellcheck="false" placeholder="mon-signet">
+          <button class="btn btn-secondary" id="anchor-suggest" type="button"
+                  title="Reprendre le texte du titre">Proposer</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal__status" id="anchor-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <button class="btn btn-secondary" id="anchor-remove" type="button">Retirer</button>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" id="anchor-cancel" type="button">Annuler</button>
+      <button class="btn btn-primary" id="anchor-apply" type="button">Appliquer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================================== Demande d'une ligne -->
+<!-- Ce que `window.prompt` ferait, si la webview le montrait : une question,
+     un champ, deux issues. Elle sert partout où l'on demande un mot — le
+     nouveau nom d'un fichier, le langage d'un bloc de code — et ne sait rien
+     de ce qu'on lui fait dire : `ui/prompt.js` rend la ligne saisie à qui l'a
+     ouverte, comme la boîte du signet rend son identifiant. -->
+<div class="modal" id="prompt-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="prompt-dialog-title">
+    <div class="modal__head">
+      <h6 id="prompt-dialog-title" style="margin:0"></h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="prompt-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field">
+        <h6><label for="prompt-field" id="prompt-label"></label></h6>
+        <input class="input" id="prompt-field" type="text" autocomplete="off"
+               spellcheck="false">
+      </div>
+    </div>
+
+    <div class="modal__status" id="prompt-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" id="prompt-cancel" type="button">Annuler</button>
+      <button class="btn btn-primary" id="prompt-apply" type="button">Valider</button>
+    </div>
+  </div>
+</div>
+
+<!-- ================================================================== Lien -->
+<!-- Quatre sortes de cible, un seul Markdown en sortie : `[texte](cible)`.
+     Les deux contrôles de cible — le champ et la liste — restent en place
+     quelle que soit la sorte choisie ; les faire paraître et disparaître
+     ferait sauter la boîte sous les yeux, et c'est la barre d'état qui dit
+     lequel compte, en montrant le texte exact. -->
+<div class="modal" id="link-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="link-dialog-title">
+    <div class="modal__head">
+      <h6 id="link-dialog-title" style="margin:0">Insérer un lien</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="link-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field"
+           data-hint="Où le lien mène : une adresse, un fichier du projet, un signet, ou un titre de ce document.">
+        <h6>Type de lien</h6>
+        <div class="seg" id="link-seg">
+          <label class="seg-opt"><input type="radio" name="link" value="url" checked>URL</label>
+          <label class="seg-opt"><input type="radio" name="link" value="file">Fichier</label>
+          <label class="seg-opt"><input type="radio" name="link" value="id">ID</label>
+          <label class="seg-opt"><input type="radio" name="link" value="heading">Titre</label>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Le texte cliquable. Laissé vide, il reprend le nom de la cible.">
+        <h6><label for="link-label">Texte du lien</label></h6>
+        <input class="input" id="link-label" type="text" autocomplete="off">
+      </div>
+
+      <div class="modal__field"
+           data-hint="L'adresse, ou le fichier — désigné relativement au document, pour que le projet reste déplaçable.">
+        <h6><label for="link-target">Adresse ou fichier</label></h6>
+        <div class="meta__row">
+          <input class="input" id="link-target" type="text" autocomplete="off"
+                 spellcheck="false" placeholder="https://exemple.fr">
+          <button class="btn btn-secondary" id="link-browse" type="button">Parcourir…</button>
+        </div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Un signet déjà posé, ou un titre du document — un titre qui n'en a pas en reçoit un.">
+        <h6><label for="link-pick">Signet ou titre du document</label></h6>
+        <select class="input" id="link-pick"></select>
+      </div>
+    </div>
+
+    <!-- Barre d'état : le texte exact qui partira dans le document. -->
+    <div class="modal__status" id="link-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <button class="btn btn-secondary" id="link-cancel" type="button">Annuler</button>
+      <button class="btn btn-primary" id="link-insert" type="button">Insérer</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===================================================== Choix du projet -->
+<!-- La boîte d'accueil de « Édition » : les projets connus, et de quoi en
+     poser un neuf sur un dossier existant. La liste est bâtie par
+     js/ui/projects.js — elle porte des noms et des chemins venus du disque,
+     qui ne passent que par `textContent`. -->
+<div class="modal" id="projects-dialog" hidden>
+  <div class="modal__box" role="dialog" aria-modal="true"
+       aria-labelledby="projects-dialog-title">
+    <div class="modal__head">
+      <h6 id="projects-dialog-title" style="margin:0">Projets</h6>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary btn-icon" id="projects-dialog-close"
+              title="Fermer" style="width:26px;height:26px"></button>
+    </div>
+
+    <div class="modal__body">
+      <div class="modal__field"
+           data-hint="Les projets déjà ouverts sur cette machine, du plus récent au plus ancien.">
+        <h6>Projets en cours</h6>
+        <div class="projects" id="projects-list"></div>
+      </div>
+
+      <div class="modal__field"
+           data-hint="Un projet se pose sur un dossier qui existe déjà : celui où sont les documents.">
+        <h6>Nouveau projet</h6>
+        <div class="meta__row">
+          <input class="input" id="project-new-path" type="text" readonly
+                 aria-label="Dossier du nouveau projet"
+                 placeholder="Aucun dossier choisi">
+          <button class="btn btn-secondary" id="project-new-browse" type="button">Parcourir…</button>
+        </div>
+        <div class="meta__row">
+          <input class="input" id="project-new-name" type="text" autocomplete="off"
+                 aria-label="Nom du nouveau projet" placeholder="Nom du projet">
+          <button class="btn btn-primary" id="project-new-create" type="button">Créer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Barre d'état : ce que fera le prochain geste, et pourquoi il est
+         éventuellement impossible. -->
+    <div class="modal__status" id="projects-status" aria-live="polite"></div>
+
+    <div class="modal__foot">
+      <button class="btn btn-secondary" id="project-adopt" type="button">Ouvrir un dossier…</button>
+      <div class="spacer"></div>
+      <button class="btn btn-secondary" id="projects-cancel" type="button">Fermer</button>
     </div>
   </div>
 </div>

@@ -38,8 +38,11 @@ export const state = {
   edition: {
     root: null,        // racine du projet, absolue ; null = aucun projet
     tree: [],          // noeuds rendus par `project_tree`
-    expanded: [],      // chemins des dossiers dépliés
-    tabs: [],          // { path, name, content, saved, outline }
+    expanded: [],      // chemins des dossiers dépliés — et les seuls où l'on descend
+    // L'arborescence est-elle en cours de lecture ? Sur un dossier partagé
+    // lent, elle prend des secondes : le volet doit le dire.
+    loading: false,
+    tabs: [],          // { path, name, content, saved, outline, past, future, touched, typing }
     activePath: null,
     // Regard porté sur le document : `edit` le texte mis en forme, `view` le
     // rendu en lecture seule, `code` la source Markdown. Un document s'ouvre
@@ -49,10 +52,37 @@ export const state = {
     // Ce que montre le volet droit : `outline` le sommaire, `front` les champs
     // du bloc YAML. Les deux vivent dans le même volet et se relaient.
     aside: 'outline',
+    // Combien de fois l'on a demandé que l'affichage du document se refasse
+    // d'après le Markdown. Un compteur, non un drapeau : les vues comparent la
+    // valeur qu'elles ont vue à celle-ci, et n'ont donc rien à remettre à zéro
+    // — deux vues qui regardent le même compteur ne se le volent pas.
+    redraw: 0,
 
-    // Mise en page, propre au projet ouvert.
-    project: { align: 'gauche', lineHeight: 165 },
+    // Mise en page, propre au projet ouvert. `spacing` ne porte que ce à quoi
+    // l'on a touché : une clé absente veut dire « comme la feuille de style le
+    // dit », et c'est `ui/project.js` qui connaît ces valeurs par défaut.
+    project: { align: 'gauche', lineHeight: 165, spacing: {} },
     dialogOpen: false,
+
+    // Barre de recherche : ouverte ou non, ce qu'on y cherche, et les trois
+    // façons de chercher. Ce qu'elle trouve — le rang de l'occurrence visée et
+    // leur nombre — n'est pas ici : cela se recalcule sur le document à chaque
+    // rendu, et n'a donc rien d'un état.
+    find: {
+      open: false,
+      query: '',
+      replacement: '',
+      matchCase: false,
+      wholeWord: false,
+      regex: false,
+    },
+
+    // Les projets connus, tels que Rust les rend : `{ root, name, created,
+    // opened, available }`. Ils ne sont chargés que lorsque la boîte s'ouvre —
+    // chaque ligne coûte une lecture de disque.
+    projects: [],
+    // La boîte de choix du projet est-elle à l'écran ?
+    picker: false,
   },
 };
 
@@ -123,13 +153,19 @@ export async function boot() {
   // absence ne doit pas empêcher l'application de s'ouvrir.
   if (state.edition.root) {
     try {
-      state.edition.tree = await api.projectTree();
+      state.edition.tree = await api.projectTree(state.edition.expanded);
     } catch (err) {
       state.edition.root = null;
       fail(err);
     }
   }
   state.edition.project = await api.getProjectSettings();
+
+  // La boîte de choix s'ouvre au démarrage qui rend la main à « Édition » :
+  // c'est le moment où l'on décide sur quoi l'on travaille. Le lecteur de flux
+  // n'a pas à être retardé par une question qui ne le concerne pas.
+  if (state.app === 'edition') await openPicker();
+
   await refresh();
 }
 
@@ -138,7 +174,12 @@ export async function boot() {
 export async function switchApp(app) {
   if (state.app === app) return;
   state.app = app;
+  // La boîte des projets n'a rien à dire devant « Veille » : elle part avec
+  // la coque qu'elle sert.
+  if (app !== 'edition') state.edition.picker = false;
   emit();
+  // Venir à « Édition » sans projet ouvert, c'est venir en choisir un.
+  if (app === 'edition' && !state.edition.root) await openPicker();
   await persist({ app });
 }
 
@@ -263,35 +304,130 @@ export async function syncAll(force = false) {
 
 // -------------------------------------------------------------- Édition
 
-export async function openProject() {
-  const path = await api.pickProjectDir();
-  if (!path) return;
-  state.edition.tree = await api.openProject(path);
-  // Les onglets appartenaient au projet précédent : ils n'ont plus de sens.
-  state.edition.tabs = [];
-  state.edition.activePath = null;
-  state.edition.expanded = [];
+// ---------------------------------------------------------------- projets
+//
+// Un projet est un dossier qui porte un témoin. La base n'en retient que le
+// chemin ; le nom se lit sur le disque, si bien qu'un projet déplacé ou
+// partagé se présente sous le sien sans que la base ait à le savoir.
+
+/** Ouvre la boîte de choix, après avoir relu la liste. */
+export async function openPicker() {
+  // La liste se relit à chaque ouverture : un dossier peut avoir disparu ou
+  // avoir été renommé depuis la dernière fois.
+  try {
+    state.edition.projects = await api.listProjects();
+  } catch (err) {
+    state.edition.projects = [];
+    fail(err);
+  }
+  state.edition.picker = true;
+  emit();
+}
+
+export function closePicker() {
+  state.edition.picker = false;
+  emit();
+}
+
+/** Y a-t-il un document dont les modifications ne sont pas enregistrées ? */
+export function hasUnsaved() {
+  return state.edition.tabs.some(isDirty);
+}
+
+/** Ouvre un projet déjà constitué, désigné par sa racine. */
+export async function chooseProject(root) {
+  await adopt(await api.openProject(root));
+}
+
+/** Pose un projet neuf sur un dossier existant, et l'ouvre. */
+export async function createProject(path, name) {
+  await adopt(await api.createProject(path, name));
+}
+
+/** Retire un projet de la liste, sans toucher à son dossier. */
+export async function forgetProject(root) {
+  state.edition.projects = await api.forgetProject(root);
+  // Rust a pu retirer le projet ouvert : l'interface doit suivre.
+  if (state.edition.root === root) reset();
+  emit();
+}
+
+/** Referme le projet ouvert et revient au choix. */
+export async function closeProject() {
+  await api.closeProject();
+  reset();
+  await openPicker();
+}
+
+/**
+ * Fait du projet que Rust vient d'ouvrir celui qui est à l'écran.
+ *
+ * L'arborescence arrive en argument : c'est ce que rendent `open_project` et
+ * `create_project`, et la demander une seconde fois relirait le disque pour
+ * rien.
+ */
+async function adopt(tree) {
+  reset();
+  state.edition.tree = tree;
   // Rust a canonicalisé le chemin : on affiche celui qu'il a retenu, pas
   // celui qu'a rendu le sélecteur.
   state.settings = await api.getSettings();
-  state.edition.root = state.settings.projectRoot ?? path;
+  state.edition.root = state.settings.projectRoot ?? null;
   // Chaque projet a sa mise en page : celle du précédent ne le suit pas.
   state.edition.project = await api.getProjectSettings();
+  state.edition.picker = false;
   emit();
 }
 
+/** Ramène l'éditeur à l'état « aucun projet ». */
+function reset() {
+  // Les onglets appartenaient au projet précédent : ils n'ont plus de sens.
+  state.edition.root = null;
+  // Rust vient d'oublier la racine : la copie des réglages doit suivre, sans
+  // quoi le prochain `persist` la remettrait en base.
+  state.settings = { ...state.settings, projectRoot: null };
+  state.edition.tree = [];
+  state.edition.tabs = [];
+  state.edition.activePath = null;
+  state.edition.expanded = [];
+}
+
+/**
+ * Relit l'arborescence, et le dit pendant qu'elle se lit.
+ *
+ * Un `read_dir` sur un dossier partagé par la machine virtuelle traverse le
+ * système de fichiers de l'hôte : même réduite aux dossiers dépliés, la lecture
+ * se compte en secondes. Sans le témoin, le bouton « Actualiser » paraissait
+ * mort — on cliquait, et rien ne bougeait jusqu'à ce qu'on ait renoncé.
+ */
 export async function refreshTree() {
   if (!state.edition.root) return;
-  state.edition.tree = await api.projectTree();
+  state.edition.loading = true;
   emit();
+  try {
+    state.edition.tree = await api.projectTree(state.edition.expanded);
+  } finally {
+    state.edition.loading = false;
+    emit();
+  }
 }
 
-export function toggleDir(path) {
+/**
+ * Déplie ou replie un dossier.
+ *
+ * Déplier demande son contenu : l'arborescence ne descend que dans ce qui est
+ * ouvert, ce dossier-ci n'a donc pas encore d'enfants. Le chevron tourne avant
+ * l'aller-retour — c'est le geste qui doit répondre, pas le disque. Replier ne
+ * demande rien : ce qui a été lu reste là, et cesse simplement d'être dessiné.
+ */
+export async function toggleDir(path) {
   const open = state.edition.expanded;
   const i = open.indexOf(path);
   if (i < 0) open.push(path);
   else open.splice(i, 1);
   emit();
+
+  if (i < 0) await refreshTree();
 }
 
 /** Ouvre un fichier dans un onglet, ou revient à l'onglet déjà ouvert. */
@@ -310,6 +446,14 @@ export async function openDocument(path) {
     // Ce que contient le disque : la comparaison dit si l'onglet est modifié.
     saved: doc.content,
     outline: doc.outline,
+    // L'histoire du document, en Markdown : ce qu'on a défait d'un côté, ce
+    // qu'on peut refaire de l'autre, et la date du dernier pas — de quoi
+    // savoir si le suivant se joint à lui.
+    past: [],
+    future: [],
+    touched: 0,
+    // Le dernier pas était-il une frappe ? Seules deux frappes se regroupent.
+    typing: false,
   });
   state.edition.activePath = doc.path;
   emit();
@@ -323,6 +467,26 @@ export function toggleProjectDialog(open) {
 export async function saveProjectSettings(patch) {
   state.edition.project = await api.saveProjectSettings({ ...state.edition.project, ...patch });
   emit();
+}
+
+/**
+ * Change un ou plusieurs espacements de la mise en page.
+ *
+ * Une action à part de `saveProjectSettings` parce que le lot est une table
+ * dans la table : la fusion doit se faire sur `spacing` lui-même, sans quoi
+ * régler un espacement effacerait tous les autres.
+ *
+ * Une valeur `null` retire sa clé plutôt que d'écrire un zéro : c'est ainsi
+ * qu'un réglage revient à ce que dit la feuille de style, et la base n'en garde
+ * alors pas la trace. `patch` à `null` les retire tous — le « Rétablir » de la
+ * boîte.
+ */
+export async function saveProjectSpacing(patch) {
+  const spacing = patch === null ? {} : { ...state.edition.project.spacing, ...patch };
+  for (const [key, value] of Object.entries(spacing)) {
+    if (value === null || value === undefined) delete spacing[key];
+  }
+  await saveProjectSettings({ spacing });
 }
 
 /** Les deux volets de l'éditeur, retirés ou remis. */
@@ -366,6 +530,61 @@ export function setAside(aside) {
   emit();
 }
 
+/**
+ * Demande que l'affichage du document se refasse d'après le Markdown.
+ *
+ * Le rendu n'est rebâti que lorsqu'il le faut — changer d'onglet ou de mode,
+ * ou un Markdown qui bouge ailleurs qu'ici : sans cela, chaque frappe
+ * replacerait le curseur au début. Il peut donc s'écarter de la source, le
+ * moteur d'édition n'écrivant pas toujours ce que `turndown` en relira ; c'est
+ * ce compteur qui permet de le refaire sur demande, sans rien changer à la
+ * règle qui l'économise le reste du temps.
+ *
+ * Ce qui vient d'être saisi doit être rendu au Markdown *avant* d'appeler
+ * ceci : le rendu se refait d'après lui, il ne l'inventera pas.
+ */
+export function redrawDocument() {
+  state.edition.redraw += 1;
+  emit();
+}
+
+// ------------------------------------------------------- rechercher
+//
+// La barre cherche dans ce que le mode montre : la source en « Code
+// Markdown », le texte rendu en « Modifier ». Elle ne sert donc à rien en
+// « Voir », qui ne se modifie pas — et l'ouvrir depuis ce mode n'aurait rien à
+// remplacer.
+
+/**
+ * Le regard réellement porté sur le document actif.
+ *
+ * `state.edition.mode` est ce qu'on a demandé ; un fichier qui n'est pas du
+ * Markdown n'a pourtant que sa source à montrer. Les deux peuvent donc
+ * diverger, et c'est celui-ci qui dit ce qui est à l'écran.
+ */
+export function mode() {
+  return isMarkdown(activeTab()) ? state.edition.mode : 'code';
+}
+
+/** La recherche a-t-elle une surface où s'exercer ? */
+export function canFind() {
+  // « Voir » est en lecture seule : il n'y aurait rien à y remplacer.
+  return Boolean(activeTab()) && mode() !== 'view';
+}
+
+export function toggleFind(open) {
+  const next = open ?? !state.edition.find.open;
+  if (state.edition.find.open === next) return;
+  state.edition.find = { ...state.edition.find, open: next };
+  emit();
+}
+
+/** Met à jour un ou plusieurs champs de la barre. */
+export function setFind(patch) {
+  state.edition.find = { ...state.edition.find, ...patch };
+  emit();
+}
+
 /** Un document dont on sait rendre le Markdown. */
 export function isMarkdown(tab) {
   return Boolean(tab) && /\.(md|markdown|mdown)$/i.test(tab.name);
@@ -399,7 +618,137 @@ export function closeTab(path, force = false) {
 export function edit(path, content) {
   const tab = state.edition.tabs.find((t) => t.path === path);
   if (!tab || tab.content === content) return;
+  remember(tab, content);
   tab.content = content;
+  emit();
+}
+
+// ------------------------------------------------------------- annuler
+//
+// L'histoire d'un document est une pile de **Markdown**, et non de gestes :
+// c'est la seule vérité du document, et la seule chose que toutes les
+// mutations ont en commun. Une frappe, une commande du menu, un collage, un
+// champ du bloc YAML, un remplacement — tout passe par `edit`, donc tout
+// s'annule, sans qu'aucune commande ait à savoir qu'elle est annulable.
+//
+// Revenir en arrière, c'est donc réactualiser l'affichage sur un Markdown
+// antérieur : le compteur de redessin s'en charge, comme pour le bouton
+// « Réactualiser ». Dans la source, le curseur reste où il était ; dans le
+// rendu, qui se rebâtit entier, il est perdu comme il l'est à chaque redessin.
+
+/** Au-delà, les plus vieux pas s'effacent : une pile n'est pas une archive. */
+const DEPTH = 100;
+
+/** Deux changements plus rapprochés que cela peuvent ne faire qu'un pas. */
+const COALESCE = 600;
+
+/**
+ * Retient l'état d'avant, sauf si le pas précédent est encore chaud et de la
+ * même eau.
+ *
+ * Trois conditions pour se joindre au pas précédent plutôt que d'en ouvrir un :
+ * qu'il existe, que lui aussi soit une frappe, et qu'il soit tout frais. Un
+ * changement se dit frappe à sa taille — une lettre, deux au plus ; au-delà,
+ * c'est une commande. Sans cette mesure, un tableau inséré dans la foulée d'un
+ * mot s'annulerait avec lui, et le premier mot tapé après le tableau ramènerait
+ * le tableau avec lui.
+ */
+function remember(tab, content) {
+  // Un pas en arrière puis une frappe : ce qu'on avait défait ne se refait
+  // plus, l'histoire vient de repartir ailleurs.
+  tab.future.length = 0;
+
+  const now = Date.now();
+  const typing = Math.abs(content.length - tab.content.length) <= 2;
+  const join = typing && tab.typing && tab.past.length > 0 && now - tab.touched < COALESCE;
+  tab.typing = typing;
+  if (join) return;
+
+  tab.past.push(tab.content);
+  if (tab.past.length > DEPTH) tab.past.shift();
+  tab.touched = now;
+}
+
+/** Y a-t-il un pas à défaire, à refaire ? Le menu en éteint ses entrées. */
+export function canUndo(tab = activeTab()) {
+  return Boolean(tab?.past.length);
+}
+
+export function canRedo(tab = activeTab()) {
+  return Boolean(tab?.future.length);
+}
+
+/** Défait le dernier pas. Rend vrai s'il y avait quelque chose à défaire. */
+export function undo(path) {
+  return step(path, 'past', 'future');
+}
+
+export function redo(path) {
+  return step(path, 'future', 'past');
+}
+
+function step(path, from, to) {
+  const tab = state.edition.tabs.find((t) => t.path === path);
+  if (!tab?.[from].length) return false;
+
+  tab[to].push(tab.content);
+  tab.content = tab[from].pop();
+  // La frappe qui suivra ouvre son propre pas : elle n'a rien à voir avec
+  // celle qui précédait l'annulation, et les regrouper mêlerait les deux.
+  tab.touched = 0;
+  tab.typing = false;
+  state.edition.redraw += 1;
+  emit();
+  return true;
+}
+
+// ------------------------------------------- opérations sur un fichier
+//
+// Renommer, dupliquer, effacer : trois gestes qui changent le disque, donc
+// l'arborescence, qu'on relit à chaque fois. L'onglet ouvert, lui, ne se relit
+// pas — il porte peut-être du texte non enregistré : il suit son fichier
+// (`renameFile`) ou s'en va avec lui (`deleteFile`).
+
+/** Renomme un fichier, et l'onglet qui le montrait suit son nouveau nom. */
+export async function renameFile(path, name) {
+  const next = await api.renameFile(path, name);
+  if (next !== path) {
+    const tab = state.edition.tabs.find((t) => t.path === path);
+    if (tab) {
+      tab.path = next;
+      tab.name = next.split('/').pop();
+      if (state.edition.activePath === path) state.edition.activePath = next;
+    }
+  }
+  state.edition.tree = await api.projectTree(state.edition.expanded);
+  emit();
+  return next;
+}
+
+/** Copie un fichier à côté de lui-même et rend le chemin de la copie. */
+export async function duplicateFile(path) {
+  const next = await api.duplicateFile(path);
+  state.edition.tree = await api.projectTree(state.edition.expanded);
+  emit();
+  return next;
+}
+
+/**
+ * Efface un fichier, et referme l'onglet qui le montrait.
+ *
+ * `closeTab` est appelé de force : la question a déjà été posée, et retenir un
+ * onglet sur un fichier qui n'existe plus ne mènerait qu'à un enregistrement
+ * qui le recréerait.
+ */
+export async function deleteFile(path) {
+  await api.deleteFile(path);
+  // L'arborescence **avant** l'onglet : `closeTab` notifie lui-même, et
+  // refermer d'abord dessinerait une fois la liste sans le document mais
+  // toujours avec son fichier. Relire le disque en premier fait des deux
+  // changements un seul — et si cette lecture échouait, on n'aurait pas déjà
+  // annoncé une suppression que la liste continuerait de démentir.
+  state.edition.tree = await api.projectTree(state.edition.expanded);
+  closeTab(path, true);
   emit();
 }
 

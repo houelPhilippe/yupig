@@ -47,15 +47,43 @@ export const saveSettings = (settings) => invoke('save_settings', { settings });
 
 // ----------------------------------------------------------------- projet
 
+export const listProjects = () => invoke('list_projects');
+export const createProject = (path, name) => invoke('create_project', { path, name });
 export const openProject = (path) => invoke('open_project', { path });
-export const projectTree = () => invoke('project_tree');
+export const forgetProject = (path) => invoke('forget_project', { path });
+export const closeProject = () => invoke('close_project');
+// `open` : les chemins des dossiers dépliés. On ne descend que dans ceux-là —
+// le volet ne dessine pas le contenu d'un dossier fermé, et sur un dossier
+// partagé lent, le parcourir quand même coûtait des minutes par actualisation.
+export const projectTree = (open) => invoke('project_tree', { open });
 export const readDocument = (path) => invoke('read_document', { path });
 export const writeDocument = (path, content) => invoke('write_document', { path, content });
+// Renommer, dupliquer, effacer : les trois rendent un chemin — le nouveau —
+// ou rien. C'est au `store` de recaler ce qui désignait l'ancien.
+export const renameFile = (path, name) => invoke('rename_file', { path, name });
+export const duplicateFile = (path) => invoke('duplicate_file', { path });
+export const deleteFile = (path) => invoke('delete_file', { path });
 export const documentOutline = (content) => invoke('document_outline', { content });
 export const getProjectSettings = () => invoke('get_project_settings');
 export const saveProjectSettings = (settings) => invoke('save_project_settings', { settings });
 export const fileLink = (doc, file) => invoke('file_link', { doc, file });
 export const readImage = (path) => invoke('read_image', { path });
+
+/**
+ * Question fermée — « Supprimer ce fichier ? » —, par la boîte du système.
+ *
+ * Et non `window.confirm` : la webview de cette application ne montre pas les
+ * boîtes du navigateur. L'appel rendait `false` sans que rien ne paraisse à
+ * l'écran, si bien que la commande était simplement annulée en silence — on
+ * croyait l'application sourde. Le greffon de dialogue, lui, est celui qui
+ * ouvre déjà les sélecteurs de fichiers.
+ *
+ * Rend `true` si l'on a confirmé. `kind` vaut « warning » : ce qui se demande
+ * ainsi ne se défait pas.
+ */
+export async function ask(message, { title, okLabel = 'Supprimer', cancelLabel = 'Annuler' } = {}) {
+  return tauri.dialog.ask(message, { title, okLabel, cancelLabel, kind: 'warning' });
+}
 
 const IMAGE_FILTER = [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'avif', 'svg'] }];
 
@@ -80,6 +108,19 @@ export async function pickDocument(from) {
 }
 
 /**
+ * Sélecteur de fichier quelconque, pour la cible d'un lien ; `null` si l'on
+ * annule.
+ *
+ * Sans filtre : un lien peut mener à n'importe quoi — une feuille de calcul, une
+ * archive, un PDF —, et une liste d'extensions ne ferait qu'en cacher.
+ * `from` ouvre le sélecteur sur le projet, seul endroit d'où un lien relatif
+ * garde un sens.
+ */
+export async function pickAnyFile(from) {
+  return tauri.dialog.open({ multiple: false, defaultPath: from ?? undefined });
+}
+
+/**
  * Adresse lisible par la webview pour un fichier du disque.
  *
  * Un chemin relatif écrit dans le Markdown se résoudrait contre l'origine de
@@ -88,7 +129,13 @@ export async function pickDocument(from) {
  */
 export const assetUrl = (path) => tauri.core.convertFileSrc(path);
 
-/** Sélecteur de dossier de projet ; `null` si l'utilisateur annule. */
+/**
+ * Sélecteur de dossier de projet ; `null` si l'utilisateur annule.
+ *
+ * Il ne crée pas de dossier : un projet se pose sur un dossier existant, celui
+ * où les documents sont déjà — ou celui qu'on vient de créer dans le
+ * gestionnaire de fichiers, qui sait le faire mieux que nous.
+ */
 export async function pickProjectDir() {
   return tauri.dialog.open({ directory: true, multiple: false });
 }

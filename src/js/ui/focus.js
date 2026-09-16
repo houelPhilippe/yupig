@@ -11,6 +11,7 @@
 
 import { icon, PATH } from './dom.js';
 import * as store from '../store.js';
+import { hint } from '../keys.js';
 
 const button = document.getElementById('focus-toggle');
 
@@ -43,7 +44,13 @@ function draw(on) {
   // mot n'apprenait rien que l'infobulle ne dise mieux — elle, elle dit ce que
   // le prochain clic fera. Le nom, lui, reste dans l'`aria-label` de la page :
   // ce n'est pas parce qu'il ne se voit plus qu'il doit cesser de se dire.
-  button.title = on ? 'Afficher les volets' : "Masquer les volets — le document seul";
+  // L'infobulle est réécrite à chaque bascule — elle dit ce que le prochain clic
+  // fera : c'est donc ici, et non dans `ui/keys.js`, qu'elle annonce sa frappe.
+  // Le `hint` est le même pour tous les boutons de la barre.
+  button.title = hint(
+    'focus',
+    on ? 'Afficher les volets' : 'Masquer les volets — le document seul',
+  );
   button.replaceChildren(icon(on ? PATH.contract : PATH.expand, { size: 15 }));
 }
 

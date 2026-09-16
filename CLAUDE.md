@@ -31,6 +31,25 @@ documents d'un projet — arbre des fichiers à gauche, onglets et zone de saisi
 au centre, sommaire ou bloc YAML à droite). Les deux vivent dans la même page et le même
 `state` ; `ui/shell.js` masque celle qui n'est pas à l'écran.
 
+Un dossier ne s'ouvre plus directement : **c'est un projet que l'on ouvre**.
+Un projet est un dossier qui porte un témoin — `.veille/projet.json`, où vivent
+son nom et sa date de création. Le témoin est dans le dossier et non en base :
+c'est ce qui fait qu'un projet copié sur une autre machine, ou partagé, y est
+le même projet sous le même nom — la même raison qui fait écrire les liens
+d'images en relatif. La base, elle, ne retient que les chemins déjà ouverts
+**sur cette machine** et la date de leur dernière ouverture : `projects`. Le
+nom ne s'y recopie pas, sans quoi un projet renommé mentirait dans la liste.
+
+La boîte des projets est la porte d'entrée de « Édition » : elle s'ouvre au
+démarrage qui rend la main à cette coque, et à chaque passage vers elle sans
+projet ouvert — jamais devant « Veille », qu'une question sur les projets ne
+concerne pas. On y choisit un projet, on en crée un sur un dossier existant, ou
+l'on désigne un dossier venu d'ailleurs. L'application **ne crée pas de
+dossier** : elle pose un projet sur ce qui est déjà là. Un dossier sans témoin
+est refusé à l'ouverture plutôt qu'adopté en silence — on a pu simplement
+désigner le mauvais. Un projet retiré de la liste ne perd ni son dossier, ni son
+témoin, ni sa mise en page : le retirer n'est pas le détruire.
+
 L'éditeur porte trois regards sur un même document — « Modifier » (texte mis
 en forme), « Voir » (rendu en lecture seule), « Code Markdown » (la source).
 **Le Markdown est la seule vérité** : c'est lui qui vit dans l'onglet et part
@@ -74,6 +93,57 @@ sur elle revient à 100 %. Elle vit dans les réglages de l'application et non
 dans ceux du projet : c'est un confort de lecture, le même quel que soit le
 dossier ouvert, et la molette ne l'écrit en base qu'une fois retombée au repos.
 
+Le rendu n'est **rebâti que lorsqu'il le faut** — changement d'onglet ou de
+mode, Markdown qui bouge ailleurs qu'ici : le refaire à chaque frappe
+replacerait le curseur au début. Il peut donc s'écarter de la source, le moteur
+d'édition n'écrivant pas toujours ce que `turndown` en relira. Le bouton
+**« Réactualiser »** de la barre du haut remet les deux d'accord, et c'est le
+Markdown qui a raison. Il passe par un **compteur** dans l'état
+(`state.edition.redraw`) et non par un appel direct à la vue : `editor.js` le
+compare à celui sur lequel son rendu a été bâti, et `ui/find.js` le met dans sa
+propre signature — sans quoi les intervalles de la dernière recherche
+resteraient sur des nœuds sortis de la page, et plus rien ne se peindrait. Ce
+qui vient d'être saisi part au Markdown **avant** le redessin (`flush`), sans
+quoi réactualiser perdrait les derniers mots. Le bouton s'éteint en « Code
+Markdown », où l'affichage *est* le Markdown.
+
+La barre **« Rechercher / Remplacer »** (Ctrl+F, Ctrl+H, ou le menu de
+l'onglet) cherche dans **ce que le mode montre** : la source en « Code
+Markdown », le texte rendu en « Modifier ». C'est la règle à retenir — on
+cherche ce qu'on a sous les yeux, si bien que « le **mot** juste » se trouve en
+tapant « le mot juste » d'un côté et « **mot** » de l'autre. Elle se retire en
+« Voir », qui ne se modifie pas.
+
+Les occurrences du rendu sont peintes par `CSS.highlights`, qui **n'ajoute
+aucun nœud**. Ce n'est pas un raffinement : `turndown` est réglé pour supprimer
+le mobilier d'éditeur *avec son contenu* (`service.remove`), donc une
+surbrillance posée en `<mark class="chrome">` et oubliée avant une conversion
+mangerait le texte du fichier. Hors du DOM, il n'y a rien à nettoyer et rien à
+perdre.
+
+Le `<textarea>` de la source n'offre pas cette ressource : son intérieur n'est
+atteignable ni par `CSS.highlights` ni par aucun sélecteur, et sa sélection ne
+se peint pas tant que le clavier est dans le champ de recherche. Les marques y
+passent donc par un **calque posé dessous** (`.editor__backdrop`), qui rejoue le
+texte entier en glyphes transparents — seuls ses aplats se voient, sous le texte
+réel de la zone de saisie. Les deux couches doivent alors se superposer au pixel
+près : tout ce qui décide de la position d'un caractère — police, corps,
+interligne, marge intérieure, repli des lignes, `tab-size` — se déclare **une
+seule fois**, pour les deux, et le calque reprend en largeur le `clientWidth` de
+la zone, qui rétrécit quand sa barre de défilement paraît. Le `<mark>` y porte
+`color: transparent` explicitement : la feuille du navigateur lui donne sinon sa
+propre couleur, et les glyphes du calque reparaîtraient en double.
+
+Dans le rendu, la recherche travaille sur un **texte à plat** reconstruit à
+chaque fois : les nœuds de texte dans l'ordre, le mobilier `chrome` écarté, et
+un saut de ligne intercalé entre deux blocs — sans lui, la fin d'un paragraphe
+et le début du suivant se toucheraient et « finDébut » deviendrait une
+occurrence possible. « Tout remplacer » y refait cette carte à chaque tour et
+repart après ce qui vient d'être écrit : c'est ce qui l'arrête quand le
+remplacement contient ce qu'on cherche — « a » par « aa ». Le moteur lui-même
+— correspondance, casse, mot entier, expression régulière, `$1` — vit dans
+`src/js/find.js`, sans DOM ni état.
+
 Le langage d'un bloc de code vit dans la classe `language-…` de son `<code>` :
 c'est de là que `turndown` tire le mot qui suit les accents graves. La liste
 déroulante posée en haut à droite du bloc n'est qu'une vue sur cette classe.
@@ -93,6 +163,53 @@ même, et `tab-size` dit sur quelle colonne elle tombe.
 `marked` n'assainit plus rien depuis sa v5 et la webview expose `__TAURI__`,
 donc l'accès au disque. Ne jamais insérer sa sortie brute dans le DOM.
 
+**Annuler et rétablir** portent sur le **Markdown** du document, non sur le
+DOM. C'est la seule chose que toutes les mutations ont en commun : une frappe,
+une commande du menu, un collage, un champ du bloc YAML, un remplacement — tout
+passe par `store.edit`, donc tout s'annule, sans qu'aucune commande ait à se
+savoir annulable. La pile du moteur d'édition ne le pourrait pas : elle ignore
+tout ce que `table.js` ou `image.js` écrivent directement dans l'arbre, et une
+commande annulée à moitié rendrait un document que `turndown` ne saurait plus
+relire. Revenir en arrière, c'est donc **réactualiser l'affichage sur un
+Markdown antérieur** : le compteur `redraw` s'en charge, comme pour le bouton «
+Réactualiser » — dans la source le curseur reste où il était, dans le rendu il
+est perdu comme à chaque redessin.
+
+Les frappes qui se suivent ne font qu'un pas. Trois conditions pour se joindre
+au précédent : qu'il existe, que lui aussi soit une frappe, et qu'il soit tout
+frais. Un changement se dit frappe **à sa taille** — une lettre, deux au plus ;
+au-delà, c'est une commande. Sans cette mesure, un tableau inséré dans la
+foulée d'un mot s'annulerait avec lui, et le premier mot tapé après le tableau
+ramènerait le tableau avec lui.
+
+**Couper, copier, coller** (`ui/clipboard.js`) tiennent en deux règles. *Ce
+qu'on copie part en Markdown* : la forme `text/plain` du presse-papiers porte
+le Markdown de la sélection — exactement ce que le fichier porterait —, la
+forme `text/html` va aux traitements de texte, qui recollent du texte mis en
+forme. C'est déjà ce que fait la copie d'un tableau, qui passe désormais par le
+même `clipboard.write` : les deux formes et leur repli — le texte seul, quand
+le moteur refuse la paire — ne s'écrivent qu'une fois. Seule la copie d'une
+image garde le sien, n'ayant ni texte ni HTML à donner mais des octets. *Ce
+qu'on colle passe par le Markdown* : le HTML venu d'ailleurs est ramené au
+Markdown par `turndown`, puis relu par `marked` avant d'entrer dans le rendu —
+rien ne s'installe donc dans le document que le fichier ne sache porter, et une
+image collée y gagne au passage son adresse `asset:` d'affichage. Le texte
+brut, lui, reste du texte brut : on ne le relit pas comme du Markdown, sans
+quoi coller « 2. rue du Port » ouvrirait une liste numérotée. Dans un bloc de
+code, le texte est du texte : la conversion y sèmerait des échappements.
+
+Les trois commandes ont deux portes — la frappe et l'entrée de menu — et une
+seule lecture de la sélection : les événements `copy`, `cut` et `paste` sont
+interceptés, si bien que Ctrl+C et « Copier » mettent rigoureusement la même
+chose dans le presse-papiers. Le collage du menu fait exception sur un point, et
+c'est le seul : aucun script ne sait déclencher un collage, il lui faut lire le
+presse-papiers lui-même — une permission, que le moteur peut refuser. La frappe,
+elle, ne la demande jamais. La sélection s'écrit par le moteur d'édition
+(`insertText`, `insertHTML`, `delete`) et non à la main : c'est ce qui garde
+l'historique d'annulation. Une coupe copie **avant** d'effacer : si le
+presse-papiers refuse, le texte reste où il est — c'est la même règle pour un
+tableau et pour une image, qui ont chacun leur « Couper » dans leur menu.
+
 Le document ne porte que du **Markdown** : `turndown` ne garde aucune balise
 telle quelle. Gras, italique, code inline et barré se disent nativement ; les
 petites capitales, le souligné, la couleur du texte et la surbrillance passent
@@ -103,6 +220,17 @@ Pandoc connaît lui-même : elles survivent à la compilation, en HTML comme en
 PDF ; une classe inventée ne rendrait rien sans feuille de style à soi. Le HTML
 en ligne, lui, a été écarté : d'autres outils ne le rendent pas. Ne pas l'y
 ramener.
+
+Une **ligne vide** voulue ne s'obtient ni par deux retours à la ligne —
+Markdown les ramène à une séparation de blocs, et le blanc disparaît à la
+compilation — ni par `<br>`, qui est du HTML en ligne. C'est un paragraphe qui
+ne porte qu'une **espace insécable** : le fichier l'écrit `&nbsp;`, que l'on
+voit dans la source, et CommonMark comme Pandoc la lisent, si bien que la ligne
+blanche paraît en HTML comme en PDF. Le rendu, lui, porte le caractère, qu'on
+ne voit pas — c'est bien une ligne vide. Le passage au Markdown se fait par
+`blankReplacement` et non par une règle : `turndown` tient pour vide tout nœud
+dont le texte n'est que du blanc, et en JavaScript l'insécable en est — aucune
+règle ne serait donc consultée pour ce paragraphe.
 
 Le même menu porte les blocs — les six niveaux de titre et le paragraphe qui
 les défait, la citation, les listes à puces, numérotées et à cocher, et la
@@ -116,6 +244,86 @@ est celle du GFM (`- [ ] texte`) : `marked` en fait une vraie case, seule
 balise `<input>` que l'assainisseur laisse passer, et un clic la coche — c'est
 l'**attribut** `checked` qui est posé, le seul qui survive à la relecture du
 HTML par `turndown`.
+
+Une liste est **serrée** ou **aérée**, et le menu la fait passer de l'une à
+l'autre. Ce n'est pas un effet d'affichage : en CommonMark comme chez Pandoc,
+une ligne vide entre deux entrées fait passer leur contenu en paragraphe, et
+l'espacement s'en ressent à la compilation, en HTML comme en PDF. Aérer, c'est
+donc poser cette ligne vide ; serrer, c'est la retirer. Les deux vues disent la
+même chose de deux façons — la ligne vide dans la source, le `<p>` dans le
+rendu — et `markdown.js` traduit dans les deux sens. La ligne vide qui sépare
+deux paragraphes d'une **même** entrée, elle, ne s'en va pas : elle porte du
+sens, et les fondre changerait le texte — une entrée à deux paragraphes ne peut
+pas se dire serrée.
+
+`turndown` ne sait pas écrire une liste aérée : sa règle ramène toujours une
+entrée à une seule fin de ligne, et l'aération se perdait donc au premier
+aller-retour. La règle est reprise en entier dans `markdown.js` — préfixe et
+indentation compris — pour lui ajouter la ligne vide, et pour vider les lignes
+que son indentation remplissait de blancs. Deux espaces en fin de ligne, eux,
+restent : c'est un saut de ligne.
+
+Le **retrait** — « Augmenter », « Réduire » — ajoute ou retire **quatre
+espaces** en tête des lignes que la sélection touche. C'est la mesure qu'une
+entrée de liste demande pour s'imbriquer sous celle qui la précède : dans le
+rendu, où il n'y a pas de lignes, les deux commandes changent donc le rang des
+entrées que la sélection touche, ce que ces mêmes quatre espaces diront une
+fois le Markdown écrit. La première entrée d'une liste ne s'imbrique pas — une
+sous-liste est le contenu d'une entrée, et il n'y en a pas au-dessus d'elle.
+Devant un paragraphe ordinaire, ces quatre espaces en font un **bloc de code
+indenté** : c'est Markdown qui le dit, et la commande écrit ce qu'on lui
+demande — d'où son retrait aux seules entrées de liste dans le rendu, qui ne le
+montrerait pas comme tel.
+
+Le moteur — bornes de la liste sous le curseur, aération, retrait — vit dans
+`src/js/lists.js`, sans DOM ni état, comme `find.js`, `anchors.js` et
+`keys.js`.
+
+Un **signet** est l'identifiant que porte un titre — `## Titre {#mon-signet}`,
+la syntaxe d'attributs de Pandoc, la même que celle d'une image ou d'un tableau.
+Il ne se voit pas dans le document : c'est une cible, pas du texte. `marked` n'en
+sait rien et laisserait les accolades dans le titre — `liftHeadings` les relève
+donc sur l'arbre rendu, et la règle `titre` de `turndown` les réécrit. Elle est
+écrite en entier plutôt que de laisser `turndown` faire les dièses : celle de la
+bibliothèque ne saurait pas où poser les accolades, qui viennent **après** le
+texte du titre. Le relevé se fait sur le **dernier nœud de texte** du titre et
+non sur son `textContent` : réécrire celui-ci aplatirait le gras, le code et les
+spans qu'un titre peut porter. La syntaxe elle-même n'est lue qu'**une fois** :
+`readAttrs`, dans `anchors.js`, sert au rendu comme à la source — deux lectures
+finiraient par en avoir deux idées différentes. Des accolades **collées à un
+crochet fermant** n'y sont pas lues : `## [texte]{.underline}` est un span qui
+termine le titre, non son bloc d'attributs — les confondre retirait le
+soulignement du rendu et réécrivait le titre en `\[texte\] {.underline}`.
+
+La commande **« Lien »** écrit toujours `[texte](cible)` : ce qui change d'une
+sorte à l'autre, c'est la cible — une **URL**, un **fichier** du disque écrit en
+relatif au document comme une image, un **ID** déjà posé, ou un **titre** du
+document. Un titre sans signet en reçoit un au passage : un lien vers un titre
+qui n'en a pas dépendrait de l'identifiant que l'outil de compilation lui
+inventerait, et ceux de Pandoc, de Quarto et de GitHub ne s'accordent pas.
+Le moteur — lecture d'une ligne de titre, écriture d'un signet, identifiant tiré
+d'un texte, unicité — vit dans `src/js/anchors.js`, sans DOM ni état, comme
+`find.js`.
+
+Les deux commandes **lisent ce que le mode montre**, comme la barre de
+recherche : le nœud du titre en « Modifier », sa ligne en « Code Markdown ». Ce
+n'est pas une commodité — faire correspondre un rang de ligne à un nœud du rendu
+se tromperait sur un titre cité ou logé dans une cellule. Le titre visé est
+relevé **avant** l'ouverture de la boîte : celle-ci donne le clavier à son
+champ, et la sélection du document est alors perdue.
+
+Un clic sur un lien interne du rendu ne part pas dans le navigateur et ne laisse
+pas la webview suivre l'ancre — elle ferait défiler la page entière : le clic
+porte le regard sur le signet visé, dans la zone d'édition.
+
+Un lien a son **menu contextuel** — « Modifier les propriétés… », « Supprimer
+le lien » —, dans « Modifier » comme dans « Code Markdown », et selon la même
+règle : le nœud `<a>` sous le pointeur d'un côté, le `[texte](cible)` sous le
+curseur de l'autre. Les propriétés rouvrent la boîte du lien sur ce qu'il
+porte, sa cible décidant de la sorte cochée ; ce qu'on valide remplace le lien
+au lieu d'en ajouter un. Supprimer retire la cible et **garde le texte** : c'est
+le lien qu'on défait, pas ce qu'on lit. Dans le rendu, le texte n'est réécrit
+que s'il a changé, sans quoi le gras ou le code qu'il porte s'aplatirait.
 
 Les **notes de bas de page** sont celles de Pandoc : l'appel `[^1]` au fil du
 texte, la définition `[^1]: …` en fin de document. Attention au piège : une
@@ -131,7 +339,12 @@ crochets.
 l'enregistrement — en ne gardant du `style` que les deux couleurs que les
 pastilles savent poser, pour qu'une police venue d'un texte collé ne s'installe
 pas dans le fichier. Les seuls `<span>` du rendu sont donc les siens et ceux des
-shortcodes. En sortie HTML, Quarto rend ces attributs ; en PDF, il les ignore.
+shortcodes. Le texte d'un span peut porter sa propre mise en forme —
+``[Arrivée (`IE507`)]{.underline}`` — : `marked` en a fait des balises, et le
+crochet ouvrant n'est alors plus dans le même nœud de texte que `]{…}`.
+`liftSplitSpans` les recoud parmi les enfants d'un même élément, balises
+comprises ; la règle de `turndown`, qui écrit le contenu converti et non le
+texte, les réécrit sans rien perdre. En sortie HTML, Quarto rend ces attributs ; en PDF, il les ignore.
 
 Légende, taille et alignement d'une image s'écrivent dans la **syntaxe
 d'attributs de Pandoc / Quarto** — `![légende](img.svg){fig-align="center"
@@ -162,6 +375,31 @@ porte les siennes ; l'alignement d'une **colonne**, lui, vit dans les
 deux-points de la barre de `=`. Un tableau à barres verticales lu dans un fichier
 ressort donc lui aussi en grille, la seule forme que l'application sache écrire.
 
+L'alignement d'une colonne se pose sur l'attribut `align` de chaque cellule, et
+la cellule ne le transmet à ce qu'elle contient que par **héritage** — or un
+héritage cède devant la moindre déclaration. La justification du texte courant
+s'arrête donc au bord d'une cellule (`app.css`), sans quoi une cellule au
+contenu en blocs — un titre en gras, que `marked` enveloppe dans un `<p>` —
+resterait à gauche dans une colonne centrée.
+
+**Copier un tableau** met deux formes dans le presse-papiers : la grille en
+texte — celle même qui part dans le fichier, donc exacte — et le tableau en
+HTML, que « Modifier » et les traitements de texte recollent en tableau plutôt
+qu'en lignes de barres et de tirets. Les images de la forme HTML repartent avec
+leur chemin relatif, `data-src` recopié dans `src` : sans cela le collage
+emporterait l'adresse `asset:`, qui ne veut rien dire ailleurs. **Supprimer une
+ligne ou une colonne** ne touche jamais la dernière — un tableau sans rangée ne
+s'écrit pas en grille, et c'est « Supprimer le tableau » qu'on veut alors ; les
+deux commandes s'effacent du menu quand il n'en reste qu'une. C'est la rangée
+visée qui part, et elle seule : la première du corps ne monte pas prendre la
+place d'une ligne de titre retirée — un titre ne se décide pas par accident, et
+une grille qui n'en a plus se relit, sa barre du haut portant alors
+l'alignement que portait celle de « = ». Le `<thead>` vidé s'en va avec sa
+dernière rangée, sans quoi sa barre de « = » se poserait sur rien ; il peut en
+porter plusieurs, puisque c'est le fichier qui décide du rang de cette barre.
+La largeur d'une colonne retirée revient aux autres au prorata, l'exact inverse
+de l'insertion.
+
 Le **bloc YAML** en tête du document — `title`, `subtitle`, `photo`,
 `abstract-title`, `toc-depth` — ne vit que dans la source : il n'entre jamais
 dans le rendu, `markdown.js` le retirant avant `marked`, dont le `---` de
@@ -174,6 +412,18 @@ des cinq clés connues, ordre compris, survit intact. Le bloc n'a de sens qu'au
 tout début du fichier : il s'y écrit toujours, quel que soit le point
 d'insertion.
 
+Les deux moitiés du sélecteur du volet droit ne portent que leur
+**pictogramme**, comme le poussoir « Focus » : le volet est étroit, et le mot
+n'y apprend rien que l'infobulle ne dise mieux ; le nom reste dans l'`aria-
+label`. « Propriétés » reprend le pictogramme des réglages, le même que
+l'entrée « Propriétés du document » du menu contextuel — c'est la même chose,
+elle doit se reconnaître d'un endroit à l'autre. Les icônes sont posées par
+`ui/aside.js` et non écrites dans `index.html` : le balisage ne dessine pas, et
+`PATH` est le seul endroit qui tienne les tracés. Le sélecteur ne s'étire plus
+sur la tête du volet : il garde sa largeur et se cale à droite, et la gauche
+porte en toutes lettres l'intitulé du contenu affiché — « Sommaire » ou
+« Propriétés » —, que `ui/aside.js` écrit d'après l'état.
+
 Ses cinq champs vivent dans le **volet droit**, qui porte donc deux contenus —
 le sommaire et eux — que le sélecteur de sa tête relaie (`ui/aside.js`, et
 `state.edition.aside`). Aucun des deux ne connaît l'autre : chacun se retire
@@ -182,10 +432,153 @@ n'y a rien à valider dans ces champs : celui qu'on quitte écrit dans la source
 comme les propriétés d'une image — mais seulement si sa valeur a bougé, sans
 quoi une simple visite marquerait le document modifié.
 
+Une **barre d'état** court en pied de fenêtre, sous les deux volets comme sous
+le document : ce qu'elle dit vaut du fichier entier et non d'un volet. Tout y
+est calé à droite, loin des volets, là où le regard ne va que lorsqu'il la
+cherche — la sorte du document, et la position du curseur. Celle-ci ne se dit
+qu'en « Code Markdown » : c'est la seule vue qui ait des lignes, et un rang
+compté dans le rendu ne désignerait rien de ce que le fichier porte. La barre
+se retire quand aucun document n'est ouvert : vide, elle n'apprendrait rien et
+prendrait la place d'une ligne de texte. Les deux nombres ne passent **pas**
+par l'état : ils changent à chaque flèche du clavier, et les faire transiter
+par `store.emit` redessinerait tout le document pour deux chiffres —
+`ui/status.js` les écrit donc lui-même, sur les événements de la zone de
+saisie. Ils se disent en chiffres de même chasse, sans quoi « Ligne 9 » et
+« Ligne 10 » n'ayant pas la même largeur, toute la barre — calée à droite —
+tressaillirait à chaque frappe.
+
+Les boîtes du navigateur — `alert`, `confirm`, `prompt` — **ne paraissent pas**
+dans cette webview : l'appel rend aussitôt `false` ou `null` sans que rien ne
+s'affiche, si bien que la commande se trouve annulée en silence et que
+l'application semble sourde. Une question fermée passe donc par `api.ask`, la
+boîte du système que sert le greffon de dialogue — le même qui ouvre déjà les
+sélecteurs de fichiers, à quoi s'ajoute la permission `dialog:allow-ask`. Une
+ligne à saisir passe par `ui/prompt.js`, notre propre boîte : le greffon ne sait
+poser que des questions fermées. Elle rend une **promesse** plutôt qu'un
+rappel, pour que l'appelant s'écrive dans l'ordre où il se lit ; et ce qui
+l'ouvre depuis le document doit faire son `flush` **avant**, la boîte prenant le
+clavier. Ne jamais revenir aux boîtes du navigateur.
+
+Une commande qui touche au disque **dit qu'elle a abouti** : renommer, dupliquer
+et supprimer posent chacune leur message. Sans cela, une suppression réussie ne
+se distinguait pas d'une suppression annulée — l'arbre change, mais on n'a pas
+forcément le fichier sous les yeux.
+
+Un fichier du projet porte quatre commandes — **« Renommer », « Copier le
+nom », « Dupliquer », « Supprimer »** — et deux portes : le menu de son onglet,
+celui de sa ligne dans l'arbre. C'est le même fichier des deux côtés, donc les
+mêmes commandes : elles vivent dans `ui/fileops.js`, que les deux menus
+reprennent telle quelle. Le module est une **feuille** — il ne connaît ni
+l'éditeur ni l'arbre —, et c'est pourquoi le `flush` lui arrive par son
+appelant plutôt que par un `import` : l'éditeur le charge, il ne peut donc pas
+le charger en retour. Renommer en a besoin — l'onglet est désigné par son
+chemin, le changer refait l'affichage, et ce qui n'est encore que dans le rendu
+s'en irait avec l'ancien nom. Le message de « Dupliquer » nomme la
+copie et pas seulement le geste : elle prend sa place dans l'ordre
+alphabétique de l'arbre, parfois loin de l'original, et son nom est ce qu'il
+faut pour la retrouver.
+
 `src-tauri/src/files.rs` est le **seul** endroit qui touche au disque de
 l'utilisateur. Le frontend n'y envoie que des chemins relatifs à la racine du
 projet, et `files::resolve` refuse tout ce qui en sortirait — composant `..`
 comme lien symbolique. Ne pas contourner cette fonction.
+
+La boîte des **paramètres du projet** tient sur **deux colonnes** : les réglages
+d'ensemble — justification, interligne, contour — à gauche, les espacements à
+droite. Sur une seule, ses treize lignes la rendaient plus haute que l'écran et
+il fallait la parcourir au défilement. Les colonnes sont une grille et non deux
+flotteurs, chacune reprenant l'empilement qu'avait le corps entier : un champ ne
+sait pas qu'il est dans une colonne. Sous 660 px de fenêtre elles se remettent
+l'une sous l'autre et le filet qui les sépare passe de leur côté à leur
+dessus — mieux vaut défiler que serrer les champs à l'illisible.
+
+Le groupe **« Mise en page »** des paramètres du projet règle l'espace
+au-dessus et au-dessous de chaque sorte de bloc : les six niveaux de titre
+séparément, le paragraphe, les listes à puces et numérotées, le bloc de code,
+le shortcode, l'image, le tableau. Les mesures sont en **pixels à 100 % de zoom** — des
+entiers, comme l'interligne, lisibles tels quels dans la table clé/valeur — et
+passent par `--doc-px` pour suivre le zoom du document comme le fait le texte.
+
+Entre deux blocs, l'écart est la **somme** de l'« après » du premier et de
+l'« avant » du second, comme dans un traitement de texte — et non la plus
+grande des deux, ce que donnerait CSS livré à lui-même : deux marges verticales
+qui se touchent y fusionnent, et un réglage plus petit que celui du voisin ne
+changeait alors rien à l'écran. Chaque bloc ne porte donc qu'une **marge
+haute**, où il ajoute à son « avant » l'« après » du bloc qui le précède, que
+celui-ci lui passe par `--doc-prev-after` (`X + *`). Les valeurs par défaut sont
+calées sur cette règle pour redonner l'aspect du modèle : 8 avant un titre et
+16 après un paragraphe font les 24 d'autrefois.
+
+Une seule table les nomme : `SPACING`, dans `ui/project.js`. Elle porte
+l'intitulé, la racine de la clé et les deux valeurs par défaut ; les champs de
+la boîte, les clés qui partent en base et les variables
+`--doc-space-<bloc>-<bord>` s'en déduisent. La feuille de style **ne déclare
+aucune de ces mesures** : elle ne fait que les consommer, sans quoi les valeurs
+par défaut vivraient en deux endroits et l'un des deux finirait par mentir. Les
+lignes de la grille ne sont donc pas non plus dans `index.html` — un
+`<div>` vide y attend, et `ui/project.js` le remplit. En ajouter une ne demande
+qu'une ligne dans la table et une règle dans `app.css`.
+
+Les variables se posent **quelle que soit l'application à l'écran**, avant toute
+autre condition du rendu : une variable absente ne vaut pas la mesure du modèle,
+elle vaut zéro — lier leur pose à « Édition » ferait qu'un chemin rendant la
+main plus tôt priverait le document de toutes ses mesures d'un coup.
+
+Côté Rust, c'est une **table dans la table** : `ProjectSettings.spacing`, une
+ligne par valeur sous le préfixe `space.` de `project_settings`. Le vocabulaire
+n'y est pas — Rust ne vérifie que la forme, un nom alphanumérique et une valeur
+bornée, de sorte qu'un espacement de plus ne demande ni champ, ni colonne, ni
+migration. Un réglage **rendu à sa valeur par défaut quitte la base** : les
+lignes `space.%` sont effacées avant d'être réécrites, faute de quoi la ligne
+resterait à couvrir la feuille de style — le réglage serait revenu dans la
+boîte, mais pas dans le document. Un champ vide dans la grille, c'est cela : la
+clé s'en va, et non un zéro qui serait un espacement nul.
+
+Les **raccourcis clavier** vivent tous dans une table, `src/js/keys.js`, sans
+DOM ni état — comme `find.js` et `anchors.js`. Elle donne pour chacun sa
+combinaison, son intitulé et sa portée ; `ui/keys.js` s'en sert pour agir, les
+menus pour l'écrire à droite de l'intitulé, les infobulles de la barre du haut
+pour l'annoncer. Un raccourci qui ne serait écrit qu'à un seul de ces trois
+endroits finirait par mentir aux deux autres — c'est la raison d'être de la
+table, et pourquoi ni `index.html` ni les modules ne nomment une frappe.
+
+Il n'y a **qu'un écouteur**, posé sur le document. Les boîtes gardent seulement
+leurs touches propres — Échap pour se fermer, Entrée pour valider — et la
+tabulation reste à `table.js` et `code.js`, où elle ne veut pas dire la même
+chose qu'ailleurs. Une frappe déjà traitée (`defaultPrevented`) n'est pas reprise,
+et tant qu'une boîte est à l'écran le clavier lui appartient.
+
+Trois frappes de la table ne sont pas à nous : Ctrl+X, Ctrl+C et Ctrl+V, que le
+moteur d'édition traite déjà mieux — un collage ne se déclenche de toute façon
+pas par script. Elles y figurent quand même, marquées `native`, pour que les
+menus les annoncent : les nommer ailleurs ferait mentir la table. `ui/keys.js`
+s'efface devant elles ; ce qu'elles emportent reste à `ui/clipboard.js`.
+
+**Un raccourci de la barre du haut presse son bouton** au lieu d'appeler la
+fonction qu'il déclenche : la touche et le clic font ainsi exactement la même
+chose, état éteint compris — un bouton désactivé ne reçoit pas de clic, donc le
+raccourci n'agit pas, et il n'y a pas deux conditions à tenir d'accord. Les
+commandes du document, elles, passent par `format.command`, la même porte que les
+entrées du menu.
+
+Trois choses ont décidé du choix des touches :
+
+- **Les chiffres se lisent sur `code`, les lettres sur `key`.** Sur un AZERTY, la
+  rangée des chiffres demande la majuscule : « Ctrl+1 » y arrive avec `key`
+  valant « & », d'où `code` — `Digit1`, indépendant de la disposition. Pour une
+  lettre c'est l'inverse : `code` nomme la place de la touche sur un clavier
+  américain, où le « A » d'un AZERTY se présente comme `KeyQ`.
+- **La majuscule ne compte pas pour le zoom** : sur un clavier français, « + » ne
+  s'obtient qu'avec elle. Ctrl et l'une des quatre touches — `+`, `=`, celle du
+  pavé numérique — valent le même cran.
+- **La famille de l'insertion est en Alt**, non en Ctrl+Alt : sous Windows,
+  Ctrl+Alt *est* AltGr, dont un clavier français a besoin pour @ et #. Une frappe
+  où AltGr est enfoncée ne déclenche donc rien.
+
+Ni Ctrl+Maj+I, ni Ctrl+Maj+J, ni Ctrl+Maj+C : ce sont les outils de développement
+de la webview. Ils ne répondent pas dans un paquet de distribution, mais ils
+répondent sous `cargo tauri dev`, et un raccourci qui ne marche que chez
+l'utilisateur ne se laisse pas essayer.
 
 Les **thèmes** (clair, sombre, gris foncé) ne sont qu'un autre jeu de jetons :
 `ui/theme.js` pose `data-theme` sur la racine et `tokens.css` redéfinit les
@@ -225,14 +618,17 @@ cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
 
 ## État d'avancement
 
-Fait : schéma SQLite et migrations, collecte RSS/Atom avec cache conditionnel,
+Fait : projets — boîte de choix au lancement, création sur un dossier
+existant, liste des projets connus, retrait de la liste ; schéma SQLite et
+migrations, collecte RSS/Atom avec cache conditionnel,
 détection automatique de flux, import/export OPML, recherche plein texte,
 filtres, favoris, volet de lecture, rafraîchissement périodique, vignettes
 illustrées par la photo du flux, première page complète conforme au modèle,
 réordonnancement des fils par glisser-déposer et renommage depuis le volet.
 Pour « Édition » : insertion d'images et de tableaux en grille Pandoc, avec un
-menu contextuel par tableau — propriétés, alignement de la colonne visée,
-insertion de lignes et de colonnes, suppression — le redimensionnement des
+menu contextuel par tableau — propriétés, copie, alignement de la colonne
+visée, insertion de lignes et de colonnes, suppression d'une ligne, d'une
+colonne ou du tableau — le redimensionnement des
 colonnes à la souris sur les bordures de la première ligne, et l'insertion de
 blocs de code au langage choisi sur le bloc, et de shortcodes Quarto
 (`{{< pagebreak >}}`, `{{< include … >}}`, `{{< meta … >}}`) — une seule boîte
@@ -242,13 +638,26 @@ shortcode déjà posé, depuis son menu contextuel, qui sait aussi le retirer.
 Bloc YAML en tête du document, par les champs « Propriétés » du volet droit ;
 changement du fichier d'une image depuis ses propriétés. Menu de mise en
 forme : niveaux de titre et paragraphe, listes à puces, numérotées et à
-cocher, bascule minuscules/majuscules. Zoom du document, aux crans de la barre du haut comme
-à Ctrl + molette ; poussoir « Focus », qui retire les deux volets. Menu contextuel sur l'onglet et sur
-un fichier de l'arbre, thème clair/sombre/gris.
+cocher, bascule minuscules/majuscules. Recherche et remplacement dans le
+document, en source comme dans le rendu, avec casse, mot entier et expression
+régulière. Couper, copier, coller — dans le menu contextuel de la zone
+d'édition, et un « Couper » de plus dans ceux du tableau et de l'image ;
+annulation et rétablissement de tout ce qui touche au document ; liste serrée
+ou aérée, et retrait des lignes ou des entrées de liste ; insertion d'une
+ligne vide.
+Zoom du document, aux crans de la barre du haut comme
+à Ctrl + molette ; poussoir « Focus », qui retire les deux volets ;
+réactualisation de l'affichage d'après le Markdown ; groupe « Mise en page »
+des paramètres du projet — espace avant et après chaque sorte de bloc, blocs de
+code compris. Signet sur un titre, et commande « Lien » à quatre sortes de cible
+— URL, fichier, signet, titre du document —, et menu contextuel d'un lien pour
+en modifier les propriétés ou le retirer. Raccourcis clavier sur l'ensemble des
+commandes, annoncés dans les menus et les infobulles. Menu contextuel sur l'onglet et sur
+un fichier de l'arbre — enregistrer, renommer, copier le nom, dupliquer,
+supprimer —, barre d'état en pied de fenêtre, thème clair/sombre/gris.
 
 À faire : écran de réglages détaillés, purge automatique. Pour « Édition » :
-création et suppression de fichiers (seuls la lecture et l'enregistrement
-existent).
+création de fichiers et de dossiers, renommage d'un projet depuis la liste.
 
 Le glisser-déposer du volet est bâti sur les événements de pointeur, pas sur
 l'API HTML5 `dragstart` : celle-ci est irrégulière dans la webview WebKitGTK.

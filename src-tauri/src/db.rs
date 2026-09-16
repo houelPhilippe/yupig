@@ -4,10 +4,20 @@ use std::sync::Mutex;
 use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::error::{Error, Result};
-use crate::models::{Article, ArticleQuery, Feed, ProjectSettings, Settings, Stats};
+use crate::models::{
+    spacing_key_ok, Article, ArticleQuery, Feed, ProjectSettings, Settings, Stats, SPACING_MAX,
+};
 
 /// Version du schéma. Toute évolution ajoute un bloc dans `migrate`.
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
+
+/// Sous quoi les espacements de la mise en page se rangent dans
+/// `project_settings`. Une ligne par valeur, sous un préfixe commun : la table
+/// reste lisible, et un espacement de plus ne demande aucune migration.
+///
+/// Pas de `_` dans ce préfixe : c'est un joker de `LIKE`, et la suppression des
+/// anciennes lignes s'en servirait alors pour effacer plus large.
+const SPACING_PREFIX: &str = "space.";
 
 /// Connexion SQLite partagée. Le `Mutex` est volontairement std et non tokio :
 /// aucun verrou n'est conservé au travers d'un `.await`, toutes les méthodes
@@ -106,6 +116,31 @@ impl Db {
                 PRIMARY KEY (root, key)
             );
             "#,
+        )?;
+
+        // v4 : la liste des projets connus. Le dossier reste la seule vérité —
+        // c'est son témoin qui le nomme ; la base ne fait que retenir lesquels
+        // ont été ouverts sur cette machine, et quand.
+        conn.execute_batch(
+            r#"
+            CREATE TABLE IF NOT EXISTS projects (
+                root   TEXT PRIMARY KEY,
+                opened TEXT
+            );
+            "#,
+        )?;
+
+        // Le dossier ouvert par la version précédente est un projet : le
+        // perdre de vue à la mise à jour ferait disparaître le travail en
+        // cours de la liste. Son témoin, lui, est posé au démarrage par
+        // `adopt_legacy_root` — écrire sur le disque n'est pas l'affaire
+        // d'une migration de schéma.
+        conn.execute(
+            r#"
+            INSERT OR IGNORE INTO projects (root, opened)
+            SELECT value, NULL FROM settings WHERE key = 'projectRoot' AND value <> ''
+            "#,
+            [],
         )?;
 
         // v2 : l'adresse de l'illustration de l'entrée, pour les vignettes.
@@ -500,6 +535,45 @@ impl Db {
         Ok(())
     }
 
+    // ------------------------------------------------------------- projets
+
+    /// Les projets connus, du plus récemment ouvert au plus ancien.
+    ///
+    /// Rend des couples `(racine, dernière ouverture)` : ce que la base sait.
+    /// Le nom et l'existence du dossier se lisent sur le disque, pas ici.
+    pub fn projects(&self) -> Result<Vec<(String, Option<String>)>> {
+        let conn = self.lock();
+        // Un projet jamais ouvert — celui que la migration vient de reprendre —
+        // se range après ceux qui l'ont été, non avant.
+        let mut stmt = conn.prepare(
+            "SELECT root, opened FROM projects ORDER BY opened IS NULL, opened DESC, root",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<std::result::Result<Vec<_>, _>>()?)
+    }
+
+    /// Inscrit un projet dans la liste et note qu'il vient d'être ouvert.
+    pub fn remember_project(&self, root: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute(
+            "INSERT INTO projects (root, opened) VALUES (?1, ?2)
+             ON CONFLICT(root) DO UPDATE SET opened = excluded.opened",
+            params![root, now()],
+        )?;
+        Ok(())
+    }
+
+    /// Retire un projet de la liste. Le dossier n'est pas touché : son témoin
+    /// reste, et le projet se rouvre en désignant à nouveau le dossier.
+    ///
+    /// Sa mise en page est gardée elle aussi — la retrouver intacte vaut mieux
+    /// que la ressaisir, si le projet revient dans la liste.
+    pub fn forget_project(&self, root: &str) -> Result<()> {
+        let conn = self.lock();
+        conn.execute("DELETE FROM projects WHERE root = ?1", params![root])?;
+        Ok(())
+    }
+
     pub fn project_settings(&self, root: &str) -> Result<ProjectSettings> {
         let conn = self.lock();
         let mut stmt = conn.prepare("SELECT key, value FROM project_settings WHERE root = ?1")?;
@@ -513,7 +587,17 @@ impl Db {
                 "align" => s.align = v,
                 "lineHeight" => s.line_height = v.parse().unwrap_or(s.line_height),
                 "showOutline" => s.show_outline = v == "1",
-                _ => {}
+                // Les espacements vivent sous un préfixe : une ligne par valeur,
+                // lisible à l'œil dans la table, et rien à migrer quand le
+                // frontend en nomme un de plus.
+                _ => {
+                    if let Some(name) = k.strip_prefix(SPACING_PREFIX) {
+                        if let Ok(px) = v.parse::<i64>() {
+                            s.spacing
+                                .insert(name.to_string(), px.clamp(0, SPACING_MAX));
+                        }
+                    }
+                }
             }
         }
         Ok(s)
@@ -523,6 +607,15 @@ impl Db {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
         {
+            // Les espacements se réécrivent en entier, les anciens retirés
+            // d'abord : c'est ce qui permet de rendre un réglage à sa valeur par
+            // défaut. Un simple ajout ne le pourrait pas — la ligne resterait en
+            // base et continuerait de couvrir la feuille de style.
+            tx.execute(
+                "DELETE FROM project_settings WHERE root = ?1 AND key LIKE ?2",
+                params![root, format!("{SPACING_PREFIX}%")],
+            )?;
+
             let mut stmt = tx.prepare(
                 "INSERT INTO project_settings (root, key, value) VALUES (?1, ?2, ?3)
                  ON CONFLICT(root, key) DO UPDATE SET value = excluded.value",
@@ -534,6 +627,20 @@ impl Db {
                 "showOutline",
                 if s.show_outline { "1" } else { "0" }
             ])?;
+
+            for (name, px) in &s.spacing {
+                // Un nom qui ne tiendrait pas dans une variable CSS n'a rien à
+                // faire en base : le laisser entrer ferait un réglage qui
+                // s'enregistre et ne s'applique jamais.
+                if !spacing_key_ok(name) {
+                    continue;
+                }
+                stmt.execute(params![
+                    root,
+                    format!("{SPACING_PREFIX}{name}"),
+                    (*px).clamp(0, SPACING_MAX).to_string()
+                ])?;
+            }
         }
         tx.commit()?;
         Ok(())
@@ -628,6 +735,7 @@ fn escape_like(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::BTreeMap;
 
     fn seed(db: &Db) -> i64 {
         db.insert_feed(
@@ -659,12 +767,15 @@ mod tests {
         assert_eq!(d.line_height, 165);
         assert!(d.show_outline);
 
+        assert!(d.spacing.is_empty());
+
         db.save_project_settings(
             "/a",
             &ProjectSettings {
                 align: "justifie".into(),
                 line_height: 200,
                 show_outline: false,
+                spacing: BTreeMap::from([("h1Before".into(), 40), ("pAfter".into(), 12)]),
             },
         )
         .unwrap();
@@ -673,12 +784,133 @@ mod tests {
         assert_eq!(a.align, "justifie");
         assert_eq!(a.line_height, 200);
         assert!(!a.show_outline);
+        assert_eq!(a.spacing.get("h1Before"), Some(&40));
+        assert_eq!(a.spacing.get("pAfter"), Some(&12));
 
         // Un autre dossier garde les siens : c'est tout l'intérêt de la table.
         let b = db.project_settings("/b").unwrap();
         assert_eq!(b.align, "gauche");
         assert_eq!(b.line_height, 165);
         assert!(b.show_outline);
+        assert!(b.spacing.is_empty());
+    }
+
+    /// Un espacement rendu à sa valeur par défaut doit *disparaître* de la base.
+    ///
+    /// Sans cela la ligne resterait là et continuerait de couvrir la feuille de
+    /// style : le réglage serait revenu dans la boîte, mais pas dans le
+    /// document.
+    #[test]
+    fn un_espacement_retire_ne_reste_pas_en_base() {
+        let db = Db::open_memory().unwrap();
+
+        let mut s = ProjectSettings {
+            spacing: BTreeMap::from([("h1Before".into(), 40), ("h1After".into(), 20)]),
+            ..ProjectSettings::default()
+        };
+        db.save_project_settings("/a", &s).unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().spacing.len(), 2);
+
+        s.spacing.remove("h1Before");
+        db.save_project_settings("/a", &s).unwrap();
+
+        let back = db.project_settings("/a").unwrap();
+        assert_eq!(back.spacing.get("h1Before"), None);
+        assert_eq!(back.spacing.get("h1After"), Some(&20));
+
+        // Et les autres réglages ne partent pas avec : le ménage ne vaut que
+        // pour les lignes d'espacement.
+        assert_eq!(back.line_height, 165);
+    }
+
+    /// Ce qui ne tiendrait pas dans une variable CSS n'entre pas en base, et
+    /// une valeur hors bornes y entre ramenée dans ses limites.
+    #[test]
+    fn les_espacements_sont_filtres_et_bornes() {
+        let db = Db::open_memory().unwrap();
+
+        db.save_project_settings(
+            "/a",
+            &ProjectSettings {
+                spacing: BTreeMap::from([
+                    ("h1Before".into(), 10_000),
+                    ("pAfter".into(), -40),
+                    // Ni le point-virgule ni l'espace n'ont leur place dans un
+                    // nom de variable : la ligne est écartée, pas écrite de
+                    // travers.
+                    ("p; color: red".into(), 10),
+                    ("accolade}".into(), 10),
+                ]),
+                ..ProjectSettings::default()
+            },
+        )
+        .unwrap();
+
+        let back = db.project_settings("/a").unwrap();
+        assert_eq!(back.spacing.get("h1Before"), Some(&SPACING_MAX));
+        assert_eq!(back.spacing.get("pAfter"), Some(&0));
+        assert_eq!(back.spacing.len(), 2);
+    }
+
+    #[test]
+    fn la_liste_des_projets_met_le_dernier_ouvert_en_tete() {
+        let db = Db::open_memory().unwrap();
+        db.remember_project("/un").unwrap();
+        db.remember_project("/deux").unwrap();
+        // Rouvrir le premier doit le ramener en tête : c'est l'ordre attendu
+        // d'une liste de projets récents.
+        db.remember_project("/un").unwrap();
+
+        let roots: Vec<String> = db.projects().unwrap().into_iter().map(|(r, _)| r).collect();
+        assert_eq!(roots, ["/un", "/deux"]);
+    }
+
+    #[test]
+    fn un_projet_oublie_quitte_la_liste_mais_garde_sa_mise_en_page() {
+        let db = Db::open_memory().unwrap();
+        db.remember_project("/un").unwrap();
+        db.save_project_settings(
+            "/un",
+            &ProjectSettings {
+                align: "justifie".into(),
+                line_height: 200,
+                show_outline: false,
+                spacing: BTreeMap::from([("h2Before".into(), 30)]),
+            },
+        )
+        .unwrap();
+
+        db.forget_project("/un").unwrap();
+        assert!(db.projects().unwrap().is_empty());
+
+        // La mise en page survit : le projet remis dans la liste la retrouve
+        // plutôt que de la faire ressaisir.
+        let back = db.project_settings("/un").unwrap();
+        assert_eq!(back.align, "justifie");
+        assert_eq!(back.spacing.get("h2Before"), Some(&30));
+    }
+
+    /// Le dossier ouvert par la version d'avant les projets doit se retrouver
+    /// dans la liste : la migration l'y inscrit.
+    #[test]
+    fn le_dossier_herite_entre_dans_la_liste() {
+        let db = Db::open_memory().unwrap();
+        let s = Settings {
+            project_root: Some("/ancien".into()),
+            ..Settings::default()
+        };
+        db.save_settings(&s).unwrap();
+
+        // Une base fraîche vient d'être migrée : on rejoue la reprise comme le
+        // ferait une base v3 rouverte par cette version.
+        {
+            let conn = db.lock();
+            conn.pragma_update(None, "user_version", 3).unwrap();
+        }
+        db.migrate().unwrap();
+
+        let roots: Vec<String> = db.projects().unwrap().into_iter().map(|(r, _)| r).collect();
+        assert_eq!(roots, ["/ancien"]);
     }
 
     #[test]

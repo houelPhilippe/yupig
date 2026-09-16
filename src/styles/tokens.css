@@ -96,6 +96,10 @@
   --color-surface: #eae9e9;
   --color-text: #201e1d;
   --color-accent: #ec3013;
+  /* Occurrences d'une recherche : l'une pour toutes, l'autre pour celle qui
+     est visée. Les mêmes dans le rendu et dans la source. */
+  --find-hit: color-mix(in srgb, var(--color-accent) 22%, transparent);
+  --find-hit-on: color-mix(in srgb, var(--color-accent) 55%, transparent);
   --color-accent-2: #e15b47;
   --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
 

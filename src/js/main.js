@@ -14,23 +14,32 @@ import * as outline from './ui/outline.js';
 import * as format from './ui/format.js';
 import * as splitter from './ui/splitter.js';
 import * as project from './ui/project.js';
+import * as projects from './ui/projects.js';
+import * as find from './ui/find.js';
 import * as image from './ui/image.js';
 import * as table from './ui/table.js';
 import * as code from './ui/code.js';
 import * as theme from './ui/theme.js';
 import * as menu from './ui/menu.js';
 import * as shortcode from './ui/shortcode.js';
+import * as anchor from './ui/anchor.js';
+import * as link from './ui/link.js';
 import * as aside from './ui/aside.js';
 import * as frontmatter from './ui/frontmatter.js';
 import * as zoom from './ui/zoom.js';
 import * as focus from './ui/focus.js';
+import * as status from './ui/status.js';
+import * as prompt from './ui/prompt.js';
+import * as keys from './ui/keys.js';
+import * as clipboard from './ui/clipboard.js';
 import { icon, PATH } from './ui/dom.js';
 
 // `shell` en tête : il décide quelle application est à l'écran, les vues qui
 // suivent se contentent de rendre la leur.
 const views = [
-  shell, header, rail, panel, grid, reader, tree, editor,
-  aside, outline, frontmatter, splitter, project, zoom, focus, theme,
+  shell, header, rail, panel, grid, reader, tree, editor, find,
+  aside, outline, frontmatter, splitter, project, projects, zoom, focus, theme,
+  status,
 ];
 
 store.subscribe((state) => {
@@ -44,18 +53,28 @@ function wire() {
   shell.wire();
   editor.wire();
   format.wire();
+  clipboard.wire();
+  status.wire();
+  prompt.wire();
   splitter.wire();
   project.wire();
+  projects.wire();
+  find.wire();
   image.wire();
   table.wire();
   code.wire();
   theme.wire();
   menu.wire();
   shortcode.wire();
+  anchor.wire();
+  link.wire();
   aside.wire();
   frontmatter.wire();
   zoom.wire();
   focus.wire();
+  // En dernier des vues : `decorate` y écrit les infobulles, et « Focus » vient
+  // d'y poser la sienne.
+  keys.wire();
   wireEdition();
 
   document.getElementById('rail-expand').addEventListener('click', () => store.togglePanel(true));
@@ -167,18 +186,11 @@ function wire() {
 
 /** Boutons de l'application « Édition » : projet et arborescence. */
 function wireEdition() {
+  // Le bouton n'ouvre plus un dossier mais la boîte des projets : c'est elle
+  // qui sait ce qu'est un projet, et elle seule qui peut en créer un.
   const open = document.getElementById('project-open');
   open.append(icon(PATH.folder, { size: 14 }));
-  open.addEventListener('click', async () => {
-    open.disabled = true;
-    try {
-      await store.openProject();
-    } catch (err) {
-      store.fail(err);
-    } finally {
-      open.disabled = false;
-    }
-  });
+  open.addEventListener('click', () => store.openPicker().catch(store.fail));
 
   const refresh = document.getElementById('project-refresh');
   refresh.append(icon(PATH.refresh, { size: 14 }));

@@ -11,6 +11,9 @@
 
 import { el, icon, isTab, wireHints, PATH } from './dom.js';
 import * as tables from '../tables.js';
+import * as store from '../store.js';
+import { toMarkdown } from '../markdown.js';
+import * as clipboard from './clipboard.js';
 
 const rich = document.getElementById('editor-rich');
 const dialog = document.getElementById('table-dialog');
@@ -408,6 +411,128 @@ function blank(table, model) {
     row.append(node);
   }
   return row;
+}
+
+/**
+ * Retire la rangée où l'on a cliqué.
+ *
+ * La dernière rangée ne s'en va pas : un tableau sans rangée ne s'écrit pas en
+ * grille, et ce n'est de toute façon pas ce qu'on demande — pour cela il y a
+ * « Supprimer le tableau », juste en dessous dans le même menu.
+ *
+ * C'est bien la rangée visée qui part, et elle seule — la première du corps ne
+ * monte pas prendre la place d'une ligne de titre retirée : un titre ne se
+ * décide pas par accident. Un tableau qui n'en a plus s'écrit, se relit et se
+ * rend : sa barre du haut porte alors l'alignement que portait celle de « = ».
+ *
+ * Le `<thead>` vidé s'en va avec sa dernière rangée, sans quoi sa barre de
+ * « = » se poserait sur rien. Il peut en porter plusieurs : un fichier décide
+ * du rang de cette barre, et `tables.js` en fait autant de rangées de titre.
+ */
+export function deleteRow(cell) {
+  const table = cell?.closest('table');
+  const row = cell?.closest('tr');
+  if (!table || !row) return;
+
+  const rows = [...table.querySelectorAll('tr')];
+  if (rows.length < 2) return;
+
+  // Où porter le curseur ensuite : la rangée suivante, ou la précédente quand
+  // on retire la dernière. Il se pose avant la suppression, tant que les deux
+  // voisines sont encore là.
+  const at = rows.indexOf(row);
+  const next = rows[at + 1] ?? rows[at - 1];
+
+  const head = row.closest('thead');
+  row.remove();
+  if (head && !head.querySelector('tr')) head.remove();
+
+  place(next?.firstElementChild);
+  commit();
+}
+
+/**
+ * Retire la colonne où l'on a cliqué, ligne de titre comprise.
+ *
+ * La largeur qu'elle occupait revient aux autres, au prorata de ce qu'elles
+ * avaient : c'est l'inverse exact de l'insertion, si bien qu'insérer puis
+ * retirer rend les proportions de départ. La dernière colonne ne s'en va pas,
+ * pour la même raison que la dernière rangée.
+ */
+export function deleteColumn(cell) {
+  const table = cell?.closest('table');
+  const row = cell?.closest('tr');
+  if (!table || !row) return;
+
+  const at = [...row.children].indexOf(cell);
+  const n = columns(table);
+  if (at < 0 || n < 2) return;
+
+  // Un `<colgroup>` qui ne compte pas ses colonnes ne décrit plus le tableau :
+  // on repart de parts égales plutôt que d'écrire des largeurs décalées d'un
+  // rang — c'est ce que fait déjà la boîte quand on lui en saisit trop peu.
+  const found = widthsOf(table);
+  const before = found?.length === n ? found : equal(n);
+
+  for (const line of table.querySelectorAll('tr')) line.children[at]?.remove();
+
+  const rest = before.filter((_, i) => i !== at);
+  const total = rest.reduce((a, b) => a + b, 0);
+  widths(table, total > 0 ? whole(rest.map((w) => round((w * 100) / total))) : equal(rest.length));
+
+  // La colonne suivante a pris la place de celle qui part ; à droite du
+  // tableau, c'est la précédente qui est désormais la dernière.
+  place(row.children[at] ?? row.children[at - 1]);
+  commit();
+}
+
+/**
+ * Copie le tableau dans le presse-papiers.
+ *
+ * Deux formes, pour deux collages : la grille Pandoc en texte — celle même qui
+ * part dans le fichier, donc exacte —, et le tableau en HTML, que « Modifier »
+ * et les autres traitements de texte recollent en tableau plutôt qu'en lignes
+ * de barres et de tirets.
+ *
+ * Les images de la forme HTML repartent avec leur chemin relatif : c'est
+ * `data-src` qui passe dans `src`, faute de quoi le collage emporterait
+ * l'adresse `asset:`, qui ne veut rien dire hors de cette machine.
+ *
+ * Rend vrai quand quelque chose est bien parti : la coupe s'en sert pour savoir
+ * si elle peut retirer le tableau.
+ */
+export async function copy(cell) {
+  const table = cell?.closest('table');
+  if (!table) return false;
+
+  const grid = toMarkdown(table.outerHTML).trim();
+
+  const clone = table.cloneNode(true);
+  for (const node of clone.querySelectorAll('.chrome')) node.remove();
+  for (const img of clone.querySelectorAll('img[data-src]')) {
+    img.setAttribute('src', img.getAttribute('data-src'));
+  }
+
+  // Les deux formes et leur repli vivent dans `ui/clipboard.js` : c'est le seul
+  // endroit qui sache écrire dans le presse-papiers.
+  try {
+    await clipboard.write(grid, clone.outerHTML);
+  } catch (err) {
+    store.fail(err);
+    return false;
+  }
+  store.notify('Tableau copié.');
+  return true;
+}
+
+/**
+ * Coupe le tableau : la copie, puis le retrait.
+ *
+ * Dans cet ordre, et pas l'inverse : si le presse-papiers refuse, le tableau
+ * reste où il est. Une coupe qui efface sans avoir copié perdrait le tableau.
+ */
+export async function cut(cell) {
+  if (await copy(cell)) remove(cell);
 }
 
 /** Retire le tableau du document. */

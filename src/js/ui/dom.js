@@ -51,6 +51,7 @@ export const PATH = {
   grip: 'M4 9h16M4 15h16',
   caretRight: 'm9 18 6-6-6-6',
   caretDown: 'm6 9 6 6 6-6',
+  caretUp: 'm6 15 6-6 6 6',
   file: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
   close: 'M18 6 6 18M6 6l12 12',
   save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M8 3v5h7',
@@ -59,8 +60,34 @@ export const PATH = {
   code: 'm8 18-6-6 6-6M16 6l6 6-6 6',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   sliders: 'M4 7h16M4 12h16M4 17h16M9 5v4M15 10v4M7 15v4',
+  // Le sommaire : des marques de rang à gauche, le texte des titres à droite.
+  outline: 'M4 6h3M10 6h10M4 12h3M10 12h10M4 18h3M10 18h10',
+  link: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7',
   image: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6M8.5 10.5a1.2 1.2 0 1 0 0-2.4 1.2 1.2 0 0 0 0 2.4',
   copy: 'M9 9h10v12H9zM5 15V3h10v2',
+  // Dupliquer : la copie, plus le signe de ce qui s'ajoute. Sans lui, les deux
+  // entrées voisines du menu — « Copier le nom », « Dupliquer » — porteraient
+  // le même dessin.
+  duplicate: 'M9 9h10v12H9zM5 15V3h10v2M14 12v6M11 15h6',
+  // Le retrait : les lignes du texte, et le chevron qui dit de quel côté elles
+  // vont. La première et la dernière ne bougent pas — c'est le corps qui se
+  // décale, et l'immobile fait voir le mouvement.
+  indent: 'M3 5h18M3 19h18M10 10h11M10 14h11M3 9l3 3-3 3',
+  outdent: 'M3 5h18M3 19h18M10 10h11M10 14h11M6 9l-3 3 3 3',
+  // Une liste serrée, une liste aérée : c'est l'écart entre les traits qui le
+  // dit, et un trait de plus le rend lisible au premier coup d'œil.
+  listTight: 'M4 7h16M4 11h16M4 15h16M4 19h16',
+  listLoose: 'M4 6h16M4 12h16M4 18h16',
+  // Revenir sur ses pas, et repartir : une flèche qui rebrousse chemin.
+  undo: 'M9 14 4 9l5-5M4 9h10a5 5 0 0 1 0 10h-3',
+  redo: 'm15 14 5-5-5-5M20 9H10a5 5 0 0 0 0 10h3',
+  // Les deux compagnons de la copie : les ciseaux pour la coupe, la planchette
+  // pour le collage.
+  cut: 'M9 6a3 3 0 1 1-6 0 3 3 0 0 1 6 0M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0M20 4 8.1 15.9M14.5 14.5 20 20M8.1 8.1 12 12',
+  paste: 'M8 5V3a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2zM16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2',
+  // Le signet d'un titre : un marque-page, et non un maillon — c'est une cible
+  // qu'on pose, pas un lien qu'on suit.
+  bookmark: 'M6 3h12v18l-6-4.5L6 21z',
   table: 'M3 5h18v14H3zM3 10h18M3 15h18M9 5v14M15 5v14',
   alignLeft: 'M4 6h16M4 12h9M4 18h13',
   alignCenter: 'M4 6h16M8 12h8M6 18h12',
@@ -69,13 +96,23 @@ export const PATH = {
   rowBelow: 'M4 4h16v7H4zM12 20v-6M9 17h6',
   columnLeft: 'M13 4h7v16h-7zM4 12h6M7 9v6',
   columnRight: 'M4 4h7v16H4zM20 12h-6M17 9v6',
+  // La rangée ou la colonne visée, barrée. Les deux insertions se disent par
+  // un plus posé à côté de la case ; une suppression ne peut pas s'en tenir là
+  // — un moins à côté d'une case ne dit pas *laquelle* s'en va, alors que la
+  // barre le dit sans mot.
+  rowRemove: 'M3 9h18v6H3zM4 19 20 5',
+  columnRemove: 'M9 3v18h6V3zM5 4 19 20',
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4',
   moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z',
   contrast: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 3v18',
   braces: 'M8 4H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1',
   rule: 'M3 12h18M6 7h12M6 17h12',
+  // La ligne vide : deux blocs, et rien entre eux — l'exact contraire de la
+  // ligne horizontale, qui met un trait là où celle-ci laisse du blanc.
+  blank: 'M4 6h16M4 18h16',
   expand: 'M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5',
   contract: 'M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5',
+  search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14M20 20l-4-4',
   minus: 'M5 12h14',
   plus: 'M12 5v14M5 12h14',
 };

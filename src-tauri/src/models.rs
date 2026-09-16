@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Un fil suivi. `mono` est le monogramme de deux lettres affiché dans le rail
 /// latéral et sur la vignette des cartes — il reprend le gabarit du modèle.
@@ -165,6 +166,37 @@ pub struct ProjectSettings {
     /// Affiché par défaut : c'est lui qui dit où va la frappe.
     #[serde(default = "default_outline")]
     pub show_outline: bool,
+    /// Espacements de la mise en page : ce qui s'aère au-dessus et au-dessous
+    /// de chaque sorte de bloc — titres, paragraphes, listes, shortcodes,
+    /// images, tableaux. En pixels à 100 % de zoom ; le zoom du document les
+    /// multiplie comme il multiplie le texte.
+    ///
+    /// Une table plutôt que trente champs : le vocabulaire — quelles clés
+    /// existent, comment elles se nomment à l'écran et quelle variable CSS
+    /// elles portent — vit côté frontend, seul endroit qui en fasse quelque
+    /// chose. Ici on ne garde que la forme : un nom simple, une valeur bornée.
+    /// Ce qu'une version plus ancienne ou plus neuve y aura mis survit donc
+    /// intact, sans rien à migrer.
+    ///
+    /// Vide veut dire « comme la feuille de style le dit » : les valeurs par
+    /// défaut ne sont pas recopiées ici.
+    #[serde(default)]
+    pub spacing: BTreeMap<String, i64>,
+}
+
+/// Bornes d'un espacement, en pixels. Au-delà, ce n'est plus une mise en page
+/// mais une page blanche ; en deçà de zéro, rien de représentable.
+pub const SPACING_MAX: i64 = 200;
+
+/// Un nom d'espacement acceptable : des lettres et des chiffres, pas plus.
+///
+/// Le frontend en fait un nom de variable CSS. Rien d'autre n'y a sa place —
+/// et `setProperty` refuserait de toute façon un nom mal formé, ce qui ferait
+/// disparaître un réglage sans le dire plutôt que de l'écrire de travers.
+pub fn spacing_key_ok(key: &str) -> bool {
+    !key.is_empty()
+        && key.len() <= 40
+        && key.chars().all(|c| c.is_ascii_alphanumeric())
 }
 
 fn default_align() -> String {
@@ -183,6 +215,9 @@ impl Default for ProjectSettings {
             align: default_align(),
             line_height: default_line_height(),
             show_outline: default_outline(),
+            // Vide : la feuille de style porte les valeurs par défaut, et rien
+            // ne s'écrit en base tant qu'on n'y a pas touché.
+            spacing: BTreeMap::new(),
         }
     }
 }
@@ -253,4 +288,45 @@ impl Default for Settings {
             theme: default_theme(),
         }
     }
+}
+
+/// Un projet : un dossier que l'application tient pour sien.
+///
+/// Le nom et la date de création viennent du fichier témoin posé dans le
+/// dossier ; la date de dernière ouverture, elle, vient de la base — c'est un
+/// fait propre à cette machine, il n'a rien à faire dans un dossier partagé.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Project {
+    /// Racine absolue, telle que Rust l'a canonicalisée.
+    pub root: String,
+    /// Nom lu dans le témoin ; à défaut, celui du dossier.
+    pub name: String,
+    /// ISO-8601 UTC, lue dans le témoin. `None` si le témoin est illisible.
+    pub created: Option<String>,
+    /// Dernière ouverture sur cette machine, ISO-8601 UTC.
+    pub opened: Option<String>,
+    /// `false` quand le dossier a disparu ou n'est plus un projet. La liste le
+    /// montre quand même, en retrait : on doit pouvoir le retirer.
+    pub available: bool,
+}
+
+/// Le contenu du fichier témoin `.veille/projet.json`.
+///
+/// Il ne porte que ce qui a un sens partout où le dossier est copié. Tout ce
+/// qui ne vaut que pour cette machine — chemin, dernière ouverture, mise en
+/// page — reste en base.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Marker {
+    pub name: String,
+    /// ISO-8601 UTC.
+    pub created: String,
+    /// Version du format du témoin, pour qu'une évolution puisse se lire.
+    #[serde(default = "default_marker_version")]
+    pub version: i64,
+}
+
+fn default_marker_version() -> i64 {
+    1
 }

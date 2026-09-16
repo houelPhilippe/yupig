@@ -7,10 +7,12 @@
 import { el, icon, replace, PATH } from './dom.js';
 import * as store from '../store.js';
 import * as menu from './menu.js';
-import { saveTab } from './editor.js';
+import * as fileops from './fileops.js';
+import { saveTab, flush } from './editor.js';
 
 const list = document.getElementById('files-tree');
 const rootLabel = document.getElementById('files-root');
+const refreshBtn = document.getElementById('project-refresh');
 
 // Un rendu survient à chaque frappe dans l'éditeur. Rien de ce qui compose
 // l'arbre n'en dépend : on saute le travail tant que rien n'a bougé.
@@ -19,7 +21,13 @@ let seenTree = null;
 
 export function render(state) {
   if (state.app !== 'edition') return;
-  const { root, tree, expanded, activePath } = state.edition;
+  const { root, tree, expanded, activePath, loading } = state.edition;
+
+  // Avant le raccourci du dessin : le témoin d'activité doit paraître même
+  // quand rien de l'arbre n'a encore bougé — c'est justement le moment où l'on
+  // attend, et où le bouton semblerait mort sans lui.
+  refreshBtn.classList.toggle('is-busy', loading);
+  refreshBtn.disabled = loading;
 
   const sig = `${root}|${expanded.join('\u0000')}|${activePath}`;
   if (sig === seen && tree === seenTree) return;
@@ -31,7 +39,8 @@ export function render(state) {
       el(
         'div.hint',
         {},
-        'Aucun projet ouvert. Utilisez « Ouvrir un dossier… » pour choisir le dossier à éditer.',
+        'Aucun projet ouvert. Le bouton « Projets… » ci-dessus ouvre la liste, ',
+        'où l’on choisit un projet ou l’on en crée un sur un dossier existant.',
       ),
     ]);
     rootLabel.textContent = '';
@@ -72,7 +81,7 @@ function row(node, depth, isOpen, activePath) {
       'aria-level': String(depth + 1),
       'aria-current': node.path === activePath ? 'true' : null,
       onclick: () => {
-        if (node.isDir) store.toggleDir(node.path);
+        if (node.isDir) store.toggleDir(node.path).catch(store.fail);
         else if (node.editable) store.openDocument(node.path).catch(store.fail);
       },
       // Le menu du système n'a rien à proposer ici : on prend la main. Il ne
@@ -117,5 +126,9 @@ function openMenu(node, x, y) {
   menu.open(x, y, [
     menu.title(node.name),
     menu.item('Enregistrer', PATH.save, () => saveTab(tab), !tab || !store.isDirty(tab)),
+    menu.separator(),
+    // Ce qu'on fait du fichier lui-même : les mêmes quatre entrées que dans le
+    // menu de l'onglet, et au même endroit — c'est le même fichier.
+    ...fileops.entries(node, flush),
   ]);
 }

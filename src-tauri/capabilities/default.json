@@ -9,6 +9,7 @@
     "core:default",
     "opener:allow-open-url",
     "dialog:allow-open",
-    "dialog:allow-save"
+    "dialog:allow-save",
+    "dialog:allow-ask"
   ]
 }

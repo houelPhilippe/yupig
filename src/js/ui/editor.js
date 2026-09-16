@@ -11,15 +11,21 @@ import { el, icon, replace, PATH } from './dom.js';
 import * as store from '../store.js';
 import { toFragment, toMarkdown, ready } from '../markdown.js';
 import { splitFront } from '../frontmatter.js';
-import { openExternal, assetUrl } from '../api.js';
+import { openExternal, assetUrl, ask } from '../api.js';
 import * as code from './code.js';
 import * as menu from './menu.js';
+import * as fileops from './fileops.js';
+import { labelOf } from '../keys.js';
 
 const bar = document.getElementById('tabs');
 const area = document.getElementById('editor-area');
+// C'est la boîte qui se retire, non la zone de saisie : le calque des marques
+// de recherche vit dans la même boîte et doit partir avec elle.
+const source = document.getElementById('editor-source');
 const rich = document.getElementById('editor-rich');
 const empty = document.getElementById('editor-empty');
 const saveBtn = document.getElementById('doc-save');
+const rebuildBtn = document.getElementById('doc-rebuild');
 
 const MODES = [
   { id: 'edit', el: document.getElementById('mode-edit'), path: PATH.pencil },
@@ -34,6 +40,10 @@ let shownPath = null;
 // sous les doigts de qui est en train d'y écrire.
 let richSig = null;
 let richSource = null;
+// La valeur du compteur de redessin sur laquelle le rendu a été bâti. La
+// comparer permet de refaire le rendu sur demande sans toucher à la règle qui
+// l'économise le reste du temps.
+let richDraw = null;
 // Vrai dès qu'on a saisi quelque chose dans le rendu. Sans ce témoin, un
 // simple passage par « Modifier » pour regarder le document suffirait à le
 // faire repasser par `turndown`, ce qui en réécrirait le formatage — listes,
@@ -47,8 +57,9 @@ export function render(state) {
   const tabs = state.edition.tabs;
   const tab = store.activeTab();
   const markdown = store.isMarkdown(tab);
-  // Un fichier qui n'est pas du Markdown n'a qu'un regard possible.
-  const mode = markdown ? state.edition.mode : 'code';
+  // Un fichier qui n'est pas du Markdown n'a qu'un regard possible. Le calcul
+  // vit dans le `store` : la barre de recherche doit lire le même.
+  const mode = store.mode();
 
   bar.hidden = tabs.length === 0;
   replace(bar, tabs.map((t) => tabButton(t, t === tab)));
@@ -59,13 +70,14 @@ export function render(state) {
   }
 
   empty.hidden = Boolean(tab);
-  area.hidden = !tab || mode !== 'code';
+  source.hidden = !tab || mode !== 'code';
   rich.hidden = !tab || mode === 'code';
 
   if (!tab) {
     shownPath = null;
     richSig = null;
     saveBtn.disabled = true;
+    rebuildBtn.disabled = true;
     return;
   }
 
@@ -73,6 +85,9 @@ export function render(state) {
   else drawRich(tab, mode);
 
   saveBtn.disabled = !store.isDirty(tab);
+  // En « Code Markdown », l'affichage *est* le Markdown : il n'y a rien à
+  // réactualiser d'après lui.
+  rebuildBtn.disabled = mode === 'code';
 }
 
 /** Le Markdown brut dans le `<textarea>`. */
@@ -103,12 +118,15 @@ function drawRich(tab, mode) {
   rich.classList.toggle('editor__rich--live', mode === 'edit');
 
   const sig = `${tab.path}|${mode}`;
-  // On ne rebâtit que si l'on change d'onglet ou de mode, ou si le Markdown a
-  // bougé ailleurs qu'ici : sinon chaque frappe replacerait le curseur au début.
-  if (sig === richSig && tab.content === richSource) return;
+  const draw = store.state.edition.redraw;
+  // On ne rebâtit que si l'on change d'onglet ou de mode, si le Markdown a
+  // bougé ailleurs qu'ici, ou si l'on a demandé le redessin : sinon chaque
+  // frappe replacerait le curseur au début.
+  if (sig === richSig && tab.content === richSource && draw === richDraw) return;
 
   // Changement d'onglet ou de mode : on repart du haut. Une simple mise à jour
-  // du texte, elle, doit laisser le lecteur où il en était.
+  // du texte comme un redessin demandé, eux, doivent laisser le lecteur où il
+  // en était — c'est bien la même page qu'il a sous les yeux.
   const keep = sig === richSig ? rich.scrollTop : 0;
   try {
     replace(rich, [toFragment(tab.content, imageResolver(tab))]);
@@ -120,6 +138,7 @@ function drawRich(tab, mode) {
   }
   richSig = sig;
   richSource = tab.content;
+  richDraw = draw;
   richTouched = false;
   rich.scrollTop = keep;
 }
@@ -209,16 +228,34 @@ function tabButton(tab, active) {
 function openMenu(tab, x, y) {
   menu.open(x, y, [
     menu.title(tab.name),
-    menu.item('Enregistrer', PATH.save, () => saveTab(tab), !store.isDirty(tab)),
+    menu.item('Enregistrer', PATH.save, () => saveTab(tab), !store.isDirty(tab), labelOf('doc.save')),
+    // Passe par le `store` et non par `ui/find.js` : celui-ci importe déjà ce
+    // module, et le rappeler d'ici fermerait le cercle.
+    menu.item(
+      'Rechercher / Remplacer…', PATH.search,
+      () => store.toggleFind(true), !store.canFind(), labelOf('find'),
+    ),
+    menu.separator(),
+    // Ce qu'on fait du fichier lui-même : les mêmes quatre entrées que dans le
+    // menu de sa ligne de l'arbre — c'est le même fichier.
+    ...fileops.entries(tab, flush),
   ]);
 }
 
-/** Ferme, en demandant confirmation si le document a été modifié. */
-function requestClose(tab) {
+/**
+ * Ferme, en demandant confirmation si le document a été modifié.
+ *
+ * `api.ask` et non `window.confirm` : cette webview ne montre pas les boîtes du
+ * navigateur — l'appel rendait `false` sans rien afficher, et un onglet modifié
+ * refusait de se fermer sans dire pourquoi.
+ */
+async function requestClose(tab) {
   flush();
   if (store.closeTab(tab.path)) return;
-  const ok = confirm(
+
+  const ok = await ask(
     `« ${tab.name} » a des modifications non enregistrées.\n\nFermer sans enregistrer ?`,
+    { title: 'Fermer le document', okLabel: 'Fermer sans enregistrer' },
   );
   if (ok) store.closeTab(tab.path, true);
 }
@@ -249,6 +286,36 @@ export function flush() {
   richSource = md;
   richTouched = false;
   store.edit(tab.path, md);
+}
+
+/**
+ * Signale que le rendu a été modifié autrement qu'à la frappe.
+ *
+ * La barre de recherche écrit directement dans le DOM du rendu : sans ce
+ * témoin, `flush` tiendrait la saisie pour inexistante et le remplacement ne
+ * reviendrait jamais au Markdown.
+ */
+export function richEdited() {
+  richTouched = true;
+  flush();
+}
+
+/**
+ * Refait l'affichage du document d'après son Markdown.
+ *
+ * Le rendu n'est rebâti que lorsqu'il le faut, sans quoi le curseur repartirait
+ * au début à chaque frappe : il peut donc s'écarter de la source, le moteur
+ * d'édition n'écrivant pas toujours ce que `turndown` en relira — une liste
+ * imbriquée reprise à la main, un collage venu d'ailleurs. Ce bouton remet les
+ * deux d'accord, et c'est le Markdown qui a raison.
+ *
+ * `flush` d'abord : ce qui vient d'être saisi part au Markdown avant que le
+ * rendu ne se refasse d'après lui. Sans cela, réactualiser perdrait les
+ * derniers mots — ils ne sont encore que dans le DOM.
+ */
+export function rebuild() {
+  flush();
+  store.redrawDocument();
 }
 
 /** Porte le curseur sur une ligne — appelé depuis le sommaire. */
@@ -320,23 +387,39 @@ export function wire() {
     }, 400);
   });
 
-  for (const node of [area, rich]) {
-    node.addEventListener('keydown', (ev) => {
-      if ((ev.ctrlKey || ev.metaKey) && ev.key === 's') {
-        ev.preventDefault();
-        save();
-      }
-    });
-  }
+  // Ctrl+S n'est plus écouté ici : il vit dans la table de `keys.js`, qui presse
+  // le bouton d'enregistrement. Garder les deux ferait enregistrer deux fois —
+  // et annoncer deux fois.
 
   // Un lien du rendu ouvre le navigateur du système, jamais la webview :
   // l'y laisser naviguer remplacerait l'application par la page.
+  //
+  // Un lien interne, lui, ne sort pas du document : il vise un signet posé sur
+  // un titre — `[voir](#mon-signet)` — et le clic y porte le regard. Le confier
+  // au navigateur n'aurait aucun sens, et laisser la webview suivre l'ancre
+  // ferait défiler la page entière plutôt que la zone d'édition.
   rich.addEventListener('click', (ev) => {
     const a = ev.target.closest?.('a[href]');
     if (!a) return;
     ev.preventDefault();
-    openExternal(a.getAttribute('href'))?.catch?.(store.fail);
+
+    const href = a.getAttribute('href');
+    if (href?.startsWith('#')) {
+      // `getElementById` chercherait dans toute la page : on reste dans le
+      // document, seul endroit où un signet a un sens.
+      const id = href.slice(1);
+      const target = id
+        ? rich.querySelector(`[id="${CSS.escape(id)}"]`)
+        : rich.firstElementChild;
+      if (target) target.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      else store.notify(`Aucun signet « ${id} » dans ce document.`, 'error');
+      return;
+    }
+    openExternal(href)?.catch?.(store.fail);
   });
+
+  rebuildBtn.addEventListener('click', rebuild);
+  rebuildBtn.append(icon(PATH.refresh, { size: 14 }));
 
   saveBtn.addEventListener('click', save);
   saveBtn.append(icon(PATH.save, { size: 15 }));

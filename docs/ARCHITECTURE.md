@@ -44,6 +44,8 @@ articles  (id, feed_id →feeds, guid, title, link, excerpt, content, image,
            author, published, fetched, is_read, is_fav,
            UNIQUE (feed_id, guid))
 settings  (key, value)
+projects  (root PRIMARY KEY, opened)
+project_settings (root, key, value, PRIMARY KEY (root, key))
 ```
 
 - `UNIQUE (feed_id, guid)` porte l'idempotence de la collecte : un
@@ -59,9 +61,83 @@ settings  (key, value)
   charge la photo au rendu de la carte. `NULL` : la vignette garde le
   monogramme. Un article déjà connu se voit compléter son `image` à la
   collecte suivante, sans compter comme nouveau.
+- `projects` (schéma v4) ne porte que des chemins et une date : le nom d'un
+  projet vit dans son dossier, pas ici. Recopier le nom en base le ferait
+  mentir le jour où le témoin change. La migration v4 y inscrit le
+  `projectRoot` hérité, pour que le dossier ouvert par la version précédente
+  ne disparaisse pas de la liste ; son témoin, lui, est posé au démarrage par
+  `commands::files::adopt_legacy_root` — écrire sur le disque de
+  l'utilisateur n'est pas l'affaire d'une migration de schéma.
+- `project_settings` (schéma v3) garde la mise en page de chaque projet. Elle
+  survit au retrait d'un projet de la liste : la retrouver intacte vaut mieux
+  que la ressaisir si le projet revient.
 
 `user_version` porte la version du schéma ; toute évolution ajoute un bloc
 dans `Db::migrate`, jamais une modification du bloc existant.
+
+## Projets
+
+Un projet est **un dossier qui porte un témoin** : `.veille/projet.json`, où
+vivent son nom, sa date de création et la version du format. Le témoin est dans
+le dossier et non en base, pour la même raison que les liens d'images sont
+relatifs — un projet copié ou partagé doit rester le même projet ailleurs.
+
+Le partage se lit dans la répartition : ce qui vaut partout va dans le dossier
+(le nom), ce qui ne vaut que sur cette machine reste en base (le chemin, la
+dernière ouverture, la mise en page).
+
+```
+ouverture d'un projet
+  ┌─ files::is_project(dir)     le témoin est-il là ? sinon : refus
+  ├─ db.remember_project(root)  la liste retient le chemin et l'heure
+  ├─ settings.project_root      le projet devient celui qui est ouvert
+  ├─ allow_assets(root)         la webview peut lire les images, de ce dossier
+  └─ files::tree(root)          l'arborescence part au frontend
+```
+
+`create_project` ne diffère que par son premier temps : il **pose** le témoin
+au lieu de l'exiger, et refuse un dossier qui en a déjà un — le réécrire
+perdrait la date de création sans rien demander. Aucune des deux commandes ne
+crée de dossier : un projet se pose sur ce qui est déjà là.
+
+`.veille` commence par un point : `files::walk` l'écarte de l'arborescence avec
+tous les fichiers cachés, sans avoir à le nommer.
+
+### Renommer, dupliquer, effacer
+
+Les trois gestes passent par `files::resolve` comme la lecture et l'écriture :
+le frontend n'envoie qu'un chemin relatif, et rien de ce qui sortirait du
+projet ne franchit cette porte. Trois refus s'y ajoutent, chacun pour une
+raison qui lui est propre :
+
+| Refus | Pourquoi |
+|---|---|
+| un dossier | l'effacer emporterait ce qu'il contient sans que la question ait été posée sur chacun |
+| un nom qui porte une barre | « Renommer » ne promet pas de déplacer le fichier ailleurs |
+| un nom commençant par un point | `walk` écarte les fichiers cachés : le fichier disparaîtrait de l'arbre sans avoir été effacé |
+
+Renommer sur un nom déjà pris est refusé plutôt qu'accepté : `std::fs::rename`
+remplacerait le fichier en place sans un mot, et c'est le travail d'un autre
+document qui partirait. Dupliquer, à l'inverse, cherche le premier nom libre
+lui-même — `note.md`, puis `note (copie).md`, puis `note (copie 2).md` — le
+suffixe posé **avant** l'extension, qui dit ce qu'est le fichier.
+
+Les questions posées à l'utilisateur ne passent pas par les boîtes du
+navigateur : cette webview ne les montre pas, et `confirm` comme `prompt`
+rendent aussitôt `false` ou `null` — la commande est annulée en silence. Une
+question fermée passe par `api.ask` (greffon de dialogue, permission
+`dialog:allow-ask`), une ligne à saisir par `ui/prompt.js`, boîte de
+l'application qui rend une promesse. Chacune des trois commandes qui touchent au
+disque pose ensuite son message de compte rendu.
+
+Côté frontend, les quatre commandes du menu — les trois ci-dessus et « Copier
+le nom » — vivent dans `ui/fileops.js`, et les deux menus qui les portent, celui
+de l'onglet et celui de la ligne de l'arbre, reprennent la même `entries` : un
+fichier n'a pas deux jeux de commandes selon l'endroit d'où on le montre. Le
+module reste une **feuille** — il ne connaît ni l'éditeur ni l'arbre — et reçoit
+de son appelant le `flush` de `ui/editor.js` : renommer change le chemin qui
+désigne l'onglet, donc refait l'affichage du document, et ce qui n'est encore
+que dans le rendu s'en irait avec l'ancien nom.
 
 ## Collecte
 
@@ -101,6 +177,11 @@ progression lisible dans l'en-tête.
   supprime le bloc — pas de bloc, pas de requête. C'est pourquoi le volet de
   lecture s'y plie aussi : masquer d'un côté et charger de l'autre viderait
   le levier de son sens.
+- Le HTML collé dans le document est du contenu tiers au même titre qu'un flux :
+  il ne va jamais tel quel dans le DOM. `ui/clipboard.js` le passe à `turndown`,
+  qui n'en garde que ce que le Markdown sait dire, puis à `toFragment`, qui
+  assainit la sortie de `marked` comme pour un fichier relu du disque. Ce qui
+  entre dans la zone d'édition est donc toujours passé par l'assainisseur.
 - Les liens s'ouvrent dans le navigateur du système via `tauri-plugin-opener`,
   jamais dans la webview.
 - Les capacités déclarées se limitent à `core:default`, `opener:allow-open-url`

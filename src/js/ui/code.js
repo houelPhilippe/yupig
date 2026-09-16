@@ -10,6 +10,7 @@
 // fichier, et elle ne paraît qu'en « Modifier ».
 
 import { el, isTab } from './dom.js';
+import * as prompt from './prompt.js';
 
 const rich = document.getElementById('editor-rich');
 
@@ -97,23 +98,32 @@ function picker(code) {
   return el('div.code-lang.chrome', { contenteditable: 'false' }, select);
 }
 
-function choose(code, select) {
+async function choose(code, select) {
   // Les deux événements annoncent le même choix : le second arrive sur une
   // liste déjà remplacée par `repaint`, il n'a plus rien à faire.
   if (!select.isConnected) return;
   let language = select.value;
 
   if (language === OTHER) {
-    const asked = prompt(
-      'Langage du bloc de code, tel qu’il s’écrit après les accents graves :',
-      languageOf(code),
-    );
-    // Annulé : la liste montre encore « Autre… », on la remet sur le langage
+    // Notre boîte et non `window.prompt`, que cette webview ne montre pas :
+    // l'appel rendait `null` sans rien afficher, et « Autre… » ne menait nulle
+    // part.
+    const asked = await prompt.open({
+      title: 'Langage du bloc',
+      label: 'Langage',
+      value: languageOf(code),
+      hint: 'Tel qu’il s’écrit après les accents graves : python, rust, bash…',
+    });
+    // Renoncé : la liste montre encore « Autre… », on la remet sur le langage
     // en place.
     if (asked === null) {
       repaint(code);
       return;
     }
+    // La boîte rend la main plus tard, là où `window.prompt` bloquait tout : le
+    // rendu a pu être refait entre-temps, et ce bloc-ci n'être plus dans la
+    // page. Écrire dessus ne mènerait nulle part.
+    if (!code.isConnected) return;
     language = asked.trim().replace(/[\s`]+/g, '');
   }
 

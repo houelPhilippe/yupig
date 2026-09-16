@@ -11,7 +11,7 @@ use std::sync::OnceLock;
 use regex::Regex;
 
 use crate::error::{Error, Result};
-use crate::models::{Document, Heading, ImageData, Node};
+use crate::models::{Document, Heading, ImageData, Marker, Node};
 
 /// Dossiers jamais parcourus : volumineux et sans intérêt pour la rédaction.
 const SKIP: &[&str] = &[
@@ -55,6 +55,12 @@ pub fn is_markdown(name: &str) -> bool {
     MARKDOWN.contains(&extension(name).as_str())
 }
 
+/// La racine du projet, chemin réel — celui auquel `resolve` compare.
+fn real_root(root: &Path) -> Result<PathBuf> {
+    root.canonicalize()
+        .map_err(|_| Error::Other("le dossier du projet est introuvable".into()))
+}
+
 /// Résout un chemin relatif contre la racine, ou refuse.
 ///
 /// Deux barrières : les composants `..` sont rejetés d'emblée, puis les
@@ -70,9 +76,7 @@ pub fn resolve(root: &Path, rel: &str) -> Result<PathBuf> {
         }
     }
 
-    let real_root = root
-        .canonicalize()
-        .map_err(|_| Error::Other("le dossier du projet est introuvable".into()))?;
+    let real_root = real_root(root)?;
     let real = out
         .canonicalize()
         .map_err(|_| Error::Other(format!("fichier introuvable : {rel}")))?;
@@ -96,12 +100,31 @@ fn relative(root: &Path, path: &Path) -> String {
 /// L'arborescence du projet, dossiers d'abord puis fichiers, par ordre
 /// alphabétique — l'ordre attendu d'un explorateur. `read_dir` n'en garantit
 /// aucun, le tri est donc à notre charge.
-pub fn tree(root: &Path) -> Result<Vec<Node>> {
+///
+/// `open` porte les chemins des dossiers **dépliés**, et l'on ne descend que
+/// dans ceux-là : le volet ne dessine jamais le contenu d'un dossier fermé, le
+/// lire serait donc du travail pur perdu. Ce n'est pas une optimisation de
+/// confort — sur un dossier partagé par la machine virtuelle, chaque `read_dir`
+/// traverse le système de fichiers de l'hôte, et parcourir le projet entier
+/// prenait des minutes là où un seul niveau prend une seconde. L'arbre
+/// paraissait alors ne pas s'actualiser, faute de revenir avant qu'on ait
+/// renoncé.
+///
+/// Un dossier fermé rend donc `children` vide. Le volet n'en sait rien : c'est
+/// `expanded`, et non la présence d'enfants, qui lui dit dans quel sens tourner
+/// son chevron — et c'est cette même liste qui arrive ici.
+pub fn tree(root: &Path, open: &[String]) -> Result<Vec<Node>> {
     let mut budget = MAX_ENTRIES;
-    walk(root, root, 0, &mut budget)
+    walk(root, root, 0, &mut budget, open)
 }
 
-fn walk(dir: &Path, root: &Path, depth: usize, budget: &mut usize) -> Result<Vec<Node>> {
+fn walk(
+    dir: &Path,
+    root: &Path,
+    depth: usize,
+    budget: &mut usize,
+    open: &[String],
+) -> Result<Vec<Node>> {
     if depth >= MAX_DEPTH {
         return Ok(Vec::new());
     }
@@ -127,7 +150,13 @@ fn walk(dir: &Path, root: &Path, depth: usize, budget: &mut usize) -> Result<Vec
         // `file_type` ne suit pas les liens : un lien vers un dossier n'est
         // donc pas parcouru, ce qui écarte au passage les cycles.
         if entry.file_type()?.is_dir() {
-            let children = walk(&path, root, depth + 1, budget)?;
+            // Fermé : on s'arrête là. Le déplier redemandera l'arborescence, et
+            // ce dossier-ci sera dans `open` au tour suivant.
+            let children = if open.iter().any(|p| p == &rel) {
+                walk(&path, root, depth + 1, budget, open)?
+            } else {
+                Vec::new()
+            };
             dirs.push(Node {
                 name,
                 path: rel,
@@ -162,9 +191,7 @@ fn walk(dir: &Path, root: &Path, depth: usize, budget: &mut usize) -> Result<Vec
 /// trouver dans le projet, faute de quoi le lien en sortirait — et le document
 /// cesserait d'être autonome.
 pub fn link_from(root: &Path, doc: &str, target: &Path) -> Result<String> {
-    let real_root = root
-        .canonicalize()
-        .map_err(|_| Error::Other("le dossier du projet est introuvable".into()))?;
+    let real_root = real_root(root)?;
     let target = target
         .canonicalize()
         .map_err(|_| Error::Other("fichier introuvable".into()))?;
@@ -320,6 +347,124 @@ pub fn write(root: &Path, rel: &str, content: &str) -> Result<Document> {
     }
     std::fs::write(&path, content)?;
     read(root, rel)
+}
+
+// ----------------------------------------------------- opérations sur un
+//                                                        fichier du projet
+//
+// Renommer, dupliquer, effacer : trois gestes que l'arbre et l'onglet portent
+// tous deux, et qui passent par `resolve` comme tout le reste — le frontend
+// n'envoie qu'un chemin relatif, et rien de ce qui sortirait du projet ne
+// franchit cette porte.
+//
+// Aucun des trois ne vaut pour un dossier : le menu ne s'ouvre que sur un
+// fichier, et effacer un dossier emporterait ce qu'il contient sans que la
+// question ait été posée sur chacun. Le refus est donc ici, et non seulement
+// dans l'interface.
+
+/// Le nom qu'un fichier du projet peut porter.
+///
+/// Un nom est un nom, jamais un chemin : une barre y déplacerait le fichier
+/// ailleurs, ce que « Renommer » ne promet pas. Un nom commençant par un point
+/// est refusé pour une autre raison — `walk` écarte les fichiers cachés, et le
+/// fichier renommé disparaîtrait de l'arbre sans avoir été effacé.
+fn check_name(name: &str) -> Result<&str> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(Error::Other("le nom ne peut pas être vide".into()));
+    }
+    if name.contains('/') || name.contains('\\') {
+        return Err(Error::Other(
+            "un nom de fichier ne porte pas de dossier".into(),
+        ));
+    }
+    if name.starts_with('.') {
+        return Err(Error::Other(
+            "un nom commençant par un point ne paraîtrait pas dans l'arborescence".into(),
+        ));
+    }
+    Ok(name)
+}
+
+/// Le fichier visé, s'il en est bien un.
+fn file(root: &Path, rel: &str) -> Result<PathBuf> {
+    let path = resolve(root, rel)?;
+    if path.is_dir() {
+        return Err(Error::Other(
+            "cette commande ne vaut que pour un fichier".into(),
+        ));
+    }
+    Ok(path)
+}
+
+/// Renomme un fichier sans le déplacer, et rend son nouveau chemin relatif.
+///
+/// Un nom déjà pris est refusé plutôt qu'écrasé : `rename` remplacerait le
+/// fichier en place sans un mot, et c'est le travail d'un autre document qui
+/// partirait.
+pub fn rename(root: &Path, rel: &str, name: &str) -> Result<String> {
+    let path = file(root, rel)?;
+    let name = check_name(name)?;
+    let target = path.with_file_name(name);
+
+    if target == path {
+        return Ok(rel.to_owned());
+    }
+    if target.exists() {
+        return Err(Error::Other(format!(
+            "« {name} » existe déjà dans ce dossier"
+        )));
+    }
+    std::fs::rename(&path, &target)?;
+    Ok(relative(&real_root(root)?, &target))
+}
+
+/// Copie un fichier à côté de lui-même et rend le chemin de la copie.
+pub fn duplicate(root: &Path, rel: &str) -> Result<String> {
+    let path = file(root, rel)?;
+    let target = free_name(&path)?;
+    std::fs::copy(&path, &target)?;
+    Ok(relative(&real_root(root)?, &target))
+}
+
+/// Le premier nom libre à côté de `path` : « note.md » donne « note (copie).md »,
+/// puis « note (copie 2).md ».
+///
+/// Le suffixe se pose avant l'extension et non après : c'est elle qui dit à
+/// l'application — et au système — ce qu'est le fichier, et une copie de
+/// document doit rester un document.
+fn free_name(path: &Path) -> Result<PathBuf> {
+    let stem = path
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    let suffix = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+
+    for n in 1..1_000 {
+        let tag = if n == 1 {
+            " (copie)".to_owned()
+        } else {
+            format!(" (copie {n})")
+        };
+        let candidate = path.with_file_name(format!("{stem}{tag}{suffix}"));
+        if !candidate.exists() {
+            return Ok(candidate);
+        }
+    }
+    Err(Error::Other(
+        "trop de copies de ce fichier dans ce dossier".into(),
+    ))
+}
+
+/// Efface un fichier du projet. Rien n'est mis de côté : l'interface le dit
+/// avant de le demander.
+pub fn remove(root: &Path, rel: &str) -> Result<()> {
+    std::fs::remove_file(file(root, rel)?)?;
+    Ok(())
 }
 
 /// Le libellé d'un titre, débarrassé de sa syntaxe Markdown.
@@ -504,9 +649,274 @@ pub fn outline(content: &str) -> Vec<Heading> {
     out
 }
 
+// ------------------------------------------------------------------ projet
+//
+// Un dossier devient un projet le jour où on y pose un témoin. Celui-ci ne
+// porte que ce qui garde un sens ailleurs — le nom, la date de création : un
+// dossier copié sur une autre machine y est le même projet, sous le même nom.
+// Le chemin, la dernière ouverture et la mise en page restent en base, où ils
+// ne valent que pour cette machine.
+
+/// Dossier du témoin. Il commence par un point : `walk` l'écarte de l'arbre
+/// sans avoir à le nommer, et l'outillage du projet peut s'y ajouter plus tard.
+const MARKER_DIR: &str = ".veille";
+const MARKER_FILE: &str = "projet.json";
+
+fn marker_path(root: &Path) -> PathBuf {
+    root.join(MARKER_DIR).join(MARKER_FILE)
+}
+
+/// Le nom que porte un dossier, à défaut de témoin lisible.
+///
+/// `file_name` est vide pour une racine (`/`) : on retombe alors sur le chemin
+/// entier, qui vaut mieux qu'une ligne sans nom dans la liste.
+pub fn dir_name(root: &Path) -> String {
+    root.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .filter(|n| !n.is_empty())
+        .unwrap_or_else(|| root.to_string_lossy().into_owned())
+}
+
+/// Lit le témoin d'un dossier. `None` : ce dossier n'est pas un projet.
+///
+/// Un témoin illisible ou mal formé ne lève pas : le dossier est simplement
+/// tenu pour un dossier ordinaire, ce qu'une boîte de dialogue sait dire mieux
+/// qu'un message d'erreur.
+pub fn read_marker(root: &Path) -> Option<Marker> {
+    let text = std::fs::read_to_string(marker_path(root)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+pub fn is_project(root: &Path) -> bool {
+    read_marker(root).is_some()
+}
+
+/// Pose le témoin d'un projet neuf sur un dossier existant.
+///
+/// Le dossier, lui, n'est pas créé : l'application ouvre des projets sur ce qui
+/// est déjà là. Un dossier qui porte déjà un témoin est refusé plutôt que
+/// réécrit — ce serait perdre sa date de création sans rien demander.
+pub fn write_marker(root: &Path, name: &str, created: &str) -> Result<Marker> {
+    if !root.is_dir() {
+        return Err(Error::Other(format!(
+            "« {} » n'est pas un dossier",
+            root.display()
+        )));
+    }
+    if let Some(existing) = read_marker(root) {
+        return Err(Error::Other(format!(
+            "ce dossier est déjà le projet « {} »",
+            existing.name
+        )));
+    }
+
+    let name = name.trim();
+    let marker = Marker {
+        name: if name.is_empty() {
+            dir_name(root)
+        } else {
+            name.to_owned()
+        },
+        created: created.to_owned(),
+        version: 1,
+    };
+
+    let dir = root.join(MARKER_DIR);
+    std::fs::create_dir_all(&dir)?;
+    // `to_string_pretty` : le témoin se lit et se corrige à la main, c'est un
+    // fichier de l'utilisateur comme les autres.
+    let text = serde_json::to_string_pretty(&marker)
+        .map_err(|e| Error::Other(format!("témoin du projet illisible : {e}")))?;
+    std::fs::write(dir.join(MARKER_FILE), text + "\n")?;
+    Ok(marker)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Un dossier vide, propre à chaque test, effacé par `Temp`.
+    struct Temp(PathBuf);
+
+    impl Temp {
+        fn new(tag: &str) -> Self {
+            // `SystemTime` plutôt qu'un compteur : deux tests lancés en
+            // parallèle ne doivent pas se disputer le même dossier.
+            let stamp = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let dir = std::env::temp_dir().join(format!("veille-{tag}-{stamp}"));
+            std::fs::create_dir_all(&dir).unwrap();
+            Temp(dir)
+        }
+    }
+
+    impl Drop for Temp {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn temoin_ecrit_puis_relu() {
+        let dir = Temp::new("temoin");
+        assert!(!is_project(&dir.0));
+
+        write_marker(&dir.0, "Mon mémoire", "2026-09-15T10:00:00+00:00").unwrap();
+        assert!(is_project(&dir.0));
+
+        let m = read_marker(&dir.0).unwrap();
+        assert_eq!(m.name, "Mon mémoire");
+        assert_eq!(m.created, "2026-09-15T10:00:00+00:00");
+        assert_eq!(m.version, 1);
+    }
+
+    #[test]
+    fn temoin_sans_nom_reprend_celui_du_dossier() {
+        let dir = Temp::new("sansnom");
+        let m = write_marker(&dir.0, "   ", "2026-09-15T10:00:00+00:00").unwrap();
+        assert_eq!(m.name, dir_name(&dir.0));
+    }
+
+    /// Reposer un témoin perdrait la date de création du projet : on refuse.
+    #[test]
+    fn temoin_ne_se_recrit_pas() {
+        let dir = Temp::new("deuxfois");
+        write_marker(&dir.0, "Premier", "2026-09-15T10:00:00+00:00").unwrap();
+        assert!(write_marker(&dir.0, "Second", "2026-09-16T10:00:00+00:00").is_err());
+        assert_eq!(read_marker(&dir.0).unwrap().name, "Premier");
+    }
+
+    /// Le témoin vit dans un dossier caché : l'arbre ne doit pas le montrer.
+    #[test]
+    fn temoin_absent_de_l_arborescence() {
+        let dir = Temp::new("arbre");
+        write_marker(&dir.0, "Projet", "2026-09-15T10:00:00+00:00").unwrap();
+        std::fs::write(dir.0.join("texte.md"), "# Titre\n").unwrap();
+
+        let nodes = tree(&dir.0, &[]).unwrap();
+        assert_eq!(nodes.len(), 1);
+        assert_eq!(nodes[0].name, "texte.md");
+    }
+
+    /// Un témoin illisible ne lève pas : le dossier n'est simplement pas un
+    /// projet, ce qu'une boîte de dialogue dit mieux qu'une erreur.
+    #[test]
+    fn temoin_illisible_vaut_pas_de_projet() {
+        let dir = Temp::new("casse");
+        std::fs::create_dir_all(dir.0.join(MARKER_DIR)).unwrap();
+        std::fs::write(dir.0.join(MARKER_DIR).join(MARKER_FILE), "{ pas du json").unwrap();
+        assert!(read_marker(&dir.0).is_none());
+        assert!(!is_project(&dir.0));
+    }
+
+    /// On ne descend que dans les dossiers dépliés : le volet ne dessine pas le
+    /// contenu d'un dossier fermé, et sur un dossier partagé lent, le lire
+    /// quand même coûtait des minutes à chaque actualisation.
+    #[test]
+    fn l_arborescence_ne_descend_que_dans_ce_qui_est_deplie() {
+        let dir = Temp::new("paresseux");
+        std::fs::create_dir_all(dir.0.join("un/deux")).unwrap();
+        std::fs::write(dir.0.join("un/a.md"), "").unwrap();
+        std::fs::write(dir.0.join("un/deux/b.md"), "").unwrap();
+
+        // Rien de déplié : le premier niveau, et rien dessous.
+        let ferme = tree(&dir.0, &[]).unwrap();
+        assert_eq!(ferme.len(), 1);
+        assert_eq!(ferme[0].name, "un");
+        assert!(ferme[0].children.is_empty());
+
+        // « un » déplié : son contenu vient, mais pas celui de « un/deux ».
+        let un = tree(&dir.0, &["un".to_owned()]).unwrap();
+        let noms: Vec<_> = un[0].children.iter().map(|n| n.name.as_str()).collect();
+        assert_eq!(noms, vec!["deux", "a.md"]);
+        assert!(un[0].children[0].children.is_empty());
+
+        // Les deux dépliés : on descend jusqu'au bout.
+        let deux = tree(&dir.0, &["un".to_owned(), "un/deux".to_owned()]).unwrap();
+        assert_eq!(deux[0].children[0].children[0].path, "un/deux/b.md");
+    }
+
+    #[test]
+    fn renommer_deplace_le_fichier_et_rend_son_chemin() {
+        let dir = Temp::new("renommer");
+        std::fs::write(dir.0.join("note.md"), "# Titre\n").unwrap();
+
+        let rel = rename(&dir.0, "note.md", "mémoire.md").unwrap();
+        assert_eq!(rel, "mémoire.md");
+        assert!(!dir.0.join("note.md").exists());
+        assert_eq!(read(&dir.0, &rel).unwrap().content, "# Titre\n");
+    }
+
+    /// Renommer ne déplace pas : une barre sortirait le fichier de son dossier,
+    /// et un point le ferait disparaître de l'arbre.
+    #[test]
+    fn renommer_refuse_un_chemin_ou_un_nom_cache() {
+        let dir = Temp::new("renommer-refus");
+        std::fs::write(dir.0.join("note.md"), "x").unwrap();
+
+        assert!(rename(&dir.0, "note.md", "sous/note.md").is_err());
+        assert!(rename(&dir.0, "note.md", ".note.md").is_err());
+        assert!(rename(&dir.0, "note.md", "   ").is_err());
+        assert!(dir.0.join("note.md").exists());
+    }
+
+    /// Un nom déjà pris est refusé : `rename` écraserait l'autre document sans
+    /// un mot.
+    #[test]
+    fn renommer_ne_recouvre_pas_un_fichier() {
+        let dir = Temp::new("renommer-collision");
+        std::fs::write(dir.0.join("un.md"), "un").unwrap();
+        std::fs::write(dir.0.join("deux.md"), "deux").unwrap();
+
+        assert!(rename(&dir.0, "un.md", "deux.md").is_err());
+        assert_eq!(std::fs::read_to_string(dir.0.join("deux.md")).unwrap(), "deux");
+    }
+
+    #[test]
+    fn dupliquer_numerote_les_copies_avant_l_extension() {
+        let dir = Temp::new("dupliquer");
+        std::fs::write(dir.0.join("note.md"), "# Titre\n").unwrap();
+
+        assert_eq!(duplicate(&dir.0, "note.md").unwrap(), "note (copie).md");
+        assert_eq!(duplicate(&dir.0, "note.md").unwrap(), "note (copie 2).md");
+        assert_eq!(
+            std::fs::read_to_string(dir.0.join("note (copie).md")).unwrap(),
+            "# Titre\n"
+        );
+    }
+
+    #[test]
+    fn effacer_retire_le_fichier() {
+        let dir = Temp::new("effacer");
+        std::fs::write(dir.0.join("note.md"), "x").unwrap();
+
+        remove(&dir.0, "note.md").unwrap();
+        assert!(!dir.0.join("note.md").exists());
+    }
+
+    /// Les trois gestes ne valent que pour un fichier : un dossier emporterait
+    /// ce qu'il contient sans que la question ait été posée.
+    #[test]
+    fn les_operations_refusent_un_dossier() {
+        let dir = Temp::new("dossier");
+        std::fs::create_dir(dir.0.join("images")).unwrap();
+
+        assert!(rename(&dir.0, "images", "photos").is_err());
+        assert!(duplicate(&dir.0, "images").is_err());
+        assert!(remove(&dir.0, "images").is_err());
+        assert!(dir.0.join("images").is_dir());
+    }
+
+    /// `resolve` garde la porte : ce qui sortirait du projet ne s'efface pas
+    /// davantage qu'il ne se lit.
+    #[test]
+    fn les_operations_restent_dans_le_projet() {
+        let dir = Temp::new("hors");
+        assert!(remove(&dir.0, "../ailleurs.md").is_err());
+        assert!(rename(&dir.0, "../ailleurs.md", "ici.md").is_err());
+    }
 
     #[test]
     fn sommaire_des_titres() {
@@ -700,7 +1110,8 @@ mod tests {
         std::fs::write(dir.join(".cache-perso"), "").unwrap();
         std::fs::write(dir.join("z-dossier/c.md"), "").unwrap();
 
-        let t = tree(&dir).unwrap();
+        // « z-dossier » est déplié : c'est la condition pour qu'on y descende.
+        let t = tree(&dir, &["z-dossier".to_owned()]).unwrap();
         let noms: Vec<_> = t.iter().map(|n| n.name.as_str()).collect();
         // Dossier d'abord, puis les fichiers ; ni caché ni `node_modules`.
         assert_eq!(noms, vec!["z-dossier", "a.md", "b.png"]);
@@ -709,5 +1120,22 @@ mod tests {
         assert!(!t[2].editable, "un .png ne s'ouvre pas");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+}
+
+#[cfg(test)]
+mod mesure {
+    use super::*;
+    #[test]
+    #[ignore]
+    fn cout_du_parcours() {
+        let root = Path::new("/mnt/hgfs/DEV/sds-sfd-v2027");
+        if !root.is_dir() {
+            eprintln!("dossier absent, mesure ignorée");
+            return;
+        }
+        let t = std::time::Instant::now();
+        let n = tree(root, &[]).unwrap();
+        eprintln!("fermé   : {} entrées en {:?}", n.len(), t.elapsed());
     }
 }
