@@ -147,6 +147,12 @@ function drawRich(tab, mode) {
  * Traduit le chemin d'une image, relatif au document, en adresse que la
  * webview sait charger. Le protocole `asset` n'est ouvert qu'au dossier du
  * projet ; un chemin qui en sortirait ne rend rien plutôt qu'une erreur.
+ *
+ * Le chemin se recolle avec le **séparateur de la racine**, et non avec la
+ * barre oblique des chemins du document : sous Windows la racine s'écrit
+ * « C:\… », et la portée ouverte au protocole `asset` est comparée telle
+ * qu'elle a été posée — un chemin qui mêle les deux séparateurs n'y
+ * correspond pas, et l'image ne paraissait pas.
  */
 export function imageResolver(tab) {
   const { root } = store.state.edition;
@@ -154,6 +160,9 @@ export function imageResolver(tab) {
 
   const at = tab.path.lastIndexOf('/');
   const dir = at < 0 ? '' : tab.path.slice(0, at);
+  // Antislash seulement si la racine n'emploie que lui : un chemin Windows
+  // écrit à la main peut porter des barres obliques, qui marchent aussi.
+  const sep = root.includes('\\') && !root.includes('/') ? '\\' : '/';
 
   return (src) => {
     const parts = dir ? dir.split('/') : [];
@@ -167,7 +176,7 @@ export function imageResolver(tab) {
         return null;
       }
     }
-    return assetUrl(`${root}/${parts.join('/')}`);
+    return assetUrl([root.replace(/[\\/]+$/, ''), ...parts].join(sep));
   };
 }
 
