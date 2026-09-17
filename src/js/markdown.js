@@ -523,6 +523,29 @@ function spanAcross(doc, start) {
 }
 
 /**
+ * Fait d'un tableau à barres verticales un tableau de l'éditeur.
+ *
+ * Markdown standard écrit un tableau ainsi :
+ *
+ *     | Col1  | Col2   |
+ *     |-------|--------|
+ *     | deded | frfrfr |
+ *
+ * `marked` le lit de lui-même, mais en `<table>` nu : la grille de Pandoc, elle,
+ * arrive de `tables.js` avec la classe `tbl`, à laquelle tiennent l'aspect du
+ * tableau et sa mise en page — sans elle, il ne se présentait pas comme un
+ * tableau. On la lui donne donc. L'alignement des colonnes, que les
+ * deux-points de sa barre disent, `marked` l'a déjà posé en `align` sur chaque
+ * cellule, comme le fait la grille.
+ *
+ * À l'enregistrement, il ressort en grille, la seule forme que `turndown` sache
+ * écrire.
+ */
+function liftPipeTables(doc) {
+  for (const table of doc.querySelectorAll('table:not(.tbl)')) table.classList.add('tbl');
+}
+
+/**
  * Rend les appels de note — `[^1]` — en exposant.
  *
  * `marked` les laisse en texte brut, et `turndown` échapperait alors leurs
@@ -617,6 +640,7 @@ export function toFragment(markdown, resolve = null) {
   const html = globalThis.marked.parse(expand(expandFootnotes(body)), { gfm: true, breaks: false });
   const doc = new DOMParser().parseFromString(html, 'text/html');
   liftFigures(doc);
+  liftPipeTables(doc);
   liftHeadings(doc);
   liftSpans(doc);
   liftFootnotes(doc);

@@ -1,0 +1,72 @@
+# defaults-single.yaml
+
+# --- Chemins de ressources (images...) ---
+resource-path: [".", "_projet", "filesANN", "filesLOT01", "filesLOT02", "filesLOT03", "filesLOT04", "filesLOT05", "filesLOT06", "filesLOT07", "filesPRES", "FormationSAU"]
+
+# --- Filtres Lua (pour les encadrements de tableaux, etc.) ---
+filters: ["conf/filtre.lua"]
+
+# --------------------------------------------------------
+# TABLE DES MATIÈRES ET NUMÉROTATION
+# --------------------------------------------------------
+# top-level-division: chapter
+toc: true
+toc-depth: 6
+number-sections: false             
+
+# --------------------------------------------------------
+# MOTEUR LATEX ET LANGUE
+# --------------------------------------------------------
+pdf-engine: lualatex              
+reference-location: document      
+
+metadata:
+  lang: 'fr'                      
+
+# --------------------------------------------------------
+# CODE SOURCE
+# --------------------------------------------------------
+highlight-style: pygments         
+
+# --------------------------------------------------------
+# VARIABLES DE TEMPLATE LATEX
+# --------------------------------------------------------
+variables:
+  toc-title: "Table des Matières"
+  lof: false                        
+  lot: false                        
+
+  # --- Polices et typographie ---
+  # mainfont, sansfont et monofont ne sont pas ici : conf/fonts.tex les choisit
+  # selon ce que la machine a d'installé (Calibri, sinon Carlito...).
+  fontsize: 11pt                  
+  linestretch: 1.1                
+
+  # --- Couleurs des liens ---
+  linkcolor: blue                 
+  urlcolor: olive                 
+  toccolor: violet                
+
+  # --- Mise en page (KOMA-Script) ---
+  documentclass: scrartcl          
+  papersize: a4                   
+  classoption:
+    - twoside          # Mode recto-verso
+    - DIV=12                      
+    - parskip=half                
+    - portrait                    
+
+  geometry:                       
+    - top=30mm
+    - bottom=30mm
+    - left=30mm
+    - right=20mm
+
+  secnumdepth: 1                  
+
+# --------------------------------------------------------
+# INCLUSIONS LATEX (Le préambule)
+# --------------------------------------------------------
+include-in-header:
+  - conf/fonts.tex
+  - conf/preamble-single.tex

@@ -84,14 +84,13 @@ function row(node, depth, isOpen, activePath) {
         if (node.isDir) store.toggleDir(node.path).catch(store.fail);
         else if (node.editable) store.openDocument(node.path).catch(store.fail);
       },
-      // Le menu du système n'a rien à proposer ici : on prend la main. Il ne
-      // vaut que pour un fichier — un dossier n'a encore rien à offrir.
-      oncontextmenu: node.isDir
-        ? null
-        : (ev) => {
-            ev.preventDefault();
-            openMenu(node, ev.clientX, ev.clientY);
-          },
+      // Le menu du système n'a rien à proposer ici : on prend la main. Un
+      // dossier a le sien — ce qu'on fait de ses documents.
+      oncontextmenu: (ev) => {
+        ev.preventDefault();
+        if (node.isDir) openDirMenu(node, ev.clientX, ev.clientY);
+        else openMenu(node, ev.clientX, ev.clientY);
+      },
     },
     el(
       'span.tree__icon',
@@ -110,6 +109,11 @@ function row(node, depth, isOpen, activePath) {
   }
   if (node.path === activePath) btn.classList.add('tree__row--active');
   return btn;
+}
+
+/** Le menu d'un dossier : ce qu'on fait des documents qu'il contient. */
+function openDirMenu(node, x, y) {
+  menu.open(x, y, [menu.title(node.name), ...fileops.dirEntries(node, flush)]);
 }
 
 /**

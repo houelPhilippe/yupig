@@ -181,8 +181,10 @@ export function render(state) {
   // laisse les intervalles de la dernière recherche sur des nœuds qui ne sont
   // plus dans la page — plus rien ne se peindrait, et la navigation entre
   // occurrences viserait le vide.
+  // Le repli de la source aussi : il déplace chaque caractère, et le calque
+  // doit être repeint sur la nouvelle disposition.
   const sig = JSON.stringify([
-    tab?.path, store.mode(), tab?.content, state.edition.redraw,
+    tab?.path, store.mode(), tab?.content, state.edition.redraw, state.edition.project.wrapSource,
     find.query, find.matchCase, find.wholeWord, find.regex,
   ]);
   if (sig === seen) return;
@@ -313,6 +315,10 @@ function paintSource() {
   // sans ce report, le repli des lignes diffère d'une couche à l'autre et tous
   // les aplats glissent à partir de la première ligne trop longue.
   backdrop.style.width = `${area.clientWidth}px`;
+  // De même en hauteur quand le repli est retiré : la barre horizontale qui
+  // paraît alors réduit la zone, et un calque plus haut qu'elle n'atteindrait
+  // plus le même défilement en pied de document.
+  backdrop.style.height = `${area.clientHeight}px`;
 
   const text = area.value;
   const parts = [];

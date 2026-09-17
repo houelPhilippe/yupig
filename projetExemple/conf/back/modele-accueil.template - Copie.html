@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="$if(lang)$$lang$$else$fr$endif$">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="pandoc + modele Liseuse (accueil)">
+$for(author-meta)$
+  <meta name="author" content="$author-meta$">
+$endfor$
+  <title>SDS - Documentation Fonctionnelle — $if(title)$$title$$else$Accueil$endif$</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+$if(highlighting-css)$
+  <style>
+$highlighting-css$
+  </style>
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+
+  <style>
+    /* ============ Palette / thèmes (identiques à la Liseuse) ============ */
+    :root{
+      --accent:#4C5FDA;
+      --header-h:56px;
+      --home-width:1280px;
+    }
+    #app[data-theme="light"]{
+      --bg:oklch(97.5% 0.008 80); --surface:oklch(99% 0.004 80);
+      --text:oklch(22% 0.015 80); --muted:oklch(48% 0.02 80); --border:oklch(88% 0.012 80);
+    }
+    #app[data-theme="sepia"]{
+      --bg:oklch(92% 0.025 75); --surface:oklch(94.5% 0.02 75);
+      --text:oklch(30% 0.03 55); --muted:oklch(50% 0.03 55); --border:oklch(82% 0.03 65);
+    }
+    #app[data-theme="dark"]{
+      --bg:oklch(21% 0.012 260); --surface:oklch(25% 0.014 260);
+      --text:oklch(92% 0.01 90); --muted:oklch(66% 0.02 90); --border:oklch(34% 0.015 260);
+    }
+
+    /* ============ Base ============ */
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    #app{background:var(--bg);color:var(--text);min-height:100vh;
+      font-family:'Inter',system-ui,sans-serif;transition:background .25s,color .25s}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    ::selection{background:rgba(76,95,218,.25)}
+    button{font-family:inherit}
+
+    /* ============ En-tête (identique à la Liseuse) ============ */
+    header.top{position:sticky;top:0;z-index:30;height:var(--header-h);
+      display:flex;align-items:center;gap:12px;padding:0 16px;
+      background:color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .brand .logo{width:32px;height:32px;border-radius:9px;flex:none;display:block;object-fit:contain}
+    .brand .name{font-weight:600;font-size:14px;color:var(--text);white-space:nowrap}
+    .spacer{flex:1}
+    .hbtn{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:8px;
+      border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+    .hbtn:hover{color:var(--text);border-color:var(--accent)}
+    .hbtn.icon{width:34px;padding:0;justify-content:center}
+
+    /* ============ Corps : page d'accueil ============ */
+    main.home{max-width:var(--home-width);margin:0 auto;padding:0 24px 12vh}
+
+    /* Hero */
+    .hero{padding:64px 0 8px;max-width:960px}
+    .badge{display:inline-flex;align-items:center;gap:6px;
+      background:color-mix(in srgb, var(--accent) 12%, var(--surface));color:var(--accent);
+      font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:18px}
+    .badge > span{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+    .hero h1.home-title{font-family:'Source Serif 4',serif;font-weight:600;font-size:44px;
+      line-height:1.14;margin:0 0 16px;color:var(--text);letter-spacing:-.01em}
+    .hero .lead{font-family:'Source Serif 4',serif;font-size:20px;line-height:1.6;color:var(--muted);margin:0 0 8px}
+
+    /* Contenu éditorial (issu d'index.md) */
+    .intro{max-width:960px;margin:14px 0 8px}
+    .intro p,.intro li{font-family:'Source Serif 4',serif;font-size:17px;line-height:1.8;color:var(--text)}
+    .intro a{text-decoration:underline}
+    .intro h2{font-family:'Source Serif 4',serif;font-weight:600;font-size:22px;margin:28px 0 12px;color:var(--text)}
+    .intro code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:.86em;
+      background:color-mix(in srgb, var(--accent) 8%, var(--surface));
+      border:1px solid var(--border);border-radius:5px;padding:.1em .35em}
+    .intro hr{border:none;border-top:1px solid var(--border);margin:32px 0}
+
+    /* Barre de filtre */
+    .lib-toolbar{display:flex;align-items:center;gap:12px;margin:40px 0 8px;
+      padding-top:28px;border-top:1px solid var(--border)}
+    .lib-toolbar .side-title{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+    .lib-toolbar .spacer{flex:1}
+    .home-search{width:280px;max-width:50vw;height:36px;border-radius:9px;border:1px solid var(--border);
+      background:var(--surface);color:var(--text);padding:0 12px;font-size:13px;outline:none}
+    .home-search:focus{border-color:var(--accent)}
+
+    /* Grille de documents par LOT */
+    .lot{margin-top:26px}
+    .lot-title{font-size:12px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;
+      color:var(--muted);margin:0 0 14px;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none;list-style:none}
+    .lot-title::-webkit-details-marker{display:none}
+    .lot-title:hover{color:var(--text)}
+    .lot-title .fold-icon{width:14px;height:14px;transition:transform 0.2s}
+    details:not([open]) > .lot-title .fold-icon{transform:rotate(-90deg)}
+    .lot-title .count{font-size:10px;font-weight:600;color:var(--muted);
+      background:color-mix(in srgb, var(--border) 55%, transparent);border-radius:999px;
+      padding:2px 8px;letter-spacing:0}
+    .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(max(240px, calc(25% - 12px)),1fr));gap:16px}
+    .card{display:flex;flex-direction:column;border-radius:12px;overflow:hidden;
+      border:1px solid var(--border);background:var(--surface);text-decoration:none;
+      transition:border-color .15s,transform .12s,box-shadow .15s}
+    .card:hover{text-decoration:none;border-color:var(--accent);transform:translateY(-2px);
+      box-shadow:0 12px 28px color-mix(in srgb, var(--accent) 14%, transparent)}
+    .card-cover{width:100%;height:140px;background-size:cover;background-position:center;
+      border-bottom:1px solid var(--border)}
+    .card-content{display:flex;align-items:flex-start;gap:12px;padding:16px;flex:1}
+    .card .doc-ico{flex:none;width:34px;height:34px;border-radius:8px;
+      display:flex;align-items:center;justify-content:center;
+      background:color-mix(in srgb, var(--accent) 12%, var(--surface));color:var(--accent)}
+    .card .doc-ico svg{width:18px;height:18px}
+    .card .body{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+    .card .t{font-size:14.5px;font-weight:600;line-height:1.35;color:var(--text)}
+    .card .s{font-size:12px;color:var(--muted)}
+    .card .card-abstract{font-size:12.5px;color:var(--muted);line-height:1.5;
+      display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;margin-top:2px}
+    .card .arrow{flex:none;color:var(--muted);transition:transform .15s,color .15s;font-size:16px;line-height:1;margin-top:2px}
+    .card:hover .arrow{color:var(--accent);transform:translateX(3px)}
+    .card:hover .t{color:var(--accent)}
+    .empty-filter{color:var(--muted);font-size:14px;padding:22px 2px}
+
+    /* Pied de page */
+    .home-foot{margin-top:56px;padding-top:20px;border-top:1px solid var(--border);
+      color:var(--muted);font-size:13px}
+
+    /* ============ Réglage du thème (popover, comme la Liseuse) ============ */
+    .backdrop{position:fixed;inset:0;background:rgba(10,8,4,.4);z-index:60}
+    .settings{position:fixed;top:66px;right:20px;width:300px;background:var(--surface);
+      border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.24);padding:16px;z-index:70}
+    .settings .lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px}
+    .settings .grp{display:flex;gap:6px}
+    .segbtn{flex:1;min-width:0;height:32px;padding:0 4px;border-radius:8px;border:1px solid var(--border);
+      background:transparent;color:var(--muted);cursor:pointer;font-size:12.5px;white-space:nowrap}
+    .segbtn:hover{color:var(--text)}
+    .segbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+    .hidden{display:none !important}
+
+    @media(max-width:760px){
+      .hero{padding-top:40px}
+      .hero h1.home-title{font-size:34px}
+      .brand .name{display:none}
+      .home-search{width:160px}
+    }
+
+    @media print{
+      header.top,.settings,.backdrop,.lib-toolbar .home-search{display:none !important}
+      #app{background:#fff;color:#000}
+      .card{break-inside:avoid}
+    }
+  </style>
+</head>
+<body>
+<div id="app" data-theme="$if(theme)$$theme$$else$light$endif$">
+
+  <!-- ===================== En-tête ===================== -->
+  <header class="top">
+    <div class="brand">
+      <img class="logo" src="resources/img/logoMiniSDS03.png" alt="Logo SDS">
+      <span class="name">SDS - Documentation Fonctionnelle</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="hbtn icon" id="btn-settings" title="Thème" aria-label="Thème">⚙</button>
+  </header>
+
+  <!-- ===================== Corps ===================== -->
+  <main class="home">
+    <section class="hero">
+$if(subtitle)$
+      <div class="badge">$subtitle$</div>
+$endif$
+      <h1 class="home-title">$if(title)$$title$$else$Documentation Fonctionnelle SDS$endif$</h1>
+$if(abstract)$
+      <p class="lead">$abstract$</p>
+$endif$
+    </section>
+
+$if(body)$
+    <section class="intro">
+$body$
+    </section>
+$endif$
+
+    <!-- Bibliothèque (grille de cartes, issue de bibliotheque.yaml) -->
+    <div class="lib-toolbar">
+      <span class="side-title">Bibliothèque</span>
+      <span class="spacer"></span>
+      <input class="home-search" id="home-search" placeholder="Filtrer les documents…" aria-label="Filtrer les documents">
+    </div>
+
+    <div id="lib-grid">
+$if(library)$
+$for(library)$
+      <section class="lot" data-label="$library.label$">
+        <details class="lot-details" open>
+          <summary class="lot-title">
+            <svg class="fold-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+            $library.label$ <span class="count"></span>
+          </summary>
+          <div class="cards">
+$for(library.items)$
+          <a class="card" href="$library.items.href$" data-title="$library.items.title$">
+$if(library.items.photo)$
+            <div class="card-cover" style="background-image: url('$library.items.photo$')"></div>
+$endif$
+            <div class="card-content">
+$if(library.items.photo)$
+$else$
+              <span class="doc-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none"><path d="M6 3h8l4 4v14H6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3v4h4" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+              </span>
+$endif$
+              <span class="body">
+                <span class="t">$library.items.title$</span>
+$if(library.items.abstarct)$
+                <span class="card-abstract">$library.items.abstarct$</span>
+$else$
+$if(library.items.abstract)$
+                <span class="card-abstract">$library.items.abstract$</span>
+$else$
+                <span class="s">Spécification fonctionnelle</span>
+$endif$
+$endif$
+              </span>
+              <span class="arrow" aria-hidden="true">→</span>
+            </div>
+          </a>
+$endfor$
+          </div>
+        </details>
+      </section>
+$endfor$
+$else$
+      <div class="empty-filter">Aucun document déclaré dans <code>conf/bibliotheque.yaml</code>.</div>
+$endif$
+      <div class="empty-filter hidden" id="no-result">Aucun document ne correspond au filtre.</div>
+    </div>
+
+    <div class="home-foot">SDS — Documentation Fonctionnelle · page d'accueil générée par Pandoc</div>
+  </main>
+
+  <!-- ===================== Réglage du thème ===================== -->
+  <div class="backdrop hidden" id="backdrop"></div>
+  <div class="settings hidden" id="settings">
+    <div class="lbl">Thème</div>
+    <div class="grp" data-set="theme">
+      <button class="segbtn" data-val="light">Clair</button>
+      <button class="segbtn" data-val="sepia">Sépia</button>
+      <button class="segbtn" data-val="dark">Sombre</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var app = document.getElementById('app');
+  var byId = function(id){ return document.getElementById(id); };
+
+  /* ---------- Thème persisté (même clé que la Liseuse : partagé en http://) ---------- */
+  function syncSettings(){
+    document.querySelectorAll('.settings .grp').forEach(function(g){
+      var key = g.getAttribute('data-set');
+      var cur = app.getAttribute('data-'+key);
+      g.querySelectorAll('.segbtn').forEach(function(b){
+        b.classList.toggle('on', b.getAttribute('data-val') === cur);
+      });
+    });
+  }
+  function loadPrefs(){
+    try{ var v = localStorage.getItem('liseuse-theme'); if(v) app.setAttribute('data-theme', v); }catch(e){}
+    syncSettings();
+  }
+  document.querySelectorAll('.settings .grp').forEach(function(g){
+    var key = g.getAttribute('data-set');
+    g.querySelectorAll('.segbtn').forEach(function(b){
+      b.addEventListener('click', function(){
+        app.setAttribute('data-'+key, b.getAttribute('data-val'));
+        try{ localStorage.setItem('liseuse-'+key, b.getAttribute('data-val')); }catch(e){}
+        syncSettings();
+      });
+    });
+  });
+
+  /* ---------- Popover réglages ---------- */
+  var backdrop = byId('backdrop'), settings = byId('settings');
+  function closeAll(){ settings.classList.add('hidden'); backdrop.classList.add('hidden'); }
+  backdrop.addEventListener('click', closeAll);
+  byId('btn-settings').addEventListener('click', function(e){
+    e.stopPropagation();
+    var willOpen = settings.classList.contains('hidden');
+    closeAll();
+    if(willOpen){ settings.classList.remove('hidden'); backdrop.classList.remove('hidden'); }
+  });
+  settings.addEventListener('click', function(e){ e.stopPropagation(); });
+  window.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeAll(); });
+
+  /* ---------- Compteurs par LOT ---------- */
+  Array.prototype.forEach.call(document.querySelectorAll('.lot'), function(lot){
+    var badge = lot.querySelector('.lot-title .count');
+    if(badge) badge.textContent = lot.querySelectorAll('.card').length;
+  });
+
+  /* ---------- Filtre des cartes ---------- */
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.card'));
+  var noResult = byId('no-result');
+  var search = byId('home-search');
+  if(search) search.addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    var anyVisible = false;
+    cards.forEach(function(c){
+      var t = (c.getAttribute('data-title') || '').toLowerCase();
+      var show = !q || t.indexOf(q) !== -1;
+      c.style.display = show ? '' : 'none';
+      if(show) anyVisible = true;
+    });
+    // Masque les LOT sans carte visible et met à jour leur compteur affiché.
+    Array.prototype.forEach.call(document.querySelectorAll('.lot'), function(lot){
+      var vis = Array.prototype.filter.call(lot.querySelectorAll('.card'), function(c){ return c.style.display !== 'none'; }).length;
+      lot.style.display = vis ? '' : 'none';
+      if (q && vis) {
+        var det = lot.querySelector('details');
+        if (det) det.open = true;
+      }
+    });
+    if(noResult) noResult.classList.toggle('hidden', anyVisible);
+  });
+
+  loadPrefs();
+})();
+</script>
+</body>
+</html>

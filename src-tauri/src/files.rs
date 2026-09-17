@@ -183,6 +183,34 @@ fn walk(
     Ok(dirs)
 }
 
+/// Les documents Markdown d'un dossier du projet, relatifs à la racine, dans
+/// l'ordre de l'arbre — alphabétique, sans tenir compte de la casse.
+///
+/// Le dossier seul, sans ses sous-dossiers : c'est ce qu'on voit sous lui en
+/// le dépliant, et ce que « Compiler en HTML » sur un dossier annonce. Les
+/// fichiers cachés sont écartés comme dans l'arbre, et les liens ne sont pas
+/// suivis. `rel` vide désigne la racine.
+pub fn markdown_in(root: &Path, rel: &str) -> Result<Vec<String>> {
+    let dir = resolve(root, rel)?;
+    if !dir.is_dir() {
+        return Err(Error::Other(format!("« {rel} » n'est pas un dossier")));
+    }
+
+    let mut names: Vec<String> = std::fs::read_dir(&dir)?
+        .flatten()
+        .filter(|e| e.file_type().is_ok_and(|t| t.is_file()))
+        .map(|e| e.file_name().to_string_lossy().into_owned())
+        .filter(|name| !name.starts_with('.') && is_markdown(name))
+        .collect();
+    names.sort_by_key(|n| n.to_lowercase());
+
+    let prefix = rel.trim_matches('/');
+    Ok(names
+        .into_iter()
+        .map(|name| if prefix.is_empty() { name } else { format!("{prefix}/{name}") })
+        .collect())
+}
+
 /// Le chemin de `target` vu depuis le dossier du document `doc`.
 ///
 /// C'est ce qui s'écrit dans le Markdown — le lien d'une image comme le chemin
@@ -756,6 +784,24 @@ mod tests {
         fn drop(&mut self) {
             let _ = std::fs::remove_dir_all(&self.0);
         }
+    }
+
+    #[test]
+    fn documents_markdown_d_un_dossier() {
+        let base = std::env::temp_dir().join(format!("veille-md-{}", std::process::id()));
+        let root = base.join("projet");
+        std::fs::create_dir_all(root.join("lot/sous")).unwrap();
+        for name in ["lot/b.md", "lot/A.markdown", "lot/c.txt", "lot/.cache.md", "lot/sous/d.md", "e.md"] {
+            std::fs::write(root.join(name), "x").unwrap();
+        }
+
+        // Le dossier seul, dans l'ordre de l'arbre, sans ses sous-dossiers.
+        assert_eq!(markdown_in(&root, "lot").unwrap(), ["lot/A.markdown", "lot/b.md"]);
+        assert_eq!(markdown_in(&root, "").unwrap(), ["e.md"]);
+        assert!(markdown_in(&root, "../").is_err());
+        assert!(markdown_in(&root, "e.md").is_err());
+
+        std::fs::remove_dir_all(&base).ok();
     }
 
     #[test]

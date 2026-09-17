@@ -58,6 +58,9 @@ const SHORTCODES = {
   meta: { block: false, needs: 'key' },
 };
 
+/** Le saut de page, que Ctrl+Entrée pose sans ouvrir la boîte. */
+export const PAGEBREAK = '{{< pagebreak >}}';
+
 /** La forme d'un shortcode, relue pour en retrouver le nom et l'argument. */
 const SHORTCODE = /^\{\{<\s*([A-Za-z0-9_-]+)\s*(.*?)\s*>\}\}$/;
 

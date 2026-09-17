@@ -318,6 +318,24 @@ export function rebuild() {
   store.redrawDocument();
 }
 
+/**
+ * Passe à l'onglet suivant (`1`) ou précédent (`-1`), en bouclant.
+ *
+ * Même chemin qu'un clic sur l'onglet — `flush` d'abord, sans quoi ce qui vient
+ * d'être saisi en « Modifier » resterait dans un rendu qu'on quitte. Le clavier
+ * revient ensuite à la zone d'édition : on change d'onglet pour y écrire.
+ */
+export function cycleTab(step) {
+  const { tabs, activePath } = store.state.edition;
+  if (tabs.length < 2) return;
+
+  const at = tabs.findIndex((t) => t.path === activePath);
+  const next = tabs[(at + step + tabs.length) % tabs.length];
+  flush();
+  store.selectTab(next.path);
+  (store.mode() === 'code' ? area : rich).focus({ preventScroll: true });
+}
+
 /** Porte le curseur sur une ligne — appelé depuis le sommaire. */
 export function goToLine(line) {
   const tab = store.activeTab();

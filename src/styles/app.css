@@ -8,6 +8,9 @@
 :root {
   --files-width: clamp(220px, 22%, 300px);
   --outline-width: clamp(200px, 20%, 280px);
+  /* Hauteur du journal de compilation : sa poignée la change, comme celles des
+     volets changent leur largeur. */
+  --journal-height: 180px;
   /* Mise en page du document, redéfinie par « Paramètres du projet ». */
   --doc-align: left;
   --doc-leading: 1.65;
@@ -73,6 +76,10 @@ body { overflow: hidden; }
 /* En « Édition » seulement : le rail et le volet de « Veille » n'ont pas cette
    largeur, et rien ne s'aligne sur eux. */
 [data-app="edition"] .topbar__lead { flex: 0 0 var(--files-width); }
+
+/* Les boutons de la tête ne cèdent pas leur place : c'est la pastille de
+   compilation, s'il le faut, qui se resserre. */
+.topbar__lead > .btn { flex: none; }
 
 .topbar__brand {
   font-family: var(--font-heading);
@@ -450,6 +457,94 @@ body { overflow: hidden; }
   font-size: 11px; line-height: 1;
   color: color-mix(in srgb, var(--color-text) 62%, transparent);
 }
+/* Journal de compilation : un volet bas, sur toute la largeur, au-dessus de la
+   barre d'état. Hauteur fixe — il ne pousse pas le document plus qu'il ne faut
+   — et défilement propre, en chasse fixe comme un terminal. */
+.journal {
+  flex: none;
+  position: relative;
+  display: flex; flex-direction: column;
+  height: var(--journal-height);
+  border-top: var(--rule) solid var(--color-divider);
+  background: var(--color-surface);
+}
+.journal__head {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: 2px var(--space-2) 2px var(--space-4);
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.journal__title { margin: 0; font-size: 11px; }
+.journal__state { font-size: 11px; }
+.journal__state--running { color: var(--color-accent); font-weight: 700; font-variant-numeric: tabular-nums; }
+/* Le témoin de la tête ne se montre que pendant la compilation. */
+.journal__spinner { display: inline-flex; color: var(--color-accent); line-height: 0; }
+.journal__spinner svg,
+.compiling svg { animation: spin 1.1s linear infinite; }
+
+/* Barre d'avancement, couchée sur le bord haut du journal : la part faite
+   d'une série, en aplat d'accent. Pour un document seul, dont la durée ne se
+   sait pas, un trait qui va et vient. */
+.journal__progress {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 1;
+  height: 3px; overflow: hidden;
+  background: var(--color-accent-200);
+  pointer-events: none;
+}
+.journal__progress-fill {
+  height: 100%; width: var(--progress, 0%);
+  background: var(--color-accent);
+  transition: width 0.3s ease;
+}
+.journal__progress--indeterminate .journal__progress-fill {
+  width: 30%;
+  animation: journal-sweep 1.4s ease-in-out infinite;
+}
+@keyframes journal-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}
+
+/* Pastille de la barre du haut : visible tant qu'une compilation tourne, même
+   journal fermé ou devant « Veille ». Aplat d'accent, comme un bouton primaire :
+   c'est ce qui doit se voir d'un coup d'œil. */
+.compiling {
+  display: inline-flex; align-items: center; gap: 6px;
+  min-width: 0; flex: 0 1 auto;
+  padding: 3px 8px;
+  border: 0; cursor: pointer;
+  background: var(--color-accent); color: var(--color-bg);
+  font: inherit; font-size: 11px; font-weight: 700;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.compiling:hover { background: var(--color-accent-600); }
+.compiling svg { flex: none; }
+.compiling__text { overflow: hidden; text-overflow: ellipsis; }
+@media (prefers-reduced-motion: reduce) {
+  .journal__spinner svg,
+  .compiling svg { animation: none; }
+  .journal__progress--indeterminate .journal__progress-fill { animation: none; width: 100%; opacity: 0.5; }
+}
+.journal__state--ok { color: var(--color-ok-700); }
+.journal__state--error { color: var(--color-accent); }
+.journal__clear { font-size: 11px; padding: 2px var(--space-2); }
+.journal__body {
+  flex: 1; min-height: 0; overflow: auto;
+  padding: var(--space-2) var(--space-4);
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px; line-height: 1.5;
+  /* Une ligne de Pandoc peut porter un long chemin : elle se replie plutôt
+     que de faire défiler le volet de côté. */
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  user-select: text;
+}
+.journal__line--step { font-weight: 700; margin-top: var(--space-1); }
+.journal__line--command { color: color-mix(in srgb, var(--color-text) 62%, transparent); }
+.journal__line--command::before { content: "$ "; }
+.journal__line--warn { color: var(--color-accent-700); }
+.journal__line--error { color: var(--color-accent); font-weight: 700; }
+.journal__line--done { color: var(--color-ok-700); font-weight: 700; }
+.journal__line--info { color: color-mix(in srgb, var(--color-text) 75%, transparent); }
+
 /* Des chiffres de même chasse : sans eux, « Ligne 9 » et « Ligne 10 » n'ont pas
    la même largeur, et la ligne entière tressaille à chaque frappe — la barre
    étant calée à droite, c'est tout son contenu qui glisserait. */
@@ -474,6 +569,9 @@ body { overflow: hidden; }
   -webkit-backdrop-filter: blur(6px);
   backdrop-filter: blur(6px);
   font-size: 13px; line-height: 1.4;
+  /* Un message peut tenir sur plusieurs lignes — les avertissements d'une
+     compilation — et porter un long chemin sans espace : il se replie. */
+  white-space: pre-line; overflow-wrap: anywhere;
   /* Les jetons de rayon du modèle valent tous zéro — les angles vifs font son
      aspect. Le message passager est la seule chose qui flotte au-dessus de la
      page sans s'y rattacher : ses coins s'arrondissent ici, et nulle part
@@ -708,8 +806,10 @@ body { overflow: hidden; }
   letter-spacing: normal; word-spacing: normal;
   tab-size: 2;
   /* Le repli des lignes doit être le même des deux côtés : la valeur par
-     défaut d'un `<textarea>` est ici écrite, plutôt que supposée. */
-  white-space: pre-wrap; overflow-wrap: break-word;
+     défaut d'un `<textarea>` est ici écrite, plutôt que supposée. Les
+     paramètres du projet le retirent par `--source-wrap` (`pre`) : une ligne
+     longue défile alors à l'horizontale, dans les deux couches à la fois. */
+  white-space: var(--source-wrap, pre-wrap); overflow-wrap: break-word;
 }
 
 .editor__area {
@@ -1165,6 +1265,16 @@ body { overflow: hidden; }
 /* Pendant le glissement : le curseur ne change pas au survol des textes, et la
    sélection ne s'étend pas sous le pointeur. */
 body.is-resizing { cursor: col-resize; user-select: none; }
+/* La poignée du journal est couchée sur son bord haut : elle se tire de haut en
+   bas. Même aplat au survol que celles des volets, sur l'autre axe. */
+.resizer--journal {
+  top: -5px; bottom: auto; left: 0; right: 0;
+  width: auto; height: 9px;
+  cursor: row-resize;
+}
+.resizer--journal::after { inset: 4px 0; }
+body.is-resizing-row { cursor: row-resize; user-select: none; }
+body.is-resizing-row .resizer--journal::after { background: var(--color-accent); }
 body.is-resizing .resizer::after { background: var(--color-accent); }
 
 /* ------------------------------------------------------ boîte de dialogue */
@@ -1206,78 +1316,220 @@ body.is-resizing .resizer::after { background: var(--color-accent); }
 .modal__field .seg { background: var(--color-surface); display: flex; }
 .modal__field .seg-opt { flex: 1; justify-content: center; }
 
-/* Une boîte qui porte deux colonnes a besoin de la largeur des deux. */
-.modal__box--wide { max-width: 720px; }
+/* ------------------------------------------- paramètres du projet
 
-/* Corps sur deux colonnes : les paramètres du projet y tiennent sans défiler —
-   les réglages d'ensemble d'un côté, les treize lignes des espacements de
-   l'autre. La seconde colonne est un peu plus large : c'est elle qui porte la
-   grille et ses deux champs de mesure. */
-.modal__body--split {
-  display: grid;
-  /* `minmax(0, …)` et non `1fr` seul : sans lui, la grille d'espacements
-     imposerait sa largeur intrinsèque à sa colonne, et la boîte déborderait. */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
-  /* Deux colonnes de hauteurs inégales : chacune commence en haut plutôt que de
-     s'étirer à la hauteur de l'autre. */
-  align-items: start;
+   Trois colonnes, trois sujets — l'affichage, la mise en page, Pandoc —, à la
+   manière des sections d'une revue : un numéro à l'accent, un titre fort, une
+   phrase qui dit de quoi il s'agit, puis les champs. Un filet épais au-dessus
+   de chaque colonne la tient ensemble sans l'encadrer : le modèle est fait
+   d'aplats et de traits, pas de cartes. */
+.settings { max-width: 1180px; }
+
+.settings__head {
+  display: flex; align-items: flex-start; gap: var(--space-4);
+  padding: var(--space-6) var(--space-8) var(--space-4);
 }
-/* Chaque colonne retrouve l'empilement et l'espacement qu'avait le corps
-   entier : les champs ne savent pas qu'ils sont dans une colonne. */
-.modal__col {
+.settings__heading { flex: 1; min-width: 0; }
+.settings__title {
+  margin: 0;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 26px; line-height: 1.1; letter-spacing: -0.01em;
+  text-transform: none;
+}
+.settings__lede {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+/* Le chemin du projet, en chasse fixe : on le reconnaît d'un coup d'œil, et il
+   s'abrège plutôt que de pousser la boîte. */
+.settings__root {
+  display: block; margin-top: 2px;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 11.5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.settings__root:empty { display: none; }
+
+.settings__body {
+  display: grid;
+  /* `minmax(0, …)` : sans lui, la grille d'espacements ou une longue commande
+     imposeraient leur largeur intrinsèque à leur colonne. Pandoc, qui porte
+     des lignes de terminal, prend la plus grande part. */
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.35fr);
+  gap: var(--space-8);
+  align-items: start;
+  padding: var(--space-2) var(--space-8) var(--space-6);
+}
+
+.settings__col {
   display: flex; flex-direction: column; gap: var(--space-6);
   min-width: 0;
+  border-top: 3px solid var(--color-text);
+  padding-top: var(--space-4);
 }
-/* Le filet entre les deux colonnes, comme entre celles du menu contextuel. Il
-   se pose sur la seconde et prend la moitié de l'écart : les deux colonnes
-   restent alors à égale distance du trait. */
-.modal__body--split > .modal__col + .modal__col {
-  border-left: var(--rule) solid var(--color-divider);
-  padding-left: var(--space-6);
+.settings__col-head {
+  display: flex; align-items: flex-start; gap: var(--space-3);
 }
+.settings__col-head > div { flex: 1; min-width: 0; }
+.settings__num {
+  flex: none;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 13px; line-height: 22px;
+  color: var(--color-accent);
+  font-variant-numeric: tabular-nums;
+}
+.settings__col-title {
+  margin: 0;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 18px; line-height: 22px;
+  text-transform: none; letter-spacing: 0;
+}
+.settings__col-lede {
+  margin: 2px 0 0;
+  font-size: 12.5px; line-height: 1.4;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.settings__reset { flex: none; font-size: 12px; padding: 4px var(--space-2); }
 
-/* Sous cette largeur, deux colonnes ne tiennent plus : elles se remettent l'une
-   sous l'autre, et le filet passe au-dessus de la seconde — un trait vertical
-   ne séparerait plus rien. Mieux vaut défiler que serrer les champs à
-   l'illisible. */
-@media (max-width: 660px) {
-  .modal__body--split { grid-template-columns: minmax(0, 1fr); }
-  .modal__body--split > .modal__col + .modal__col {
-    border-left: 0;
-    padding-left: 0;
-    border-top: var(--rule) solid var(--color-divider);
-    padding-top: var(--space-6);
-  }
+.settings__field { display: flex; flex-direction: column; gap: var(--space-2); }
+.settings__label {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: color-mix(in srgb, var(--color-text) 75%, transparent);
 }
-
-/* Grille des espacements : un bloc par ligne, ses deux mesures en regard.
-   Les lignes sont bâties par `ui/project.js` d'après sa table `SPACING` — cette
-   feuille n'en connaît que la forme. */
-.spacing {
-  display: grid;
-  grid-template-columns: 1fr 68px 68px;
-  gap: var(--space-1) var(--space-2);
-  align-items: center;
-}
-.spacing__head {
-  font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
-  text-align: center;
+/* Le champ parcouru se signale : son intitulé prend l'accent. */
+.settings__field:focus-within > .settings__label { color: var(--color-accent); }
+.settings__note {
+  margin: 0;
+  font-size: 12px; line-height: 1.45;
   color: color-mix(in srgb, var(--color-text) 55%, transparent);
 }
-/* La première colonne porte des intitulés, pas des nombres : elle s'aligne à
-   gauche comme le texte qu'elle contient. */
-.spacing__head:first-child { text-align: left; }
-.spacing__label { font-size: 11.5px; }
-/* Des nombres à deux ou trois chiffres : centrés, ils se comparent d'une ligne
-   à l'autre sans que l'œil ait à suivre un bord. */
-.spacing__field { text-align: center; padding-inline: var(--space-1); }
-.spacing__foot {
-  display: flex; align-items: flex-end; gap: var(--space-3);
-  margin-top: var(--space-2);
+/* Le segment tient toute la largeur et ses choix se la partagent. */
+.settings__seg { display: flex; background: var(--color-surface); }
+.settings__seg .seg-opt { flex: 1; justify-content: center; }
+
+.settings__group { display: flex; flex-direction: column; gap: var(--space-4); }
+.settings__group-title {
+  display: flex; align-items: center; gap: var(--space-2);
+  margin: 0;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 14px; text-transform: none; letter-spacing: 0;
 }
-/* L'explication prend la place qui reste, le bouton garde la sienne. */
-.spacing__foot .hint { flex: 1; }
-.spacing__foot .btn { flex: none; }
+/* Une étiquette pleine, à l'accent : d'autres compilations — PDF, DOCX —
+   viendront se ranger à côté sous la même forme. */
+.settings__tag {
+  font-size: 10px; letter-spacing: 0.08em;
+  padding: 2px 6px;
+  background: var(--color-accent); color: var(--color-bg);
+}
+
+.settings__foot {
+  display: flex; align-items: center; gap: var(--space-3);
+  padding: var(--space-3) var(--space-8);
+  border-top: var(--rule) solid var(--color-divider);
+  background: var(--color-surface);
+}
+.settings__saved {
+  display: inline-flex; align-items: center; gap: var(--space-2);
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 60%, transparent);
+}
+.settings__saved svg { color: var(--color-ok-700); }
+
+/* La grille des espacements, en vrai tableau : une rangée par bloc, un filet
+   entre les rangées, les deux mesures alignées en colonnes. Les cellules sont
+   les enfants directs de la grille — `ui/project.js` les pose à plat. */
+.spacing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 76px 76px;
+  align-items: stretch;
+}
+/* Chaque cellule porte le filet du bas de sa rangée : posé sur toutes, il court
+   d'un bord à l'autre sans interruption, champs compris. */
+.spacing > * {
+  border-bottom: var(--rule) solid var(--color-divider);
+}
+.spacing__head {
+  font-size: 10px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  text-align: center;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+  padding-bottom: 6px;
+}
+.spacing > .spacing__head { border-bottom: 2px solid var(--color-text); }
+.spacing__head:first-child { text-align: left; }
+.spacing__label {
+  display: flex; align-items: center;
+  font-size: 13px; min-height: 34px;
+}
+/* Le champ se fond dans sa rangée — un nombre dans un tableau, pas une boîte —
+   et ne se montre comme champ qu'au survol ou quand il a le clavier. */
+.spacing__field {
+  min-height: 34px; height: 100%;
+  padding: 0 var(--space-1);
+  text-align: center; font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: transparent;
+  border: 1px solid transparent;
+  border-bottom: var(--rule) solid var(--color-divider);
+  -moz-appearance: textfield; appearance: textfield;
+}
+/* Les flèches du champ numérique encombreraient deux colonnes étroites : on
+   tape la mesure, ou l'on monte et descend au clavier. */
+.spacing__field::-webkit-inner-spin-button,
+.spacing__field::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.spacing__field:hover { background: var(--color-surface); }
+.spacing__field:focus-visible { background: var(--color-surface); border-color: var(--color-accent); }
+/* Une mesure réglée se distingue de la valeur du modèle, grisée. */
+.spacing__field:not(:placeholder-shown) { font-weight: 600; color: var(--color-accent); }
+
+/* Pandoc : la commande et son aperçu se lisent en chasse fixe — ce sont des
+   lignes de terminal, où chaque tiret et chaque espace comptent. */
+.pandoc__command,
+.pandoc__preview {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+.pandoc__command { resize: vertical; min-height: 96px; line-height: 1.55; }
+/* L'aperçu est un bloc de terminal : encre claire sur fond de texte, ce qui le
+   distingue au premier regard du champ qu'on édite. */
+.pandoc__preview {
+  display: block;
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-text); color: var(--color-bg);
+  line-height: 1.55;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.pandoc__preview::before { content: "$ "; color: var(--color-accent-300); }
+/* Un modèle que Rust refuse : l'aperçu dit pourquoi, à l'accent. */
+.pandoc__preview--bad { background: var(--color-accent-100); color: var(--color-accent-800); }
+.pandoc__preview--bad::before { content: ""; }
+/* La légende des variables : le nom à gauche, en étiquette, ce qu'il vaut à
+   droite. */
+.pandoc__legend {
+  display: grid; grid-template-columns: auto 1fr;
+  gap: 4px var(--space-3); align-items: baseline;
+  font-size: 12px;
+  color: color-mix(in srgb, var(--color-text) 65%, transparent);
+}
+.pandoc__legend code {
+  justify-self: start;
+  font-size: 11px; padding: 1px 5px;
+  background: var(--color-surface); color: var(--color-text);
+  border: var(--rule) solid var(--color-divider);
+}
+
+/* Sous 1100 px, trois colonnes ne tiennent plus : Pandoc passe dessous, sur
+   toute la largeur — ses lignes de commande y gagnent. Sous 720 px, tout
+   s'empile. */
+@media (max-width: 1100px) {
+  .settings__body { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .settings__col--pandoc { grid-column: 1 / -1; }
+}
+@media (max-width: 720px) {
+  .settings__head, .settings__body, .settings__foot { padding-inline: var(--space-4); }
+  .settings__body { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* Pied de boîte : les commandes qui engagent, à droite. */
 .modal__foot {

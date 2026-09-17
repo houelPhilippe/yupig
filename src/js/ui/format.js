@@ -31,6 +31,7 @@ import * as clipboard from './clipboard.js';
 import { headingsIn, idsIn, readHeading, writeHeading } from '../anchors.js';
 import { labelOf } from '../keys.js';
 import * as lists from '../lists.js';
+import { nest, unnest } from './listedit.js';
 
 const rich = document.getElementById('editor-rich');
 const area = document.getElementById('editor-area');
@@ -356,6 +357,8 @@ function open(x, y, cell = null) {
         () => clipboard.copy(source), labelOf('clip.copy'), !filled),
       item('Coller', pictogram(PATH.paste), false,
         () => clipboard.paste(source), labelOf('clip.paste')),
+      item('Coller en texte brut', pictogram(PATH.paste), false,
+        () => clipboard.pastePlain(source), labelOf('clip.plain')),
       el('div.ctx__sep'),
       el('div.ctx__title', {}, 'Format du texte'),
       ...ACTIONS.map((a) => item(
@@ -445,6 +448,7 @@ function open(x, y, cell = null) {
     item('Insérer une ligne vide', pictogram(PATH.blank), false, () => insertBlank(source), labelOf('insert.blank')),
     item('Insérer une note de bas de page', badge('¹'), false, () => insertFootnote(source), labelOf('insert.footnote')),
     item('Insérer un shortcode…', pictogram(PATH.braces), false, () => insertShortcode(source), labelOf('insert.shortcode')),
+    item('Insérer un saut de page', pictogram(PATH.pagebreak), false, () => insertPagebreak(source), labelOf('insert.pagebreak')),
     el('div.ctx__sep'),
     el('div.ctx__title', {}, 'Document'),
     // Rien ne se pose ici au point d'insertion : l'entrée porte le volet droit
@@ -1082,43 +1086,6 @@ function touchedItems() {
   return all.filter((li) => !all.some((other) => other !== li && li.contains(other)));
 }
 
-/**
- * Imbrique l'entrée sous celle qui la précède.
- *
- * La première entrée d'une liste n'a rien où s'imbriquer : en Markdown, une
- * sous-liste est le contenu d'une entrée, et sans entrée au-dessus, les quatre
- * espaces feraient un bloc de code.
- */
-function nest(li) {
-  const host = li.previousElementSibling;
-  if (host?.nodeName !== 'LI') return;
-
-  const list = li.parentElement;
-  const last = host.lastElementChild;
-  if (last?.nodeName === list.nodeName) last.append(li);
-  else {
-    const made = document.createElement(list.nodeName);
-    made.append(li);
-    host.append(made);
-  }
-}
-
-/** Remonte l'entrée d'un rang. Ce qui la suivait la suit encore. */
-function unnest(li) {
-  const list = li.parentElement;
-  const host = list?.parentElement;
-  if (host?.nodeName !== 'LI') return;
-
-  const after = [...list.children].slice([...list.children].indexOf(li) + 1);
-  host.after(li);
-  if (after.length) {
-    const tail = document.createElement(list.nodeName);
-    tail.append(...after);
-    li.append(tail);
-  }
-  if (!list.children.length) list.remove();
-}
-
 function applyQuote(source) {
   if (source) return prefixLines('> ', QUOTE, true);
 
@@ -1550,6 +1517,15 @@ const footnoteMark = (label) => el('sup.fn', {}, String(label));
  */
 function insertShortcode(source) {
   shortcode.insert((text, block) => write(source, text, block));
+}
+
+/**
+ * Pose un saut de page — `{{< pagebreak >}}` — sans ouvrir la boîte : il
+ * n'attend rien, et c'est le shortcode qu'on pose le plus souvent. Il prend sa
+ * ligne, comme la boîte le ferait.
+ */
+function insertPagebreak(source) {
+  write(source, shortcode.PAGEBREAK, true);
 }
 
 /**
@@ -1994,9 +1970,15 @@ export function command(id, source) {
       blank: insertBlank,
       footnote: insertFootnote,
       shortcode: insertShortcode,
+      pagebreak: insertPagebreak,
     }[name];
     // Le sélecteur de fichier d'une image est asynchrone, comme dans le menu.
     if (run) Promise.resolve(run(source)).catch(store.fail);
+    return;
+  }
+
+  if (id === 'clip.plain') {
+    clipboard.pastePlain(source).catch(store.fail);
     return;
   }
 

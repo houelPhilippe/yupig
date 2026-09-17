@@ -15,9 +15,18 @@
 // dans le document que le fichier ne sache porter : ni police, ni classe, ni
 // balise inconnue. C'est aussi ce qui donne son adresse d'affichage à une image
 // collée — le Markdown repasse par `toFragment`, qui résout le chemin relatif
-// en `asset:`. Le texte brut, lui, reste du texte brut : on ne le relit pas
-// comme du Markdown, sans quoi coller « 2. rue du Port » dans un paragraphe y
-// ouvrirait une liste numérotée.
+// en `asset:`. Le texte brut, lui, **est lu comme du Markdown** : c'est la
+// forme sous laquelle on colle du Markdown venu d'un éditeur de texte ou d'un
+// autre document, et « Modifier » en montre aussitôt la traduction. Le prix est
+// connu — « 2. rue du Port » ouvre une liste numérotée —, d'où « Coller en texte
+// brut » (Ctrl+Maj+V), qui pose le texte tel quel.
+//
+// Un éditeur de texte met souvent **aussi** du HTML dans le presse-papiers : ses
+// couleurs de syntaxe, en `<div>` et `<span>`. Ce HTML-là ne met rien en forme,
+// et le ramener au Markdown par `turndown` échapperait chaque dièse et chaque
+// étoile — le Markdown collé resterait lettre morte. Le HTML n'est donc retenu
+// que s'il porte une vraie mise en forme (`formatted`) ; sinon, c'est le texte
+// qui fait foi.
 //
 // Les trois commandes ont deux portes — la frappe du moteur d'édition et
 // l'entrée du menu — et une seule lecture de la sélection : `payload` sert aux
@@ -102,7 +111,7 @@ export async function cut(source) {
  * une permission, et elle ne vaut qu'au geste de l'utilisateur ; on le dit
  * alors, en renvoyant à la frappe, qui ne la demande pas.
  */
-export async function paste(source) {
+export async function paste(source, plain = false) {
   let flavours;
   try {
     flavours = await read();
@@ -118,7 +127,22 @@ export async function paste(source) {
   }
 
   (source ? area : rich).focus({ preventScroll: true });
+  if (plain) {
+    if (text) insert(source, '', text, true);
+    else store.notify('Le presse-papiers ne contient pas de texte brut.', 'error');
+    return;
+  }
   insert(source, html, text);
+}
+
+/**
+ * Colle le texte tel quel, sans le lire comme du Markdown — ni son HTML.
+ *
+ * Pas d'événement `paste` pour cette frappe : elle passe par la lecture du
+ * presse-papiers, comme l'entrée du menu.
+ */
+export function pastePlain(source) {
+  return paste(source, true);
 }
 
 /**
@@ -234,13 +258,30 @@ function onPaste(ev, source) {
 }
 
 /**
+ * Les balises qui disent une mise en forme. `div`, `span`, `br`, `font` et
+ * `pre` n'en sont pas : c'est ce qu'un éditeur de texte met autour de ses
+ * couleurs de syntaxe, sans rien dire de la structure du texte.
+ */
+const FORMATTING = [
+  'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'table', 'blockquote',
+  'strong', 'b', 'em', 'i', 'u', 's', 'del', 'a', 'img', 'sup', 'sub', 'hr',
+].join(', ');
+
+/** Le HTML du presse-papiers porte-t-il une vraie mise en forme ? */
+function formatted(html) {
+  if (!html) return false;
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return doc.body.querySelector(FORMATTING) !== null;
+}
+
+/**
  * Pose au point d'insertion ce que le presse-papiers portait.
  *
- * Le HTML l'emporte quand il y en a : c'est lui qui porte la mise en forme, et
- * `turndown` la ramène à ce que le fichier sait écrire. À défaut, le texte brut
- * est posé tel quel.
+ * Le HTML mis en forme l'emporte quand il y en a : c'est lui qui porte la mise
+ * en forme, et `turndown` la ramène à ce que le fichier sait écrire. À défaut,
+ * le texte est lu comme du Markdown — sauf `plain`, qui le pose tel quel.
  */
-function insert(source, html, text) {
+function insert(source, html, text, plain = false) {
   // Dans un bloc de code, le texte est du texte : la mise en forme n'y a pas
   // cours, et la ramener au Markdown y sèmerait des échappements.
   if (verbatim(source)) {
@@ -250,7 +291,7 @@ function insert(source, html, text) {
 
   let markdown = '';
   try {
-    if (html) markdown = toMarkdown(html);
+    if (!plain && formatted(html)) markdown = toMarkdown(html);
   } catch {
     // Sans `turndown`, le texte brut reste.
   }
@@ -261,6 +302,9 @@ function insert(source, html, text) {
     type(true, markdown || text);
     return;
   }
+  // Le texte, lu comme du Markdown : c'est ce qu'on colle quand on colle du
+  // Markdown.
+  if (!markdown && !plain) markdown = text;
   if (!markdown) {
     type(false, text);
     return;

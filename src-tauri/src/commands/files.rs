@@ -3,12 +3,17 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use tauri::{Manager, State};
+use tauri::{Emitter, Manager, State};
 
 use crate::db::Db;
 use crate::error::{Error, Result};
 use crate::files;
-use crate::models::{Document, Heading, ImageData, Node, Project, ProjectSettings};
+use crate::models::{
+    Compiled, Document, Heading, ImageData, LogLevel, LogLine, Node, PandocSettings, Project,
+    ProjectDocuments, ProjectSettings, ResourcesReport,
+};
+use crate::pandoc::{self, Format};
+use crate::{library, resources};
 
 /// Racine du projet enregistrée dans les réglages.
 ///
@@ -255,6 +260,175 @@ pub async fn save_project_settings(
     let root = root.to_string_lossy();
     db.save_project_settings(&root, &settings)?;
     db.project_settings(&root)
+}
+
+/// La commande de compilation qui partirait pour `path`, dans le format
+/// `format`, d'après les champs tels qu'ils sont à l'écran — enregistrés ou non.
+/// Le choix du modèle — celui de l'accueil pour `index.md` — est celui même de
+/// la compilation (`pandoc::template_for`).
+///
+/// L'aperçu des paramètres passe par ici plutôt que de refaire le calcul en
+/// JavaScript : c'est la lecture même de la compilation, il ne peut donc pas
+/// montrer autre chose que ce qui partira. Rien n'est lancé ni écrit.
+#[tauri::command]
+pub async fn pandoc_preview(
+    format: Format,
+    path: String,
+    settings: PandocSettings,
+) -> Result<String> {
+    let (template, dest) = pandoc::template_for(&settings, format, &path);
+    Ok(pandoc::display(&pandoc::plan_for(format, template, &path, dest)?))
+}
+
+/// Compile un document du projet en HTML ou en PDF, d'après les réglages du
+/// projet.
+///
+/// Avant une compilation HTML, les ressources que liste `conf/resources.yaml`
+/// sont copiées vers le répertoire de destination, pour que les liens relatifs
+/// de la page s'y résolvent. Sans destination réglée, il n'y a nulle part où
+/// les copier : on le dit, et la compilation a lieu quand même. Un PDF, lui,
+/// n'en a pas besoin : Pandoc y embarque les images, qu'il lit dans le projet.
+///
+/// Le modèle est lu **en base**, non reçu du frontend : l'interface ne désigne
+/// que le document et le format, et ne peut donc pas faire lancer autre chose
+/// que la commande réglée. Le document doit exister dans le projet et être du
+/// Markdown ; Pandoc tourne à part, pour ne pas tenir le fil des commandes le
+/// temps de la compilation.
+///
+/// `resources` à `false` saute la copie des ressources : une compilation en
+/// série ne les copie qu'au premier document, les suivants pointant vers la
+/// même destination.
+#[tauri::command]
+pub async fn compile_document(
+    app: tauri::AppHandle,
+    db: State<'_, Arc<Db>>,
+    path: String,
+    format: Format,
+    resources: Option<bool>,
+) -> Result<Compiled> {
+    let result = compile(app.clone(), &db, &path, format, resources.unwrap_or(true)).await;
+    // L'échec aussi va au journal, d'où qu'il vienne — un modèle refusé avant
+    // même que Pandoc ne parte, comme Pandoc lui-même : c'est là qu'on le lit.
+    if let Err(e) = &result {
+        journal(&app, LogLevel::Error, e.to_string());
+    }
+    result
+}
+
+/// Une ligne du journal de compilation, vers le frontend.
+fn journal(app: &tauri::AppHandle, level: LogLevel, text: String) {
+    let _ = app.emit("compile:log", LogLine { level, text });
+}
+
+async fn compile(
+    app: tauri::AppHandle,
+    db: &Db,
+    path: &str,
+    format: Format,
+    with_resources: bool,
+) -> Result<Compiled> {
+    let root = root(db)?;
+    let real = files::resolve(&root, path)?;
+    let markdown = real
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| ["md", "markdown", "mdown"].contains(&e.to_ascii_lowercase().as_str()));
+    if !real.is_file() || !markdown {
+        return Err(Error::Other(format!("« {path} » n'est pas un document Markdown")));
+    }
+
+    let settings = db.project_settings(&root.to_string_lossy())?.pandoc;
+    let (template, dest) = pandoc::template_for(&settings, format, path);
+    let plan = pandoc::plan_for(format, template, path, dest)?;
+    let command = pandoc::display(&plan);
+    let dest = dest.trim().to_string();
+    let with_resources = with_resources && format == Format::Html;
+    // Un modèle vide se remplace en silence par la commande par défaut, qui
+    // ignore tout du projet — ni `--defaults`, ni filtre, ni chemin des
+    // images. Le journal le dit, sans quoi les erreurs de Pandoc qui en
+    // découlent ne se comprendraient pas.
+    let default_used = template.trim().is_empty();
+
+    let (copied, outcome) = tauri::async_runtime::spawn_blocking(move || {
+        let mut log = |level: LogLevel, text: String| journal(&app, level, text);
+
+        let copied = if !with_resources || !root.join(resources::RESOURCES_FILE).is_file() {
+            None
+        } else if dest.is_empty() {
+            let warning = format!(
+                "{} : aucun répertoire de destination réglé, ressources non copiées",
+                resources::RESOURCES_FILE
+            );
+            log(LogLevel::Warn, warning.clone());
+            Some(resources::Copied {
+                warnings: vec![warning],
+                ..Default::default()
+            })
+        } else {
+            log(
+                LogLevel::Step,
+                format!("Copie des ressources ({}) vers {dest}", resources::RESOURCES_FILE),
+            );
+            resources::copy(&root, Path::new(&dest), &mut log)?
+        };
+
+        log(
+            LogLevel::Step,
+            format!("Compilation {} par Pandoc", format.label()),
+        );
+        if default_used {
+            log(
+                LogLevel::Warn,
+                format!(
+                    "aucun modèle de commande {} réglé dans les paramètres du projet : \
+                     commande par défaut de Pandoc",
+                    format.label()
+                ),
+            );
+        }
+        log(LogLevel::Command, pandoc::display(&plan));
+        pandoc::run(&root, &plan, &mut log).map(|outcome| (copied, outcome))
+    })
+    .await
+    .map_err(|e| Error::Other(format!("compilation interrompue : {e}")))??;
+
+    Ok(Compiled {
+        command,
+        output: outcome.output.map(|o| o.to_string_lossy().into_owned()),
+        log: outcome.log,
+        resources: copied.map(|c| ResourcesReport {
+            copied: c.copied,
+            up_to_date: c.up_to_date,
+            warnings: c.warnings,
+        }),
+    })
+}
+
+/// Les documents Markdown d'un dossier du projet, sans ses sous-dossiers.
+#[tauri::command]
+pub async fn markdown_in_dir(db: State<'_, Arc<Db>>, path: String) -> Result<Vec<String>> {
+    files::markdown_in(&root(&db)?, &path)
+}
+
+/// Les documents du projet : ceux dont `conf/bibliotheque.yaml` nomme la page,
+/// dans l'ordre du fichier, et ceux qu'elle nomme sans qu'ils existent.
+#[tauri::command]
+pub async fn markdown_in_project(db: State<'_, Arc<Db>>) -> Result<ProjectDocuments> {
+    let docs = library::documents(&root(&db)?)?;
+    Ok(ProjectDocuments {
+        found: docs.found,
+        missing: docs.missing,
+    })
+}
+
+/// Quitte l'application.
+///
+/// Par Rust et non par la fermeture de la fenêtre : c'est l'application qu'on
+/// quitte, et la question des documents non enregistrés a déjà été posée par
+/// le frontend.
+#[tauri::command]
+pub fn quit_app(app: tauri::AppHandle) {
+    app.exit(0);
 }
 
 /// Sommaire d'un texte en cours de frappe, sans toucher au disque.

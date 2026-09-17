@@ -29,9 +29,12 @@ import * as frontmatter from './ui/frontmatter.js';
 import * as zoom from './ui/zoom.js';
 import * as focus from './ui/focus.js';
 import * as status from './ui/status.js';
+import * as journal from './ui/journal.js';
 import * as prompt from './ui/prompt.js';
 import * as keys from './ui/keys.js';
+import * as listedit from './ui/listedit.js';
 import * as clipboard from './ui/clipboard.js';
+import * as appmenu from './ui/appmenu.js';
 import { icon, PATH } from './ui/dom.js';
 
 // `shell` en tête : il décide quelle application est à l'écran, les vues qui
@@ -39,7 +42,7 @@ import { icon, PATH } from './ui/dom.js';
 const views = [
   shell, header, rail, panel, grid, reader, tree, editor, find,
   aside, outline, frontmatter, splitter, project, projects, zoom, focus, theme,
-  status,
+  status, journal,
 ];
 
 store.subscribe((state) => {
@@ -51,10 +54,12 @@ function wire() {
   header.wire();
   reader.wire();
   shell.wire();
+  appmenu.wire();
   editor.wire();
   format.wire();
   clipboard.wire();
   status.wire();
+  journal.wire();
   prompt.wire();
   splitter.wire();
   project.wire();
@@ -63,6 +68,7 @@ function wire() {
   image.wire();
   table.wire();
   code.wire();
+  listedit.wire();
   theme.wire();
   menu.wire();
   shortcode.wire();

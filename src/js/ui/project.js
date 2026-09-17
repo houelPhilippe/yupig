@@ -1,21 +1,60 @@
-// Boîte de dialogue « Paramètres du projet » : la mise en page du document.
+// Boîte de dialogue « Paramètres du projet » : la mise en page du document, et
+// la compilation par Pandoc.
 //
 // Les réglages accompagnent le dossier ouvert, pas l'application — deux projets
 // peuvent demander deux mises en page différentes. Ils sont appliqués par des
 // variables CSS portées par la racine, ce qui évite d'aller poser un style sur
 // chaque paragraphe du rendu.
 
-import { el, icon, PATH } from './dom.js';
+import { el, icon, replace, PATH } from './dom.js';
 import * as store from '../store.js';
+import * as api from '../api.js';
+import { VARIABLES } from '../pandoc.js';
 
 const button = document.getElementById('project-settings');
 const dialog = document.getElementById('project-dialog');
 const closeBtn = document.getElementById('project-dialog-close');
+const doneBtn = document.getElementById('project-dialog-done');
+const rootLabel = document.getElementById('project-dialog-root');
+const savedLabel = document.getElementById('project-dialog-saved');
 const alignSeg = document.getElementById('align-seg');
 const leadingSeg = document.getElementById('leading-seg');
 const ringSeg = document.getElementById('ring-seg');
+const wrapSeg = document.getElementById('wrap-seg');
 const spacingGrid = document.getElementById('spacing-grid');
 const spacingReset = document.getElementById('spacing-reset');
+const legend = document.getElementById('pandoc-legend');
+
+/**
+ * Les deux groupes de Pandoc — HTML et PDF —, bâtis sur le même modèle : une
+ * destination, des modèles de commande, un aperçu. `fields` associe à chaque
+ * champ de `project.pandoc` sa zone de saisie ; `format` est le format côté
+ * Rust. Le HTML porte un modèle de plus, celui de la page d'accueil.
+ */
+const byId = (id) => document.getElementById(id);
+const COMPILERS = [
+  { format: 'html', keys: ['htmlDest', 'htmlCommand', 'htmlIndexCommand'] },
+  { format: 'pdf', keys: ['pdfDest', 'pdfCommand'] },
+].map(({ format, keys }) => ({
+  format,
+  fields: keys.map((key) => [key, byId(`pandoc-${kebab(key)}`)]),
+  dest: byId(`pandoc-${format}-dest`),
+  browse: byId(`pandoc-${format}-browse`),
+  preview: byId(`pandoc-${format}-preview`),
+  asked: 0,
+}));
+
+/** `htmlIndexCommand` donne `html-index-command` : l'identifiant de son champ. */
+function kebab(key) {
+  return key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+}
+
+/** Les champs de Pandoc tels qu'ils sont à l'écran, sans blancs aux bords. */
+function screenPandoc() {
+  return Object.fromEntries(
+    COMPILERS.flatMap((c) => c.fields).map(([key, field]) => [key, field.value.trim()]),
+  );
+}
 
 /** L'alignement demandé, traduit en valeur CSS. */
 const ALIGN = { gauche: 'left', justifie: 'justify' };
@@ -95,7 +134,7 @@ export function render(state) {
   // valeur du modèle, elle vaut zéro. Cela ne coûte rien devant « Veille » :
   // le calcul de style ne reprend que si une valeur a bougé.
   const sig = JSON.stringify([
-    project.align, project.lineHeight, project.showOutline, spacing,
+    project.align, project.lineHeight, project.showOutline, project.wrapSource, spacing,
   ]);
   if (sig !== applied) {
     applied = sig;
@@ -106,6 +145,10 @@ export function render(state) {
     // Le liseré se retire par son épaisseur : une règle de moins à écrire, et
     // la feuille de style garde la couleur et la place du trait.
     css.setProperty('--doc-ring', project.showOutline === false ? '0' : '2px');
+    // Le repli de la source vaut pour ses deux couches — la saisie et le calque
+    // de la recherche : une seule variable, lue par la règle qui les tient
+    // ensemble.
+    css.setProperty('--source-wrap', project.wrapSource === false ? 'pre' : 'pre-wrap');
 
     // Les espacements sont posés tous ensemble, réglés ou non : la feuille de
     // style n'en déclare aucun, c'est cette table qui porte les valeurs par
@@ -125,10 +168,94 @@ export function render(state) {
   dialog.hidden = !dialogOpen;
 
   if (!dialogOpen) return;
+  // Le dossier dont on règle les paramètres : on sait ainsi, sous le titre,
+  // quel projet on est en train de changer.
+  if (rootLabel.textContent !== (root ?? '')) {
+    rootLabel.textContent = root ?? '';
+    rootLabel.title = root ?? '';
+  }
   check(alignSeg, 'align', project.align);
   check(leadingSeg, 'leading', String(project.lineHeight));
   check(ringSeg, 'ring', project.showOutline === false ? '0' : '1');
+  check(wrapSeg, 'wrap', project.wrapSource === false ? '0' : '1');
   fillSpacing(spacing);
+  fillPandoc(project.pandoc ?? {});
+}
+
+/**
+ * Remplit les champs de Pandoc.
+ *
+ * Un champ qui a le clavier n'est pas réécrit : on y est en train de taper, et
+ * le rendu qu'un autre réglage déclenche remettrait la valeur enregistrée par
+ * dessus la saisie.
+ */
+function fillPandoc(pandoc) {
+  for (const c of COMPILERS) {
+    for (const [key, field] of c.fields) {
+      if (document.activeElement === field) continue;
+      const wanted = pandoc[key] ?? '';
+      if (field.value !== wanted) field.value = wanted;
+    }
+    showPreview(c);
+  }
+}
+
+/**
+ * La commande telle qu'elle partirait pour le document ouvert, d'après ce que
+ * les champs portent à l'instant — enregistré ou non : l'aperçu suit la frappe.
+ */
+function showPreview(c) {
+  const tab = store.activeTab();
+  if (!tab || !store.isMarkdown(tab)) {
+    c.asked++;
+    c.preview.textContent = 'Ouvrez un document Markdown pour voir la commande complète.';
+    c.preview.classList.remove('pandoc__preview--bad');
+    return;
+  }
+  // Les réponses peuvent revenir dans le désordre quand on tape vite : seule
+  // la dernière demandée s'écrit.
+  const mine = ++c.asked;
+  api
+    .pandocPreview(c.format, tab.path, screenPandoc())
+    .then((command) => ({ command, bad: false }))
+    .catch((err) => ({ command: String(err?.message ?? err), bad: true }))
+    .then(({ command, bad }) => {
+      if (mine !== c.asked) return;
+      c.preview.textContent = command;
+      c.preview.classList.toggle('pandoc__preview--bad', bad);
+    });
+}
+
+let pandocTimer = null;
+
+/**
+ * Enregistre les champs de Pandoc — HTML et PDF —, tout de suite.
+ *
+ * Attendre que le champ soit quitté ne suffisait pas : fermer la boîte — par
+ * sa croix, Échap ou un clic sur le voile — pendant qu'on y tape la masque
+ * sans que `change` parte, et la commande saisie se perdait. La compilation
+ * prenait alors la commande par défaut, sans filtre ni modèle. On enregistre
+ * donc peu après la frappe, et à la fermeture ce qui attendait encore.
+ *
+ * Tous les champs en une écriture : deux enregistrements à la suite partiraient
+ * chacun de l'état d'avant l'autre, et le second effacerait le premier. Rien ne
+ * part si aucun n'a bougé : une simple visite n'écrit pas en base.
+ */
+function flushPandoc() {
+  clearTimeout(pandocTimer);
+  pandocTimer = null;
+  const current = store.state.edition.project.pandoc ?? {};
+  const shown = screenPandoc();
+  const moved = Object.entries(shown).some(([key, value]) => (current[key] ?? '') !== value);
+  const next = { ...current, ...shown };
+  if (!moved) return;
+  store.saveProjectSettings({ pandoc: next }).catch(store.fail);
+}
+
+/** La fermeture de la boîte, par où qu'elle passe : ce qui est saisi part d'abord. */
+function closeDialog() {
+  flushPandoc();
+  store.toggleProjectDialog(false);
 }
 
 /**
@@ -209,17 +336,33 @@ export function wire() {
   closeBtn.append(icon(PATH.close, { size: 13 }));
   buildSpacing();
 
+  // Le modèle par défaut vit côté Rust ; l'aperçu le montre en entier dès que
+  // le champ est vide.
+  for (const c of COMPILERS) {
+    const command = byId(`pandoc-${c.format}-command`);
+    command.placeholder = 'Vide : la commande par défaut de Pandoc, visible dans l’aperçu';
+  }
+  byId('pandoc-html-index-command').placeholder = 'Vide : le modèle de commande HTML';
+  // La légende vient de la table des variables : une variable ajoutée dans
+  // `pandoc.js` y paraît d'elle-même.
+  replace(legend, VARIABLES.flatMap((v) => [
+    el('code', {}, `{${v.name}}`),
+    el('span', {}, v.label),
+  ]));
+
   button.addEventListener('click', () => store.toggleProjectDialog(true));
-  closeBtn.addEventListener('click', () => store.toggleProjectDialog(false));
+  closeBtn.addEventListener('click', closeDialog);
+  doneBtn.addEventListener('click', closeDialog);
+  savedLabel.prepend(icon(PATH.check, { size: 13 }));
 
   // Un clic sur le voile ferme, un clic dans la boîte non.
   dialog.addEventListener('mousedown', (ev) => {
-    if (ev.target === dialog) store.toggleProjectDialog(false);
+    if (ev.target === dialog) closeDialog();
   });
   document.addEventListener('keydown', (ev) => {
     if (ev.key === 'Escape' && store.state.edition.dialogOpen) {
       ev.preventDefault();
-      store.toggleProjectDialog(false);
+      closeDialog();
     }
   });
 
@@ -236,6 +379,11 @@ export function wire() {
   ringSeg.addEventListener('change', (ev) => {
     if (ev.target.name !== 'ring') return;
     store.saveProjectSettings({ showOutline: ev.target.value === '1' }).catch(store.fail);
+  });
+
+  wrapSeg.addEventListener('change', (ev) => {
+    if (ev.target.name !== 'wrap') return;
+    store.saveProjectSettings({ wrapSource: ev.target.value === '1' }).catch(store.fail);
   });
 
   // `change` et non `input` : un nombre se tape chiffre par chiffre, et écrire
@@ -269,4 +417,37 @@ export function wire() {
   spacingReset.addEventListener('click', () => {
     store.saveProjectSpacing(null).catch(store.fail);
   });
+
+  // L'aperçu suit la frappe ; l'enregistrement part une fois la frappe
+  // retombée — pas à chaque touche —, et tout de suite en quittant le champ.
+  for (const c of COMPILERS) {
+    for (const [key, field] of c.fields) {
+      field.addEventListener('input', () => {
+        showPreview(c);
+        clearTimeout(pandocTimer);
+        pandocTimer = setTimeout(flushPandoc, 600);
+      });
+      field.addEventListener('change', flushPandoc);
+      // Entrée ne fait pas de retour à la ligne dans une commande : c'est une
+      // seule ligne de terminal, que le champ ne présente sur plusieurs que
+      // pour la lire.
+      if (key.endsWith('Command')) {
+        field.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') ev.preventDefault();
+        });
+      }
+    }
+
+    c.browse.addEventListener('click', async () => {
+      try {
+        const dir = await api.pickDirectory(c.dest.value.trim());
+        if (!dir) return;
+        c.dest.value = dir;
+        showPreview(c);
+        flushPandoc();
+      } catch (err) {
+        store.fail(err);
+      }
+    });
+  }
 }

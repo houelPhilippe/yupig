@@ -5,7 +5,8 @@ use rusqlite::{params, Connection, OptionalExtension, Row};
 
 use crate::error::{Error, Result};
 use crate::models::{
-    spacing_key_ok, Article, ArticleQuery, Feed, ProjectSettings, Settings, Stats, SPACING_MAX,
+    spacing_key_ok, Article, ArticleQuery, Feed, ProjectSettings, Settings, Stats,
+    PANDOC_FIELD_MAX, SPACING_MAX,
 };
 
 /// Version du schéma. Toute évolution ajoute un bloc dans `migrate`.
@@ -18,6 +19,13 @@ const SCHEMA_VERSION: i64 = 4;
 /// Pas de `_` dans ce préfixe : c'est un joker de `LIKE`, et la suppression des
 /// anciennes lignes s'en servirait alors pour effacer plus large.
 const SPACING_PREFIX: &str = "space.";
+/// Les réglages de la compilation par Pandoc : destination et modèle de
+/// commande, pour HTML puis pour PDF.
+const PANDOC_HTML_DEST: &str = "pandoc.htmlDest";
+const PANDOC_HTML_COMMAND: &str = "pandoc.htmlCommand";
+const PANDOC_HTML_INDEX_COMMAND: &str = "pandoc.htmlIndexCommand";
+const PANDOC_PDF_DEST: &str = "pandoc.pdfDest";
+const PANDOC_PDF_COMMAND: &str = "pandoc.pdfCommand";
 
 /// Connexion SQLite partagée. Le `Mutex` est volontairement std et non tokio :
 /// aucun verrou n'est conservé au travers d'un `.await`, toutes les méthodes
@@ -498,6 +506,7 @@ impl Db {
                 "projectRoot" => s.project_root = Some(v).filter(|p| !p.is_empty()),
                 "filesWidth" => s.files_width = v.parse().unwrap_or(0),
                 "outlineWidth" => s.outline_width = v.parse().unwrap_or(0),
+                "journalHeight" => s.journal_height = v.parse().unwrap_or(0),
                 "editorFocus" => s.editor_focus = v == "1",
                 "editorZoom" => s.editor_zoom = v.parse().unwrap_or(s.editor_zoom),
                 "theme" => s.theme = v,
@@ -527,6 +536,7 @@ impl Db {
             ])?;
             stmt.execute(params!["filesWidth", s.files_width.to_string()])?;
             stmt.execute(params!["outlineWidth", s.outline_width.to_string()])?;
+            stmt.execute(params!["journalHeight", s.journal_height.to_string()])?;
             stmt.execute(params!["editorFocus", flag(s.editor_focus)])?;
             stmt.execute(params!["editorZoom", s.editor_zoom.to_string()])?;
             stmt.execute(params!["theme", &s.theme])?;
@@ -587,6 +597,12 @@ impl Db {
                 "align" => s.align = v,
                 "lineHeight" => s.line_height = v.parse().unwrap_or(s.line_height),
                 "showOutline" => s.show_outline = v == "1",
+                "wrapSource" => s.wrap_source = v == "1",
+                PANDOC_HTML_DEST => s.pandoc.html_dest = v,
+                PANDOC_HTML_COMMAND => s.pandoc.html_command = v,
+                PANDOC_HTML_INDEX_COMMAND => s.pandoc.html_index_command = v,
+                PANDOC_PDF_DEST => s.pandoc.pdf_dest = v,
+                PANDOC_PDF_COMMAND => s.pandoc.pdf_command = v,
                 // Les espacements vivent sous un préfixe : une ligne par valeur,
                 // lisible à l'œil dans la table, et rien à migrer quand le
                 // frontend en nomme un de plus.
@@ -615,6 +631,18 @@ impl Db {
                 "DELETE FROM project_settings WHERE root = ?1 AND key LIKE ?2",
                 params![root, format!("{SPACING_PREFIX}%")],
             )?;
+            // Même règle pour Pandoc : un champ vidé quitte la base.
+            tx.execute(
+                "DELETE FROM project_settings WHERE root = ?1 AND key IN (?2, ?3, ?4, ?5, ?6)",
+                params![
+                    root,
+                    PANDOC_HTML_DEST,
+                    PANDOC_HTML_COMMAND,
+                    PANDOC_HTML_INDEX_COMMAND,
+                    PANDOC_PDF_DEST,
+                    PANDOC_PDF_COMMAND
+                ],
+            )?;
 
             let mut stmt = tx.prepare(
                 "INSERT INTO project_settings (root, key, value) VALUES (?1, ?2, ?3)
@@ -626,6 +654,11 @@ impl Db {
                 root,
                 "showOutline",
                 if s.show_outline { "1" } else { "0" }
+            ])?;
+            stmt.execute(params![
+                root,
+                "wrapSource",
+                if s.wrap_source { "1" } else { "0" }
             ])?;
 
             for (name, px) in &s.spacing {
@@ -641,6 +674,19 @@ impl Db {
                     (*px).clamp(0, SPACING_MAX).to_string()
                 ])?;
             }
+
+            for (key, value) in [
+                (PANDOC_HTML_DEST, &s.pandoc.html_dest),
+                (PANDOC_HTML_COMMAND, &s.pandoc.html_command),
+                (PANDOC_HTML_INDEX_COMMAND, &s.pandoc.html_index_command),
+                (PANDOC_PDF_DEST, &s.pandoc.pdf_dest),
+                (PANDOC_PDF_COMMAND, &s.pandoc.pdf_command),
+            ] {
+                let value = pandoc_field(value);
+                if !value.is_empty() {
+                    stmt.execute(params![root, key, value])?;
+                }
+            }
         }
         tx.commit()?;
         Ok(())
@@ -651,6 +697,24 @@ impl Db {
         let n: i64 = conn.query_row("SELECT COUNT(*) FROM feeds", [], |r| r.get(0))?;
         Ok(n == 0)
     }
+}
+
+/// Un réglage de Pandoc tel qu'il se range en base : sur une seule ligne, sans
+/// blancs aux bords, et borné.
+///
+/// Une commande collée depuis un script peut porter des retours à la ligne ;
+/// ce sont des séparateurs d'arguments comme les autres. Les garder ferait une
+/// valeur qu'une ligne de saisie ne sait pas montrer.
+fn pandoc_field(value: &str) -> String {
+    value
+        .split(['\r', '\n'])
+        .map(str::trim)
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(PANDOC_FIELD_MAX)
+        .collect()
 }
 
 /// Entrée prête à insérer, produite par `fetch::parse`.
@@ -735,6 +799,7 @@ fn escape_like(s: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::models::PandocSettings;
     use std::collections::BTreeMap;
 
     fn seed(db: &Db) -> i64 {
@@ -766,6 +831,7 @@ mod tests {
         assert_eq!(d.align, "gauche");
         assert_eq!(d.line_height, 165);
         assert!(d.show_outline);
+        assert!(d.wrap_source);
 
         assert!(d.spacing.is_empty());
 
@@ -775,7 +841,9 @@ mod tests {
                 align: "justifie".into(),
                 line_height: 200,
                 show_outline: false,
+                wrap_source: false,
                 spacing: BTreeMap::from([("h1Before".into(), 40), ("pAfter".into(), 12)]),
+                ..Default::default()
             },
         )
         .unwrap();
@@ -784,6 +852,7 @@ mod tests {
         assert_eq!(a.align, "justifie");
         assert_eq!(a.line_height, 200);
         assert!(!a.show_outline);
+        assert!(!a.wrap_source);
         assert_eq!(a.spacing.get("h1Before"), Some(&40));
         assert_eq!(a.spacing.get("pAfter"), Some(&12));
 
@@ -792,6 +861,7 @@ mod tests {
         assert_eq!(b.align, "gauche");
         assert_eq!(b.line_height, 165);
         assert!(b.show_outline);
+        assert!(b.wrap_source);
         assert!(b.spacing.is_empty());
     }
 
@@ -852,6 +922,55 @@ mod tests {
         assert_eq!(back.spacing.len(), 2);
     }
 
+    /// Les réglages de Pandoc : propres au projet, rangés sur une ligne, et
+    /// retirés de la base quand on les vide.
+    #[test]
+    fn reglages_pandoc_du_projet() {
+        let db = Db::open_memory().unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().pandoc, PandocSettings::default());
+
+        let mut s = ProjectSettings {
+            pandoc: PandocSettings {
+                html_dest: "  /mnt/hgfs/DEV/htdocs  ".into(),
+                // Une commande collée sur deux lignes n'en fait plus qu'une.
+                html_command: "pandoc {fichier}\n  -t html5 -o {sortie}\r\n".into(),
+                pdf_dest: "/mnt/hgfs/DEV/sds-sfd-v2027/resources/pdf".into(),
+                pdf_command: "pandoc {fichier} --defaults=conf/defaults-single.yaml -o {sortie}"
+                    .into(),
+                ..PandocSettings::default()
+            },
+            ..ProjectSettings::default()
+        };
+        db.save_project_settings("/a", &s).unwrap();
+
+        let back = db.project_settings("/a").unwrap().pandoc;
+        assert_eq!(back.html_dest, "/mnt/hgfs/DEV/htdocs");
+        assert_eq!(back.html_command, "pandoc {fichier} -t html5 -o {sortie}");
+        assert_eq!(back.pdf_dest, "/mnt/hgfs/DEV/sds-sfd-v2027/resources/pdf");
+        assert_eq!(
+            back.pdf_command,
+            "pandoc {fichier} --defaults=conf/defaults-single.yaml -o {sortie}"
+        );
+        // Un autre projet n'en sait rien.
+        assert_eq!(db.project_settings("/b").unwrap().pandoc, PandocSettings::default());
+
+        // Vidé, le champ quitte la base ; l'autre reste.
+        s.pandoc.html_dest = "   ".into();
+        db.save_project_settings("/a", &s).unwrap();
+        let back = db.project_settings("/a").unwrap().pandoc;
+        assert_eq!(back.html_dest, "");
+        assert_eq!(back.html_command, "pandoc {fichier} -t html5 -o {sortie}");
+        let rows: i64 = db
+            .lock()
+            .query_row(
+                "SELECT COUNT(*) FROM project_settings WHERE root = '/a' AND key LIKE 'pandoc.%'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(rows, 3);
+    }
+
     #[test]
     fn la_liste_des_projets_met_le_dernier_ouvert_en_tete() {
         let db = Db::open_memory().unwrap();
@@ -876,6 +995,7 @@ mod tests {
                 line_height: 200,
                 show_outline: false,
                 spacing: BTreeMap::from([("h2Before".into(), 30)]),
+                ..Default::default()
             },
         )
         .unwrap();

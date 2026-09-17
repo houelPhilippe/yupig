@@ -1,7 +1,7 @@
-// Ce qu'on fait d'un fichier du projet : le renommer, copier son nom, le
-// dupliquer, l'effacer.
+// Ce qu'on fait d'un fichier du projet : le compiler en HTML ou en PDF, le
+// renommer, copier son nom, le dupliquer, l'effacer.
 //
-// Les quatre commandes ont deux portes — le menu de l'onglet, celui de la ligne
+// Les commandes ont deux portes — le menu de l'onglet, celui de la ligne
 // de l'arbre —, et c'est le même fichier des deux côtés : un document n'a pas
 // deux jeux de commandes selon l'endroit d'où on le montre. Elles vivent donc
 // ici, et les deux menus reprennent `entries` telle quelle.
@@ -16,6 +16,8 @@ import * as store from '../store.js';
 import * as api from '../api.js';
 import * as menu from './menu.js';
 import * as prompt from './prompt.js';
+import * as journal from './journal.js';
+import { FORMATS } from '../pandoc.js';
 
 /**
  * Les quatre entrées, pour un fichier `{ path, name }` — un onglet comme un
@@ -28,12 +30,237 @@ import * as prompt from './prompt.js';
  * charger en retour.
  */
 export function entries(file, flush) {
+  const markdown = /\.(md|markdown|mdown)$/i.test(file.name);
   return [
+    // Éteinte hors Markdown plutôt que retirée : le menu garde ses places, et
+    // l'on y apprend ce qu'un document permet.
+    menu.item('Compiler en HTML', PATH.compile, () => compile(file, 'html', flush), !markdown),
+    menu.item('Compiler en PDF', PATH.compile, () => compile(file, 'pdf', flush), !markdown),
+    menu.separator(),
     menu.item('Renommer…', PATH.pencil, () => rename(file, flush)),
     menu.item('Copier le nom', PATH.copy, () => copyName(file)),
     menu.item('Dupliquer', PATH.duplicate, () => duplicate(file)),
     menu.item('Supprimer…', PATH.trash, () => remove(file)),
   ];
+}
+
+/**
+ * Compile le document par Pandoc, en HTML ou en PDF (`format`), d'après les
+ * réglages du projet.
+ *
+ * Pandoc lit le fichier **sur le disque** : des modifications non enregistrées
+ * n'y seraient pas. On le dit, et l'on propose d'enregistrer d'abord — plutôt
+ * que d'enregistrer d'office, ou de compiler une version que l'on n'a plus
+ * sous les yeux. `flush` avant la question : la saisie en cours doit compter
+ * dans ce qu'on juge modifié.
+ */
+async function compile(file, format, flush) {
+  const { label, product } = FORMATS[format];
+  // Une seule compilation à la fois : le journal n'en suit qu'une, et deux
+  // copies des mêmes ressources vers la même destination se marcheraient
+  // dessus.
+  if (journal.busy()) {
+    store.notify('Une compilation est déjà en cours.', 'error');
+    return;
+  }
+  flush();
+  const tab = store.state.edition.tabs.find((t) => t.path === file.path);
+  if (tab && store.isDirty(tab)) {
+    const ok = await api.ask(
+      `« ${file.name} » a des modifications non enregistrées.\n\n` +
+        'Pandoc compile le fichier tel qu’il est sur le disque : enregistrer puis compiler ?',
+      { title: `Compiler en ${label}`, okLabel: 'Enregistrer et compiler' },
+    );
+    if (!ok) return;
+    try {
+      await store.saveDocument(tab.path);
+    } catch (err) {
+      store.fail(err);
+      return;
+    }
+  }
+
+  // Le journal suit la compilation ligne à ligne ; le toast ne dira que l'issue.
+  journal.start(`Compilation ${label} de « ${file.name} »`);
+  try {
+    const done = await store.compileDocument(file.path, format);
+    const warnings = (done.resources?.warnings.length ?? 0) + (done.log ? 1 : 0);
+    journal.finish(true, done.output ? `${product} : ${done.output}` : 'Compilation terminée.');
+    const page = done.output ? ` : ${done.output}` : '.';
+    const note = warnings ? '\nDes avertissements sont au journal.' : '';
+    store.notify(`${product}${page}${resourcesLine(done.resources)}${note}`, 'ok', 6000);
+  } catch (err) {
+    // Le message complet est déjà au journal, envoyé par Rust : le toast ne
+    // fait qu'y renvoyer.
+    journal.finish(false, '');
+    store.notify(
+      `Échec de la compilation ${label} de « ${file.name} » : voir le journal.\n${clip(String(err?.message ?? err), 160)}`,
+      'error',
+      8000,
+    );
+  }
+}
+
+/**
+ * Les commandes d'un dossier de l'arbre.
+ *
+ * `flush` arrive par l'appelant, comme pour un fichier : la saisie en cours
+ * doit avoir rejoint le Markdown avant qu'on juge ce qui est modifié.
+ */
+export function dirEntries(dir, flush) {
+  return [
+    menu.item('Compiler en HTML les documents du dossier', PATH.compile, () => compileDir(dir, 'html', flush)),
+    menu.item('Compiler en PDF les documents du dossier', PATH.compile, () => compileDir(dir, 'pdf', flush)),
+  ];
+}
+
+/**
+ * Compile en HTML ou en PDF, un par un, les documents Markdown du dossier — le
+ * dossier seul, sans ses sous-dossiers : ce qu'on voit sous lui en le dépliant.
+ *
+ * Les ressources — en HTML seulement — ne sont copiées qu'au premier : tous
+ * partent vers la même destination, et refaire la copie à chaque document ne
+ * ferait que relire le disque. Un échec n'arrête pas la série — les autres
+ * documents n'y sont pour rien — ; le journal dit lequel et pourquoi, le toast
+ * en fait le compte.
+ *
+ * Les documents ouverts et modifiés font l'objet d'une seule question, pour
+ * toute la série, plutôt que d'une par document.
+ */
+async function compileDir(dir, format, flush) {
+  await compileSeries({
+    format,
+    flush,
+    list: async () => ({ paths: await store.markdownInDir(dir.path), missing: [] }),
+    empty: `Aucun document Markdown dans « ${dir.name} ».`,
+    title: (total, label) => `Compilation ${label} de ${total} document(s) du dossier « ${dir.name} »`,
+    scope: `« ${dir.name} »`,
+    // Tous dans le même dossier : le nom suffit à les distinguer.
+    shown: (path) => path.split('/').pop(),
+  });
+}
+
+/**
+ * Compile en HTML, un par un, les documents du projet : ceux dont
+ * `conf/bibliotheque.yaml` nomme la page, dans l'ordre du fichier — celui des
+ * lots —, sauf la page d'accueil, `index.md` à la racine.
+ *
+ * La bibliothèque et non le dossier : un projet porte des milliers de `.md`,
+ * et seuls ceux que le site publie sont ses documents. Un document qu'elle
+ * nomme sans qu'il existe est signalé au journal, sans arrêter la série.
+ *
+ * Mêmes règles que pour un dossier : une question pour tous les documents
+ * modifiés, ressources copiées au premier seulement, un échec qui n'arrête pas
+ * la série. Le journal nomme chaque document par son chemin : deux dossiers
+ * peuvent porter un fichier du même nom.
+ */
+export async function compileProject(flush) {
+  await compileSeries({
+    format: 'html',
+    flush,
+    list: async () => {
+      const { found, missing } = await store.markdownInProject();
+      return { paths: found.filter((p) => p.toLowerCase() !== 'index.md'), missing };
+    },
+    empty: 'Aucun document à compiler : conf/bibliotheque.yaml n’en nomme pas.',
+    title: (total, label) => `Compilation ${label} du projet : ${total} document(s)`,
+    scope: 'Projet',
+    shown: (path) => path,
+  });
+}
+
+/**
+ * Compile une série de documents, un par un : ce que partagent la compilation
+ * d'un dossier et celle du projet.
+ *
+ * - `list` rend `{ paths, missing }` : les chemins à compiler, et ceux qu'on
+ *   aurait dû compiler mais qui n'existent pas ;
+ * - `empty` est le message d'une série vide ;
+ * - `title` fait l'intitulé du journal ;
+ * - `scope` ouvre le message de fin ;
+ * - `shown` dit comment un document se nomme au journal.
+ */
+async function compileSeries({ format, flush, list, empty, title, scope, shown }) {
+  const { label, product } = FORMATS[format];
+  if (journal.busy()) {
+    store.notify('Une compilation est déjà en cours.', 'error');
+    return;
+  }
+  flush();
+
+  let paths;
+  let missing;
+  try {
+    ({ paths, missing } = await list());
+  } catch (err) {
+    store.fail(err);
+    return;
+  }
+  if (!paths.length) {
+    store.notify(missing.length ? `${empty}\nAbsents : ${missing.join(', ')}` : empty, 'error');
+    return;
+  }
+
+  const dirty = store.state.edition.tabs.filter((t) => paths.includes(t.path) && store.isDirty(t));
+  if (dirty.length) {
+    const names = dirty.map((t) => `« ${t.name} »`).join(', ');
+    const ok = await api.ask(
+      `Modifications non enregistrées : ${names}.\n\n` +
+        'Pandoc compile les fichiers tels qu’ils sont sur le disque : enregistrer puis compiler ?',
+      { title: `Compiler en ${label}`, okLabel: 'Enregistrer et compiler' },
+    );
+    if (!ok) return;
+    try {
+      for (const tab of dirty) await store.saveDocument(tab.path);
+    } catch (err) {
+      store.fail(err);
+      return;
+    }
+  }
+
+  const total = paths.length;
+  journal.start(title(total, label));
+  for (const path of missing) journal.note('warn', `Absent du projet, ignoré : ${path}`);
+  const failed = [];
+  let warned = 0;
+
+  for (const [i, path] of paths.entries()) {
+    journal.progress(i, total);
+    journal.note('step', `[${i + 1}/${total}] ${shown(path)}`);
+    try {
+      const done = await store.compileDocument(path, format, i === 0);
+      if (done.log || done.resources?.warnings.length) warned++;
+      journal.note('done', done.output ? `${product} : ${done.output}` : 'Compilation terminée.');
+    } catch {
+      // Le message est déjà au journal, envoyé par Rust.
+      failed.push(shown(path));
+    }
+  }
+
+  journal.progress(total, total);
+  const ok = total - failed.length;
+  const summary = `${ok} sur ${total} document(s) compilé(s)`;
+  journal.finish(!failed.length, failed.length ? `${summary} — échec : ${failed.join(', ')}` : summary);
+
+  const absent = missing.length ? `\n${missing.length} document(s) absent(s) — voir le journal.` : '';
+  const note = warned ? '\nDes avertissements sont au journal.' : '';
+  if (failed.length) {
+    store.notify(`${scope} : ${summary}, ${failed.length} en échec — voir le journal.${absent}`, 'error', 8000);
+  } else {
+    store.notify(`${scope} : ${summary}.${absent}${note}`, 'ok', 6000);
+  }
+}
+
+/** Ce que la copie des ressources a fait, en une ligne ; rien sans liste. */
+function resourcesLine(report) {
+  if (!report) return '';
+  const copied = report.copied === 1 ? '1 copiée' : `${report.copied} copiées`;
+  return `\nRessources : ${copied}, ${report.upToDate} déjà à jour`;
+}
+
+/** Un journal trop long ne tiendrait pas dans un message. */
+function clip(text, max = 400) {
+  return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
 /**

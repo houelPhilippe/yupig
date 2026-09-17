@@ -62,6 +62,23 @@ export const writeDocument = (path, content) => invoke('write_document', { path,
 // ou rien. C'est au `store` de recaler ce qui désignait l'ancien.
 export const renameFile = (path, name) => invoke('rename_file', { path, name });
 export const duplicateFile = (path) => invoke('duplicate_file', { path });
+/**
+ * Compile un document par Pandoc, d'après les réglages du projet.
+ * `format` : `'html'` ou `'pdf'`.
+ */
+export const compileDocument = (path, format, resources = true) =>
+  invoke('compile_document', { path, format, resources });
+/** Les documents Markdown d'un dossier du projet, sans ses sous-dossiers. */
+export const markdownInDir = (path) => invoke('markdown_in_dir', { path });
+/** Les documents du projet selon conf/bibliotheque.yaml : `{ found, missing }`. */
+export const markdownInProject = () => invoke('markdown_in_project');
+/** Quitte l'application ; la question des documents modifiés est déjà posée. */
+export const quitApp = () => invoke('quit_app');
+/** La commande qui partirait, d'après les champs à l'écran ; rien n'est lancé. */
+// `settings` : les champs de Pandoc tels qu'ils sont à l'écran — Rust y choisit
+// le modèle, celui de l'accueil compris.
+export const pandocPreview = (format, path, settings) =>
+  invoke('pandoc_preview', { format, path, settings });
 export const deleteFile = (path) => invoke('delete_file', { path });
 export const documentOutline = (content) => invoke('document_outline', { content });
 export const getProjectSettings = () => invoke('get_project_settings');
@@ -138,6 +155,15 @@ export const assetUrl = (path) => tauri.core.convertFileSrc(path);
  */
 export async function pickProjectDir() {
   return tauri.dialog.open({ directory: true, multiple: false });
+}
+
+/**
+ * Sélecteur d'un dossier quelconque — la destination d'une compilation, par
+ * exemple ; `null` si l'utilisateur annule. Il s'ouvre sur `from` quand on le
+ * connaît.
+ */
+export async function pickDirectory(from) {
+  return tauri.dialog.open({ directory: true, multiple: false, defaultPath: from || undefined });
 }
 
 // ------------------------------------------------------------------ OPML

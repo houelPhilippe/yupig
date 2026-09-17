@@ -17,7 +17,13 @@
          de gauche, de sorte que le premier onglet commence là où commence la
          zone d'édition. -->
     <div class="topbar__lead">
-      <!-- Lanceur : la seule commande commune aux deux applications. -->
+      <!-- Menu de l'application : compiler le projet, ses paramètres, quitter.
+           Les entrées sont écrites par `ui/appmenu.js`, le pictogramme aussi. -->
+      <button class="btn btn-secondary btn-icon" id="app-menu"
+              aria-haspopup="menu" aria-expanded="false" aria-label="Menu"
+              title="Menu" style="width:26px;height:26px"></button>
+
+      <!-- Lanceur : changer d'application. -->
       <div class="launcher">
         <button class="btn btn-secondary btn-icon" id="launcher-open"
                 aria-haspopup="menu" aria-expanded="false"
@@ -30,6 +36,12 @@
       </div>
 
       <div class="topbar__brand" id="brand">VEILLE</div>
+
+      <!-- Témoin de compilation : visible tant qu'une compilation tourne, dans
+           les deux applications et journal fermé compris. Un clic rouvre le
+           journal. `ui/journal.js` le remplit et le tient à jour. -->
+      <button class="compiling" id="compile-badge" type="button" hidden
+              title="Compilation en cours — ouvrir le journal"></button>
     </div>
 
     <!-- Onglets : sur la premiere ligne, a la place que prend la recherche
@@ -403,6 +415,26 @@
 
   </div>
 
+  <!-- Journal de compilation : les lignes qu'envoie Rust pendant la copie des
+       ressources et le passage de Pandoc. Il s'ouvre quand une compilation
+       part et reste ouvert à la fin, pour qu'on lise ce que Pandoc a dit ; on
+       le referme soi-même. `ui/journal.js` l'écrit, sans passer par l'état. -->
+  <section class="journal" id="journal" hidden aria-label="Journal de compilation">
+    <!-- Avancement : la part des documents compilés dans une série, un trait
+         qui va et vient pour un document seul. -->
+    <div class="journal__progress" id="journal-progress" hidden><div class="journal__progress-fill"></div></div>
+    <div class="journal__head">
+      <h6 class="journal__title">Journal de compilation</h6>
+      <span class="journal__state" id="journal-state" aria-live="polite"></span>
+      <div class="spacer"></div>
+      <button class="btn btn-ghost journal__clear" id="journal-clear" type="button">Effacer</button>
+      <button class="btn btn-ghost btn-icon" id="journal-close" type="button"
+              title="Fermer le journal" aria-label="Fermer le journal"
+              style="width:22px;height:22px"></button>
+    </div>
+    <div class="journal__body" id="journal-body" role="log"></div>
+  </section>
+
   <!-- Barre d'état : ce que l'on sait du document sans avoir à le regarder —
        sa sorte, et l'endroit du texte où se trouve le curseur. Elle ne paraît
        qu'en « Édition », un document ouvert : une barre vide n'apprendrait
@@ -419,80 +451,181 @@
 
 <!-- ============================================ Paramètres du projet -->
 <div class="modal" id="project-dialog" hidden>
-  <div class="modal__box modal__box--wide" role="dialog" aria-modal="true"
+  <!-- Trois colonnes, trois sujets : ce que l'écran montre, l'espace entre les
+       blocs, la compilation. Chaque colonne s'ouvre sur un numéro, un titre et
+       une phrase qui dit de quoi elle parle, à la manière des sections d'une
+       revue ; les champs viennent dessous. Sous 1100 px la troisième passe sous
+       les deux autres, sous 720 px tout s'empile : mieux vaut défiler que
+       serrer les champs à l'illisible. Les réglages s'enregistrent d'eux-mêmes,
+       d'où un pied qui le dit plutôt qu'un bouton « Enregistrer ». -->
+  <div class="modal__box settings" role="dialog" aria-modal="true"
        aria-labelledby="project-dialog-title">
-    <div class="modal__head">
-      <h6 id="project-dialog-title" style="margin:0">Paramètres du projet</h6>
-      <div class="spacer"></div>
+    <header class="settings__head">
+      <div class="settings__heading">
+        <h2 class="settings__title" id="project-dialog-title">Paramètres du projet</h2>
+        <p class="settings__lede">Propres au dossier ouvert — chaque projet garde les siens.
+          <span class="settings__root" id="project-dialog-root"></span></p>
+      </div>
       <button class="btn btn-secondary btn-icon" id="project-dialog-close"
-              title="Fermer" style="width:26px;height:26px"></button>
-    </div>
+              title="Fermer" aria-label="Fermer" style="width:30px;height:30px"></button>
+    </header>
 
-    <!-- Deux colonnes : les réglages d'ensemble à gauche, les espacements —
-         treize lignes — à droite. Sur une seule colonne, la boîte devenait plus
-         haute que l'écran et se parcourait au défilement. Sous la largeur de
-         deux colonnes, elles se remettent l'une sous l'autre : mieux vaut
-         défiler que serrer les champs à l'illisible. -->
-    <div class="modal__body modal__body--split">
+    <div class="modal__body settings__body">
 
-      <div class="modal__col">
-        <div class="modal__field">
-          <h6>Justification des paragraphes</h6>
-          <div class="seg" id="align-seg">
+      <!-- 01 — Affichage -->
+      <section class="settings__col" aria-labelledby="settings-display">
+        <header class="settings__col-head">
+          <span class="settings__num">01</span>
+          <div>
+            <h3 class="settings__col-title" id="settings-display">Affichage</h3>
+            <p class="settings__col-lede">Comment le document se présente en « Modifier » et « Voir ».</p>
+          </div>
+        </header>
+
+        <div class="settings__field">
+          <div class="settings__label" id="align-label">Justification des paragraphes</div>
+          <div class="seg settings__seg" id="align-seg" role="radiogroup" aria-labelledby="align-label">
             <label class="seg-opt"><input type="radio" name="align" value="gauche" checked>Gauche</label>
             <label class="seg-opt"><input type="radio" name="align" value="justifie">Justifié</label>
           </div>
-          <p class="hint" style="margin:0">S'applique au document affiché en
-            « Modifier » et « Voir ». Le code Markdown garde son alignement à
-            gauche : y justifier des lignes de source les rendrait illisibles.</p>
+          <p class="settings__note">Le code Markdown reste aligné à gauche : des lignes de
+            source justifiées seraient illisibles.</p>
         </div>
 
-        <div class="modal__field">
-          <h6>Interligne</h6>
-          <div class="seg" id="leading-seg">
+        <div class="settings__field">
+          <div class="settings__label" id="leading-label">Interligne</div>
+          <div class="seg settings__seg" id="leading-seg" role="radiogroup" aria-labelledby="leading-label">
             <label class="seg-opt"><input type="radio" name="leading" value="135">Serré</label>
             <label class="seg-opt"><input type="radio" name="leading" value="165" checked>Normal</label>
             <label class="seg-opt"><input type="radio" name="leading" value="200">Aéré</label>
           </div>
         </div>
 
-        <div class="modal__field">
-          <h6>Contour de la zone d'édition</h6>
-          <div class="seg" id="ring-seg">
+        <div class="settings__field">
+          <div class="settings__label" id="ring-label">Contour de la zone d'édition</div>
+          <div class="seg settings__seg" id="ring-seg" role="radiogroup" aria-labelledby="ring-label">
             <label class="seg-opt"><input type="radio" name="ring" value="1" checked>Affiché</label>
             <label class="seg-opt"><input type="radio" name="ring" value="0">Masqué</label>
           </div>
-          <p class="hint" style="margin:0">Le liseré rouge qui entoure la zone
-            quand elle a le clavier. Le masquer ne change rien au document :
-            c'est la pastille de l'onglet qui signale les modifications non
-            enregistrées.</p>
+          <p class="settings__note">Le liseré qui entoure la zone quand elle a le clavier. Le
+            masquer ne change rien au document.</p>
         </div>
 
-        <p class="hint" style="margin:0">Ces réglages accompagnent le dossier
-          ouvert : chaque projet garde les siens.</p>
-      </div>
+        <div class="settings__field">
+          <div class="settings__label" id="wrap-label">Retour à la ligne dans le code Markdown</div>
+          <div class="seg settings__seg" id="wrap-seg" role="radiogroup" aria-labelledby="wrap-label">
+            <label class="seg-opt"><input type="radio" name="wrap" value="1" checked>Automatique</label>
+            <label class="seg-opt"><input type="radio" name="wrap" value="0">Aucun</label>
+          </div>
+          <p class="settings__note">Sans retour automatique, une ligne longue défile à
+            l'horizontale, telle que le fichier l'écrit. Le fichier n'en est pas changé.</p>
+        </div>
+      </section>
 
-      <!-- Mise en page : l'espace au-dessus et au-dessous de chaque sorte de
-           bloc. Les lignes de la grille ne sont pas écrites ici —
-           `ui/project.js` les bâtit d'après sa table `SPACING`, seul endroit
-           qui nomme ces réglages ; des lignes tenues à la main dans ce fichier
-           finiraient par ne plus lui correspondre. Un champ laissé vide vaut la
-           mesure du modèle, que son `placeholder` affiche. -->
-      <div class="modal__col">
-        <div class="modal__field">
-          <h6>Mise en page</h6>
-          <div class="spacing" id="spacing-grid"></div>
-          <div class="spacing__foot">
-            <p class="hint" style="margin:0">Mesures en pixels, à 100 % de zoom :
-              le zoom du document les agrandit avec le texte. Un champ vide
-              reprend la mesure du modèle.</p>
-            <button class="btn btn-secondary" id="spacing-reset" type="button"
-                    title="Rendre tous les espacements à la mesure du modèle">Rétablir</button>
+      <!-- 02 — Mise en page. Les lignes de la grille ne sont pas écrites ici :
+           `ui/project.js` les bâtit d'après sa table `SPACING`, seul endroit qui
+           nomme ces réglages. Un champ laissé vide vaut la mesure du modèle, que
+           son `placeholder` affiche. -->
+      <section class="settings__col" aria-labelledby="settings-spacing">
+        <header class="settings__col-head">
+          <span class="settings__num">02</span>
+          <div>
+            <h3 class="settings__col-title" id="settings-spacing">Mise en page</h3>
+            <p class="settings__col-lede">L'espace avant et après chaque sorte de bloc, en pixels.</p>
+          </div>
+          <button class="btn btn-ghost settings__reset" id="spacing-reset" type="button"
+                  title="Rendre tous les espacements à la mesure du modèle">Rétablir</button>
+        </header>
+
+        <div class="spacing" id="spacing-grid"></div>
+        <p class="settings__note">Entre deux blocs, les deux mesures s'ajoutent. Mesures à
+          100 % de zoom ; un champ vide reprend la valeur grisée.</p>
+      </section>
+
+      <!-- 03 — Pandoc. La légende des variables n'est pas écrite ici :
+           `ui/project.js` la tire de `VARIABLES`, dans `pandoc.js`. -->
+      <section class="settings__col settings__col--pandoc" aria-labelledby="settings-pandoc">
+        <header class="settings__col-head">
+          <span class="settings__num">03</span>
+          <div>
+            <h3 class="settings__col-title" id="settings-pandoc">Pandoc</h3>
+            <p class="settings__col-lede">La compilation des documents du projet.</p>
+          </div>
+        </header>
+
+        <div class="settings__group" role="group" aria-labelledby="pandoc-html-title">
+          <h4 class="settings__group-title" id="pandoc-html-title">
+            <span class="settings__tag">HTML</span> Compilation HTML
+          </h4>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-html-dest">Répertoire de destination</label>
+            <div class="meta__row">
+              <input class="input" id="pandoc-html-dest" type="text" autocomplete="off"
+                     spellcheck="false" placeholder="/chemin/vers/htdocs">
+              <button class="btn btn-secondary" id="pandoc-html-browse" type="button">Parcourir…</button>
+            </div>
+          </div>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-html-command">Modèle de commande HTML</label>
+            <textarea class="input pandoc__command" id="pandoc-html-command" rows="4"
+                      autocomplete="off" spellcheck="false"></textarea>
+          </div>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-html-index-command">Modèle de commande de l'accueil (index.md)</label>
+            <textarea class="input pandoc__command" id="pandoc-html-index-command" rows="3"
+                      autocomplete="off" spellcheck="false"></textarea>
+            <p class="settings__note">Pour <code>index.md</code>, à la racine du projet ; vide, il prend le modèle ci-dessus.</p>
+          </div>
+
+          <div class="settings__field">
+            <div class="settings__label">Aperçu pour le document ouvert</div>
+            <code class="pandoc__preview" id="pandoc-html-preview"></code>
           </div>
         </div>
-      </div>
+
+        <div class="settings__group" role="group" aria-labelledby="pandoc-pdf-title">
+          <h4 class="settings__group-title" id="pandoc-pdf-title">
+            <span class="settings__tag">PDF</span> Compilation PDF
+          </h4>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-pdf-dest">Répertoire de destination</label>
+            <div class="meta__row">
+              <input class="input" id="pandoc-pdf-dest" type="text" autocomplete="off"
+                     spellcheck="false" placeholder="/chemin/vers/resources/pdf">
+              <button class="btn btn-secondary" id="pandoc-pdf-browse" type="button">Parcourir…</button>
+            </div>
+          </div>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-pdf-command">Modèle de commande PDF</label>
+            <textarea class="input pandoc__command" id="pandoc-pdf-command" rows="4"
+                      autocomplete="off" spellcheck="false"></textarea>
+          </div>
+
+          <div class="settings__field">
+            <div class="settings__label">Aperçu pour le document ouvert</div>
+            <code class="pandoc__preview" id="pandoc-pdf-preview"></code>
+          </div>
+        </div>
+
+        <!-- Les deux modèles ont les mêmes variables : une seule légende. -->
+        <div class="settings__field">
+          <div class="settings__label">Variables des modèles</div>
+          <div class="pandoc__legend" id="pandoc-legend"></div>
+        </div>
+      </section>
 
     </div>
+
+    <footer class="settings__foot">
+      <span class="settings__saved" id="project-dialog-saved">Enregistré automatiquement</span>
+      <div class="spacer"></div>
+      <button class="btn btn-primary" id="project-dialog-done" type="button">Fermer</button>
+    </footer>
   </div>
 </div>
 

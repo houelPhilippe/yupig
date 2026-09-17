@@ -54,10 +54,16 @@ export const PATH = {
   caretUp: 'm6 15 6-6 6 6',
   file: 'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',
   close: 'M18 6 6 18M6 6l12 12',
+  // Menu de l'application : les trois traits du « hamburger ».
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  // Quitter : l'interrupteur.
+  power: 'M12 3v9M6.3 6.3a8 8 0 1 0 11.4 0',
   save: 'M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2zM17 21v-8H7v8M8 3v5h7',
   refresh: 'M21 12a9 9 0 1 1-2.6-6.4M21 3v6h-6',
   eye: 'M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   code: 'm8 18-6-6 6-6M16 6l6 6-6 6',
+  // Compiler : le document part vers une page — une flèche qui sort d'un cadre.
+  compile: 'M14 4h6v16H4V4h3M8 12h9M13 8l4 4-4 4',
   folder: 'M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z',
   sliders: 'M4 7h16M4 12h16M4 17h16M9 5v4M15 10v4M7 15v4',
   // Le sommaire : des marques de rang à gauche, le texte des titres à droite.
@@ -105,6 +111,9 @@ export const PATH = {
   sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4',
   moon: 'M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z',
   contrast: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18M12 3v18',
+  // Saut de page : le bas d'une page, le haut de la suivante, et le pointillé
+  // qui les sépare.
+  pagebreak: 'M6 3v6h12V3M6 21v-6h12v6M3 12h2M9 12h2M13 12h2M19 12h2',
   braces: 'M8 4H7a2 2 0 0 0-2 2v3a2 2 0 0 1-2 2 2 2 0 0 1 2 2v3a2 2 0 0 0 2 2h1M16 4h1a2 2 0 0 1 2 2v3a2 2 0 0 0 2 2 2 2 0 0 0-2 2v3a2 2 0 0 1-2 2h-1',
   rule: 'M3 12h18M6 7h12M6 17h12',
   // La ligne vide : deux blocs, et rien entre eux — l'exact contraire de la

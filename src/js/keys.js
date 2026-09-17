@@ -57,6 +57,11 @@ export const KEYS = [
   { id: 'mode.view', combo: 'ctrl+2', label: 'Voir', scope: EDITION, button: 'mode-view' },
   { id: 'mode.code', combo: 'ctrl+3', label: 'Code Markdown', scope: EDITION, button: 'mode-code' },
   { id: 'doc.save', combo: 'ctrl+s', label: 'Enregistrer', scope: EDITION, button: 'doc-save' },
+  // D'un onglet à l'autre, comme dans un navigateur. Ctrl et non Tab seule : la
+  // tabulation indente un bloc de code et passe de cellule en cellule dans un
+  // tableau, et le passage d'un onglet doit marcher en pleine frappe.
+  { id: 'tab.next', combo: 'ctrl+tab', label: 'Onglet suivant', scope: EDITION },
+  { id: 'tab.prev', combo: 'ctrl+shift+tab', label: 'Onglet précédent', scope: EDITION },
   {
     id: 'doc.rebuild',
     combo: 'ctrl+shift+a',
@@ -86,6 +91,10 @@ export const KEYS = [
   // ----------------------------------------------------------- les deux coques
   { id: 'theme', combo: 'ctrl+shift+t', label: 'Thème de l’application', scope: BOTH, button: 'theme-open' },
   { id: 'launcher', combo: 'ctrl+shift+e', label: 'Changer d’application', scope: BOTH, button: 'launcher-open' },
+  // F10 ouvre le menu d'une application de bureau, et Ctrl+Q la quitte : ce
+  // sont les frappes qu'on essaie d'abord.
+  { id: 'app.menu', combo: 'f10', label: 'Menu', scope: BOTH, button: 'app-menu' },
+  { id: 'app.quit', combo: 'ctrl+q', label: 'Quitter', scope: BOTH },
 
   // ---------------------------------------------------- document : mise en forme
   { id: 'format.gras', combo: 'ctrl+b', label: 'Gras', scope: EDITION, editor: true },
@@ -132,6 +141,10 @@ export const KEYS = [
   { id: 'clip.cut', combo: 'ctrl+x', label: 'Couper', scope: EDITION, editor: true, native: true },
   { id: 'clip.copy', combo: 'ctrl+c', label: 'Copier', scope: EDITION, editor: true, native: true },
   { id: 'clip.paste', combo: 'ctrl+v', label: 'Coller', scope: EDITION, editor: true, native: true },
+  // Celle-ci est à nous : le collage lit le texte comme du Markdown, et il faut
+  // une porte pour le poser tel quel. La majuscule, comme ailleurs pour « coller
+  // sans mise en forme ».
+  { id: 'clip.plain', combo: 'ctrl+shift+v', label: 'Coller en texte brut', scope: EDITION, editor: true },
 
   // ------------------------------------------------------- document : insertion
   // Le lien garde Ctrl+K, que tout le monde essaie d'abord ; le reste de la
@@ -145,6 +158,18 @@ export const KEYS = [
   { id: 'insert.blank', combo: 'alt+b', label: 'Insérer une ligne vide', scope: EDITION, editor: true },
   { id: 'insert.footnote', combo: 'alt+n', label: 'Insérer une note de bas de page', scope: EDITION, editor: true },
   { id: 'insert.shortcode', combo: 'alt+q', label: 'Insérer un shortcode…', scope: EDITION, editor: true },
+  // Le saut de page se pose sans passer par la boîte des shortcodes : c'est le
+  // plus fréquent des trois, et Ctrl+Entrée est la frappe qu'un traitement de
+  // texte lui donne. Dans un bloc de code, `ui/code.js` garde la frappe pour
+  // sortir du bloc — il la traite avant nous, et `ui/keys.js` ne reprend pas
+  // une frappe déjà traitée.
+  {
+    id: 'insert.pagebreak',
+    combo: 'ctrl+enter',
+    label: 'Insérer un saut de page',
+    scope: EDITION,
+    editor: true,
+  },
   { id: 'anchor', combo: 'alt+s', label: 'Signet du titre…', scope: EDITION, editor: true },
   { id: 'frontmatter', combo: 'alt+p', label: 'Propriétés du document', scope: EDITION, editor: true },
 
@@ -229,6 +254,7 @@ const SHOWN = {
   ',': ',',
   escape: 'Échap',
   enter: 'Entrée',
+  tab: 'Tab',
 };
 
 /** `ctrl+shift+a` devient `Ctrl+Maj+A`. */

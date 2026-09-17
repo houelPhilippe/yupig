@@ -10,6 +10,9 @@ mod error;
 mod fetch;
 mod files;
 mod models;
+mod library;
+mod pandoc;
+mod resources;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -99,6 +102,11 @@ pub fn run() {
             commands::document_outline,
             commands::get_project_settings,
             commands::save_project_settings,
+            commands::pandoc_preview,
+            commands::compile_document,
+            commands::markdown_in_dir,
+            commands::markdown_in_project,
+            commands::quit_app,
             commands::file_link,
             commands::read_image,
             commands::import_opml,

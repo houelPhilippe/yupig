@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="$if(lang)$$lang$$else$fr$endif$">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="pandoc + modele Liseuse">
+$for(author-meta)$
+  <meta name="author" content="$author-meta$">
+$endfor$
+  <title>SDS - Documentation Fonctionnelle — $if(title)$$title$$else$Document$endif$</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+$if(highlighting-css)$
+  <style>
+$highlighting-css$
+  </style>
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+
+  <style>
+    /* ============ Palette / thèmes (valeurs oklch d'origine) ============ */
+    :root{
+      --accent:#4C5FDA;
+      --header-h:56px;
+      --reading-width:680px;
+      --font-scale:1;
+      --read-font:'Source Serif 4',serif;
+      --line-height:1.8;   /* interligne du corps de texte */
+      --para-space:16px;   /* espace avant/après les paragraphes */
+      --ul-gap:4px;        /* espace entre éléments de liste à puces */
+      --ol-gap:4px;        /* espace entre éléments de liste numérotée */
+      --left-w:299px;   /* volet bibliothèque (272px +10%) */
+      --right-w:460px;   /* ouvert au maximum par defaut (borne du glissement souris) */
+    }
+    #app[data-theme="light"]{
+      --bg:oklch(97.5% 0.008 80); --surface:oklch(99% 0.004 80);
+      --text:oklch(22% 0.015 80); --muted:oklch(48% 0.02 80); --border:oklch(88% 0.012 80);
+    }
+    #app[data-theme="sepia"]{
+      --bg:oklch(92% 0.025 75); --surface:oklch(94.5% 0.02 75);
+      --text:oklch(30% 0.03 55); --muted:oklch(50% 0.03 55); --border:oklch(82% 0.03 65);
+    }
+    #app[data-theme="dark"]{
+      --bg:oklch(21% 0.012 260); --surface:oklch(25% 0.014 260);
+      --text:oklch(92% 0.01 90); --muted:oklch(66% 0.02 90); --border:oklch(34% 0.015 260);
+    }
+    #app[data-col="narrow"]{--reading-width:560px}
+    #app[data-col="medium"]{--reading-width:680px}
+    #app[data-col="wide"]{--reading-width:820px}
+    #app[data-col="xlarge"]{--reading-width:980px}
+    #app[data-family="serif"]{--read-font:'Source Serif 4',serif}
+    #app[data-family="sans"]{--read-font:'Inter',system-ui,sans-serif}
+    #app[data-family="mono"]{--read-font:'JetBrains Mono',ui-monospace,monospace}
+    #app[data-font="S"]{--font-scale:.9}
+    #app[data-font="M"]{--font-scale:1}
+    #app[data-font="L"]{--font-scale:1.12}
+    #app[data-font="XL"]{--font-scale:1.28}
+    /* Interligne */
+    #app[data-lh="compact"]{--line-height:1.5}
+    #app[data-lh="normal"]{--line-height:1.8}
+    #app[data-lh="large"]{--line-height:2.15}
+    /* Espacement des paragraphes (avant/après) */
+    #app[data-para="tight"]{--para-space:8px}
+    #app[data-para="normal"]{--para-space:16px}
+    #app[data-para="loose"]{--para-space:28px}
+    /* Espacement des listes à puces */
+    #app[data-ul="tight"]{--ul-gap:1px}
+    #app[data-ul="normal"]{--ul-gap:4px}
+    #app[data-ul="loose"]{--ul-gap:11px}
+    /* Espacement des listes numérotées */
+    #app[data-ol="tight"]{--ol-gap:1px}
+    #app[data-ol="normal"]{--ol-gap:4px}
+    #app[data-ol="loose"]{--ol-gap:11px}
+
+    /* ============ Base ============ */
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+    #app{background:var(--bg);color:var(--text);min-height:100vh;
+      font-family:'Inter',system-ui,sans-serif;transition:background .25s,color .25s}
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    ::selection{background:rgba(76,95,218,.25)}
+    button{font-family:inherit}
+
+    /* ============ En-tête ============ */
+    header.top{position:sticky;top:0;z-index:30;height:var(--header-h);
+      display:flex;align-items:center;gap:12px;padding:0 16px;
+      background:color-mix(in srgb, var(--surface) 88%, transparent);
+      backdrop-filter:blur(10px);border-bottom:1px solid var(--border)}
+    .brand{display:flex;align-items:center;gap:10px;min-width:0}
+    .brand .home-link{display:flex;align-items:center;gap:10px;min-width:0;
+      text-decoration:none;color:inherit;border-radius:8px;cursor:pointer}
+    .brand .home-link:hover{text-decoration:none}
+    .brand .home-link:hover .name{color:var(--accent)}
+    .brand .home-link:hover .logo{opacity:.85}
+    .brand .logo{width:32px;height:32px;border-radius:9px;flex:none;
+      display:block;object-fit:contain}
+    .brand .name{font-weight:600;font-size:14px;color:var(--text);white-space:nowrap}
+    .brand .sep{color:var(--border);font-size:14px}
+    .brand .doc{font-size:14px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .spacer{flex:1}
+    .hbtn{display:flex;align-items:center;gap:8px;height:34px;padding:0 12px;border-radius:8px;
+      border:1px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;font-size:13px}
+    .hbtn:hover{color:var(--text);border-color:var(--accent)}
+    .hbtn.icon{width:34px;padding:0;justify-content:center}
+    .hbtn.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+    .kbd{font-size:11px;border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+    .glass-icon{width:13px;height:13px;border:1.6px solid currentColor;border-radius:50%;display:inline-block;position:relative;flex:none}
+    .glass-icon::after{content:"";position:absolute;width:6px;height:1.6px;background:currentColor;transform:rotate(45deg);right:-5px;bottom:0}
+
+    /* ============ Barre de progression ============ */
+    .progress{height:2px;background:transparent;position:sticky;top:var(--header-h);z-index:29}
+    .progress > i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s linear}
+
+    /* ============ Grille 3 colonnes ============ */
+    .shell{display:grid;grid-template-columns:var(--left-w) 1fr var(--right-w);
+      height:calc(100vh - var(--header-h) - 2px)}
+    #app.focus .shell{grid-template-columns:0 1fr 0}
+    aside{position:relative;background:var(--surface);border-color:var(--border);
+      overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;transition:opacity .2s}
+    #app.focus aside{opacity:0;pointer-events:none}
+    aside.left{border-right:1px solid var(--border)}
+    aside.right{border-left:1px solid var(--border)}
+    .drag{position:absolute;top:0;width:6px;height:100%;cursor:col-resize;z-index:5}
+    .drag:hover{background:var(--accent)}
+    .drag.l{right:-3px}.drag.r{left:-3px}
+    .side-title{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+    /* Bibliothèque (gauche) */
+    .lib-head{padding:18px 16px 8px}
+    .lib-search{width:100%;height:34px;border-radius:8px;border:1px solid var(--border);
+      background:var(--bg);color:var(--text);padding:0 10px;font-size:13px;outline:none;margin-top:12px}
+    .lib-list{padding:0 10px 20px}
+    .lib-group-label{font-size:11px;font-weight:600;color:var(--muted);padding:12px 6px 6px;text-transform:uppercase;letter-spacing:.04em}
+
+    /* Accordéon par label (tiroir) - Style boîte */
+    .lib-group{margin-top:12px; border:1px solid color-mix(in srgb, var(--border) 80%, transparent); border-radius:10px; overflow:hidden; background:var(--surface)}
+    .lib-group-head{display:flex;align-items:center;gap:8px;width:100%;
+      background:color-mix(in srgb, var(--bg) 60%, var(--surface)); border:none; border-bottom:1px solid color-mix(in srgb, var(--border) 80%, transparent);
+      cursor:pointer;padding:12px 12px;text-align:left;color:var(--text);
+      font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;transition:all .15s ease}
+    .lib-group-head:hover{background:var(--surface); color:var(--accent)}
+    .lib-chevron{flex:0 0 auto;width:14px;height:14px;color:currentColor;transition:transform .25s ease}
+    .lib-group.collapsed .lib-chevron{transform:rotate(-90deg)}
+    .lib-group-title{flex:1;min-width:0;line-height:1.35}
+    .lib-group-count{flex:0 0 auto;font-size:10px;font-weight:700;color:currentColor;
+      background:color-mix(in srgb, var(--text) 8%, transparent);border-radius:999px;
+      padding:2px 7px;min-width:20px;text-align:center;letter-spacing:0}
+    /* Corps repliable : animation via grid-template-rows 1fr → 0fr (moderne, sans max-height figé) */
+    .lib-group-body{display:grid;grid-template-rows:1fr;transition:grid-template-rows .28s cubic-bezier(.4,0,.2,1)}
+    .lib-group.collapsed .lib-group-body{grid-template-rows:0fr}
+    .lib-group-inner{overflow:hidden;min-height:0;padding:6px}
+    .lib-group.collapsed .lib-group-head{border-bottom-color:transparent; color:var(--muted)}
+
+    .lib-item{display:block;width:100%;text-align:left;border:none;background:transparent;border-radius:8px;
+      padding:10px;cursor:pointer;margin-bottom:2px;text-decoration:none}
+    .lib-item:hover{background:color-mix(in srgb, var(--accent) 8%, transparent);text-decoration:none}
+    .lib-item.active{background:color-mix(in srgb, var(--accent) 12%, var(--surface))}
+    .lib-item .t{font-size:13px;color:var(--text);font-weight:500;line-height:1.35;margin-bottom:8px}
+    .lib-item.active .t{color:var(--accent)}
+    .lib-bar{height:1px;border-radius:1px;background:var(--border);overflow:hidden}
+    .lib-bar > i{display:block;height:100%;width:0;background:var(--accent)}
+
+    /* ============ Zone de lecture (centre) ============ */
+    main{overflow-y:auto;height:100%;padding:0 24px;scrollbar-width:thin}
+    main[data-focus="true"]{scrollbar-width:none}
+    main[data-focus="true"]::-webkit-scrollbar{width:0;display:none}
+    /* Ascenseur vertical masquable via les reglages (data-scrollbar) */
+    #app[data-scrollbar="off"] main,#app[data-scrollbar="off"] aside{scrollbar-width:none}
+    #app[data-scrollbar="off"] main::-webkit-scrollbar,
+    #app[data-scrollbar="off"] aside::-webkit-scrollbar{width:0;height:0;display:none}
+    .reading{max-width:var(--reading-width);margin:0 auto;padding:56px 0 30vh}
+    .badge{display:inline-flex;align-items:center;gap:6px;
+      background:color-mix(in srgb, var(--accent) 12%, var(--surface));color:var(--accent);
+      font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;margin-bottom:16px}
+    .badge > span{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+    .reading h1.doc-title{font-family:var(--read-font);font-weight:600;font-size:38px;
+      line-height:1.18;margin:0 0 14px;color:var(--text)}
+    .lead{font-family:var(--read-font);font-size:calc(19px * var(--font-scale));
+      line-height:1.7;color:var(--muted);margin:0 0 8px}
+    .doc-sep{border:none;border-top:1px solid var(--border);margin:32px 0 24px}
+
+    /* Contenu généré par Pandoc */
+    .reading h2,.reading h3,.reading h4,.reading h5,.reading h6{
+      font-family:var(--read-font);font-weight:600;color:var(--text);line-height:1.3;scroll-margin-top:20px}
+    .reading h2{font-size:calc(27px * var(--font-scale));margin:44px 0 16px}
+    .reading h3{font-size:calc(22px * var(--font-scale));margin:34px 0 14px}
+    .reading h4{font-size:calc(19px * var(--font-scale));margin:28px 0 12px}
+    .reading h5{font-size:calc(16.5px * var(--font-scale));margin:22px 0 10px}
+    .reading h6{font-size:calc(15px * var(--font-scale));margin:20px 0 8px;color:var(--muted)}
+    .reading p,.reading li{font-family:var(--read-font);
+      font-size:calc(17.5px * var(--font-scale));line-height:var(--line-height);color:var(--text)}
+    .reading p{margin:var(--para-space) 0}
+    #app[data-justify="true"] .reading p{text-align:justify}
+    .reading ul,.reading ol{margin:0 0 16px;padding-left:1.5em}
+    .reading ul > li{margin:var(--ul-gap) 0}
+    .reading ol > li{margin:var(--ol-gap) 0}
+    .reading li::marker{color:var(--accent)}
+    .reading strong{font-weight:600}
+    .reading hr{border:none;border-top:1px solid var(--border);margin:32px 0}
+
+    /* Liens d'ancre (numéros de tâche, renvois) */
+    .reading h2 a,.reading h3 a,.reading h4 a{color:inherit}
+
+    /* Code */
+    .reading code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:.86em;
+      background:color-mix(in srgb, var(--accent) 8%, var(--surface));
+      border:1px solid var(--border);border-radius:5px;padding:.1em .35em}
+    .reading pre{background:var(--surface);border:1px solid var(--border);border-radius:10px;
+      padding:16px 18px;overflow-x:auto;margin:0 0 18px;line-height:1.5}
+    .reading pre code{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:13px;
+      background:none;border:none;padding:0;color:var(--text)}
+
+    /* Citations / encarts */
+    .reading blockquote{margin:0 0 18px;padding:2px 18px;border-left:3px solid var(--accent);
+      background:color-mix(in srgb, var(--accent) 6%, transparent);border-radius:0 8px 8px 0}
+    .reading blockquote p{color:var(--muted);font-style:italic}
+
+    /* Tables (grid tables Pandoc + classes .bordered .striped) */
+    .reading table{border-collapse:collapse;margin:8px auto 20px;font-size:calc(14px * var(--font-scale));
+      font-family:'Inter',system-ui,sans-serif;max-width:100%}
+    /* Un tableau place dans une <div> dimensionnee (ex. ::: {style="width:60%"})
+       remplit cette div : la largeur de la div et les largeurs de colonnes
+       (tbl-colwidths) sont ainsi respectees. */
+    .reading div[style*="width"] > table{width:100%}
+    .reading table colgroup col{/* les largeurs viennent de tbl-colwidths */}
+    .reading th,.reading td{padding:8px 12px;text-align:left;vertical-align:top;line-height:1.5;color:var(--text)}
+    .reading thead th{font-weight:600;background:color-mix(in srgb, var(--accent) 10%, var(--surface));
+      border-bottom:2px solid var(--border)}
+    .reading table.bordered th,.reading table.bordered td{border:1px solid var(--border)}
+    .reading table.striped tbody tr:nth-child(even){background:color-mix(in srgb, var(--border) 30%, transparent)}
+    .reading caption,.reading table caption{caption-side:bottom;color:var(--muted);
+      font-size:12px;font-family:'Inter',system-ui,sans-serif;padding-top:8px}
+
+    /* Images / figures */
+    .reading img{max-width:100%;height:auto;display:block;margin:8px auto;border-radius:8px}
+    .reading figure{margin:22px auto;text-align:center}
+    .reading figure img{cursor:zoom-in}
+    .reading figcaption{color:var(--muted);font-size:13px;font-family:'Inter',system-ui,sans-serif;margin-top:8px}
+
+    /* Commentaires (.comment) */
+    .reading .comment{background:color-mix(in srgb, gold 40%, transparent);
+      border-bottom:1px dashed color-mix(in srgb, gold 70%, var(--text));cursor:help;border-radius:2px;padding:0 1px}
+    #app[data-theme="dark"] .reading .comment{color:#1a1a1a}
+
+    /* Notes de bas de page : affordance d'infobulle au survol (comme les commentaires) */
+    .reading a.footnote-ref.has-note-tip{cursor:help}
+
+    /* Surlignages jaunes en ligne (style="background-color:Yellow") en thème sombre */
+    #app[data-theme="dark"] .reading [style*="Yellow"],
+    #app[data-theme="dark"] .reading [style*="yellow"]{color:#1a1a1a}
+
+    /* Saut de page */
+    .pagebreak{height:0;border-top:1px dashed var(--border);margin:40px 0;position:relative}
+    .pagebreak::after{content:"⋯";position:absolute;top:-12px;left:50%;transform:translateX(-50%);
+      color:var(--muted);background:var(--bg);padding:0 10px;font-size:14px}
+
+    .doc-end{margin-top:56px;padding-top:20px;border-top:1px solid var(--border);
+      display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--muted)}
+    .doc-end button{color:var(--accent);background:none;border:none;cursor:pointer;font-weight:600;font-size:13px}
+
+    /* ============ Sommaire (droite) — TOC Pandoc ============ */
+    .toc-photo { border-bottom: 1px solid var(--border); }
+    .toc-photo img { display: block; width: 100%; height: 140px; object-fit: cover; object-position: top; }
+    .toc-head{padding:18px 14px 10px}
+    #TOC,nav[role="doc-toc"]{padding:0 8px 20px}
+    #TOC ul,nav[role="doc-toc"] ul{list-style:none;margin:0;padding:0}
+    #TOC ul ul{padding-left:12px}
+    #TOC li,nav[role="doc-toc"] li{margin:1px 0}
+    #TOC a,nav[role="doc-toc"] a{display:block;padding:4px 8px;border-radius:6px;
+      font-size:11.5px;line-height:1.35;color:var(--text);border-left:2px solid transparent}
+    #TOC a:hover{background:color-mix(in srgb, var(--accent) 8%, transparent);text-decoration:none;color:var(--text)}
+    #TOC a.active{color:var(--accent);border-left-color:var(--accent);
+      background:color-mix(in srgb, var(--accent) 8%, transparent);font-weight:500}
+
+    /* Masquage dynamique de la profondeur selon la métadonnée toc-depth */
+    #TOC[data-toc-depth="1"] ul ul,
+    #TOC[data-toc-depth="2"] ul ul ul,
+    #TOC[data-toc-depth="3"] ul ul ul ul,
+    #TOC[data-toc-depth="4"] ul ul ul ul ul,
+    #TOC[data-toc-depth="5"] ul ul ul ul ul ul,
+    #TOC[data-toc-depth="6"] ul ul ul ul ul ul ul {
+      display: none;
+    }
+
+    /* ============ Overlays : palette & réglages ============ */
+    .backdrop{position:fixed;inset:0;background:rgba(10,8,4,.4);z-index:60}
+    .palette{position:fixed;inset:0;z-index:80;display:flex;align-items:flex-start;justify-content:center;padding-top:12vh}
+    .palette .box{width:560px;max-width:90vw;background:var(--surface);border:1px solid var(--border);
+      border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.28);overflow:hidden}
+    .palette .row{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border)}
+    .palette input{flex:1;border:none;outline:none;background:transparent;font-size:15px;color:var(--text)}
+    .palette .results{max-height:52vh;overflow-y:auto;padding:8px}
+    .presult{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;
+      text-align:left;border:none;background:transparent;border-radius:8px;padding:10px;cursor:pointer;color:var(--text)}
+    .presult:hover,.presult.sel{background:color-mix(in srgb, var(--accent) 10%, transparent)}
+    .presult .pt{font-size:14px;color:var(--text);font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .presult .ps{font-size:12px;color:var(--muted)}
+    .presult .pk{font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:5px;padding:2px 6px;flex:none}
+    .empty{padding:24px 10px;text-align:center;color:var(--muted);font-size:13px}
+
+    .settings{position:fixed;top:66px;right:20px;width:360px;background:var(--surface);
+      border:1px solid var(--border);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.24);padding:16px;z-index:70}
+    .settings .lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px}
+    .settings .grp{display:flex;gap:6px;margin-bottom:16px}
+    .segbtn{flex:1;min-width:0;height:32px;padding:0 4px;border-radius:8px;border:1px solid var(--border);
+      background:transparent;color:var(--muted);cursor:pointer;font-size:12.5px;white-space:nowrap}
+    .segbtn:hover{color:var(--text)}
+    .segbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+
+    /* Lightbox */
+    .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:100;display:flex;
+      align-items:center;justify-content:center;padding:4vh;cursor:zoom-out}
+    .lightbox img{max-width:96vw;max-height:92vh;border-radius:6px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
+
+    .hidden{display:none !important}
+
+    /* ============ Boutons mobiles / responsive ============ */
+    .only-narrow,.only-mobile{display:none}
+    @media(max-width:1100px){
+      #app:not(.focus) .shell{grid-template-columns:var(--left-w) 1fr 0}
+      aside.right{position:fixed;top:var(--header-h);right:0;width:320px;max-width:85vw;
+        height:calc(100vh - var(--header-h));z-index:50;transform:translateX(100%);transition:transform .25s}
+      #app.toc-open aside.right{transform:translateX(0);opacity:1;pointer-events:auto}
+      .only-narrow{display:flex}
+    }
+    @media(max-width:760px){
+      #app:not(.focus) .shell{grid-template-columns:0 1fr 0}
+      aside.left{position:fixed;top:var(--header-h);left:0;width:300px;max-width:85vw;
+        height:calc(100vh - var(--header-h));z-index:50;transform:translateX(-100%);transition:transform .25s}
+      #app.lib-open aside.left{transform:translateX(0);opacity:1;pointer-events:auto}
+      .only-mobile{display:flex}
+      .brand .name,.hbtn .txt,.hbtn .kbd{display:none}
+      .reading{padding-top:32px}
+    }
+
+    /* ============ Impression ============ */
+    @media print{
+      header.top,.progress,aside,.settings,.palette,.backdrop,.drag,.doc-end{display:none !important}
+      #app{background:#fff;color:#000}
+      .shell{display:block;height:auto}
+      main{overflow:visible;height:auto;padding:0}
+      .reading{max-width:none}
+      .pagebreak{page-break-after:always;border:none}
+      .pagebreak::after{content:""}
+    }
+  </style>
+</head>
+<body>
+<div id="app" data-theme="$if(theme)$$theme$$else$light$endif$" data-col="wide" data-family="serif" data-font="M" data-scrollbar="off" data-justify="$if(justify)$$justify$$else$true$endif$" data-lh="compact" data-para="loose" data-ul="tight" data-ol="tight">
+
+  <!-- ===================== En-tête ===================== -->
+  <header class="top">
+    <button class="hbtn icon only-mobile" id="btn-lib" title="Bibliothèque" aria-label="Bibliothèque">☰</button>
+    <div class="brand">
+      <a class="home-link" href="$library-basedir$index.html" title="Retour à l'accueil">
+        <img class="logo" src="$library-basedir$resources/img/logoMiniSDS03.png" alt="Logo SDS">
+        <span class="name">SDS - Documentation Fonctionnelle</span>
+      </a>
+      <span class="sep">/</span>
+      <span class="doc">$if(title)$$title$$else$Document$endif$</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="hbtn" id="btn-search"><span class="glass-icon"></span><span class="txt">Rechercher</span><span class="kbd">⌘K</span></button>
+    <button class="hbtn" id="btn-focus"><span class="txt">Focus</span></button>
+    <button class="hbtn icon" id="btn-settings" title="Réglages" aria-label="Réglages">⚙</button>
+    <button class="hbtn only-narrow" id="btn-toc">Sommaire</button>
+  </header>
+
+  <div class="progress"><i id="progress-fill"></i></div>
+
+  <!-- ===================== Corps ===================== -->
+  <div class="shell">
+
+    <!-- Bibliothèque -->
+    <aside class="left">
+      <div class="drag l" id="drag-left"></div>
+      <div class="lib-head">
+        <div class="side-title">Bibliothèque</div>
+        <input class="lib-search" id="lib-search" placeholder="Filtrer les documents…">
+      </div>
+      <div class="lib-list" id="lib-list">
+$if(library)$
+$for(library)$
+        <section class="lib-group collapsed" data-label="$library.label$">
+          <button class="lib-group-head" type="button" aria-expanded="false">
+            <svg class="lib-chevron" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <span class="lib-group-title">$library.label$</span>
+            <span class="lib-group-count"></span>
+          </button>
+          <div class="lib-group-body">
+            <div class="lib-group-inner">
+$for(library.items)$
+              <a class="lib-item" href="$library-basedir$$library.items.href$" data-href="$library-basedir$$library.items.href$">
+                <div class="t">$library.items.title$</div>
+                <div class="lib-bar"><i></i></div>
+              </a>
+$endfor$
+            </div>
+          </div>
+        </section>
+$endfor$
+$else$
+        <div class="lib-group-label">Document</div>
+        <a class="lib-item active">
+          <div class="t">$if(title)$$title$$else$Document$endif$</div>
+          <div class="lib-bar"><i></i></div>
+        </a>
+$endif$
+      </div>
+    </aside>
+
+    <!-- Zone de lecture -->
+    <main id="reading-scroll" data-focus="false">
+      <article class="reading">
+$if(subtitle)$
+        <div class="badge">$subtitle$</div>
+$endif$
+        <h1 class="doc-title">$if(title)$$title$$else$Document$endif$</h1>
+$if(abstract-title)$
+        <p class="lead">$abstract-title$</p>
+$endif$
+$if(abstract)$
+        <p class="lead">$abstract$</p>
+$endif$
+        <hr class="doc-sep">
+
+$body$
+
+        <div class="doc-end">
+          <span>Fin du document</span>
+          <button id="back-top">↑ Retour en haut</button>
+        </div>
+      </article>
+    </main>
+
+    <!-- Sommaire -->
+    <aside class="right">
+      <div class="drag r" id="drag-right"></div>
+$if(photo)$
+      <div class="toc-photo">
+        <img src="$library-basedir$$photo$" alt="">
+      </div>
+$endif$
+      <div class="toc-head"><div class="side-title">Dans ce document</div></div>
+$if(table-of-contents)$
+      <nav id="TOC" role="doc-toc" $if(toc-depth)$data-toc-depth="$toc-depth$"$endif$>
+      $table-of-contents$
+      </nav>
+$else$
+      <div class="empty" style="padding:20px 14px;text-align:left">Compilez avec <code>--toc</code> pour afficher le sommaire.</div>
+$endif$
+    </aside>
+  </div>
+
+  <!-- ===================== Overlays ===================== -->
+  <div class="backdrop hidden" id="backdrop"></div>
+
+  <div class="palette hidden" id="palette">
+    <div class="box">
+      <div class="row">
+        <span class="glass-icon" style="color:var(--muted)"></span>
+        <input id="palette-input" placeholder="Rechercher dans tous les documents…" autocomplete="off">
+        <button class="hbtn icon" id="palette-close" style="border:none">×</button>
+      </div>
+      <div class="results" id="palette-results"></div>
+    </div>
+  </div>
+
+  <div class="settings hidden" id="settings">
+    <div class="lbl">Police de lecture</div>
+    <div class="grp" data-set="family">
+      <button class="segbtn" data-val="serif">Serif</button>
+      <button class="segbtn" data-val="sans">Sans</button>
+      <button class="segbtn" data-val="mono">Mono</button>
+    </div>
+    <div class="lbl">Taille du texte</div>
+    <div class="grp" data-set="font">
+      <button class="segbtn" data-val="S">S</button>
+      <button class="segbtn" data-val="M">M</button>
+      <button class="segbtn" data-val="L">L</button>
+      <button class="segbtn" data-val="XL">XL</button>
+    </div>
+    <div class="lbl">Largeur de colonne</div>
+    <div class="grp" data-set="col">
+      <button class="segbtn" data-val="narrow">Étroite</button>
+      <button class="segbtn" data-val="medium">Moyenne</button>
+      <button class="segbtn" data-val="wide">Large</button>
+      <button class="segbtn" data-val="xlarge">Extra Large</button>
+    </div>
+    <div class="lbl">Thème</div>
+    <div class="grp" data-set="theme">
+      <button class="segbtn" data-val="light">Clair</button>
+      <button class="segbtn" data-val="sepia">Sépia</button>
+      <button class="segbtn" data-val="dark">Sombre</button>
+    </div>
+    <div class="lbl">Alignement du texte</div>
+    <div class="grp" data-set="justify">
+      <button class="segbtn" data-val="false">Gauche</button>
+      <button class="segbtn" data-val="true">Justifié</button>
+    </div>
+    <div class="lbl">Interligne</div>
+    <div class="grp" data-set="lh">
+      <button class="segbtn" data-val="compact">Compact</button>
+      <button class="segbtn" data-val="normal">Normal</button>
+      <button class="segbtn" data-val="large">Large</button>
+    </div>
+    <div class="lbl">Espacement des paragraphes</div>
+    <div class="grp" data-set="para">
+      <button class="segbtn" data-val="tight">Serré</button>
+      <button class="segbtn" data-val="normal">Normal</button>
+      <button class="segbtn" data-val="loose">Aéré</button>
+    </div>
+    <div class="lbl">Listes à puces</div>
+    <div class="grp" data-set="ul">
+      <button class="segbtn" data-val="tight">Serré</button>
+      <button class="segbtn" data-val="normal">Normal</button>
+      <button class="segbtn" data-val="loose">Aéré</button>
+    </div>
+    <div class="lbl">Listes numérotées</div>
+    <div class="grp" data-set="ol">
+      <button class="segbtn" data-val="tight">Serré</button>
+      <button class="segbtn" data-val="normal">Normal</button>
+      <button class="segbtn" data-val="loose">Aéré</button>
+    </div>
+    <div class="lbl">Ascenseur vertical</div>
+    <div class="grp" data-set="scrollbar">
+      <button class="segbtn" data-val="on">Visible</button>
+      <button class="segbtn" data-val="off">Masqué</button>
+    </div>
+  </div>
+
+  <div class="lightbox hidden" id="lightbox"><img alt=""></div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var app = document.getElementById('app');
+  var main = document.getElementById('reading-scroll');
+  var byId = function(id){ return document.getElementById(id); };
+
+  /* ---------- Préférences persistées ---------- */
+  var PREFS = ['theme','col','family','font','justify','scrollbar','lh','para','ul','ol'];
+  function loadPrefs(){
+    PREFS.forEach(function(k){
+      try{ var v = localStorage.getItem('liseuse-'+k); if(v) app.setAttribute('data-'+k, v); }catch(e){}
+    });
+    syncSettings();
+  }
+  function setPref(k, v){
+    app.setAttribute('data-'+k, v);
+    try{ localStorage.setItem('liseuse-'+k, v); }catch(e){}
+    syncSettings();
+  }
+  function syncSettings(){
+    document.querySelectorAll('.settings .grp').forEach(function(g){
+      var key = g.getAttribute('data-set');
+      var cur = app.getAttribute('data-'+key);
+      g.querySelectorAll('.segbtn').forEach(function(b){
+        b.classList.toggle('on', b.getAttribute('data-val') === cur);
+      });
+    });
+  }
+  /* Restaure la largeur des panneaux et le mode Focus (persistés séparément
+     des PREFS ci-dessus : ce sont des propriétés CSS / une classe, pas des
+     attributs data-). NB : la persistance n'est fiable qu'en http:// —
+     en file:// (double-clic), le navigateur isole/oublie le localStorage. */
+  function loadLayout(){
+    try{
+      var lw = localStorage.getItem('liseuse-left-w');
+      var rw = localStorage.getItem('liseuse-right-w');
+      if(lw) app.style.setProperty('--left-w', lw);
+      if(rw) app.style.setProperty('--right-w', rw);
+      if(localStorage.getItem('liseuse-focus') === '1'){
+        app.classList.add('focus');
+        var fb = byId('btn-focus'); if(fb) fb.classList.add('active');
+        main.setAttribute('data-focus', 'true');
+      }
+    }catch(e){}
+  }
+  document.querySelectorAll('.settings .grp').forEach(function(g){
+    var key = g.getAttribute('data-set');
+    g.querySelectorAll('.segbtn').forEach(function(b){
+      b.addEventListener('click', function(){ setPref(key, b.getAttribute('data-val')); });
+    });
+  });
+
+  /* ---------- Overlays ---------- */
+  var backdrop = byId('backdrop'), palette = byId('palette'), settings = byId('settings');
+  function openBackdrop(){ backdrop.classList.remove('hidden'); }
+  function maybeCloseBackdrop(){
+    if(palette.classList.contains('hidden') && settings.classList.contains('hidden')
+       && !app.classList.contains('toc-open') && !app.classList.contains('lib-open')){
+      backdrop.classList.add('hidden');
+    }
+  }
+  function closeAll(){
+    palette.classList.add('hidden'); settings.classList.add('hidden');
+    app.classList.remove('toc-open','lib-open');
+    backdrop.classList.add('hidden');
+  }
+  backdrop.addEventListener('click', closeAll);
+
+  byId('btn-settings').addEventListener('click', function(e){
+    e.stopPropagation();
+    var willOpen = settings.classList.contains('hidden');
+    closeAll(); if(willOpen){ settings.classList.remove('hidden'); openBackdrop(); }
+  });
+  settings.addEventListener('click', function(e){ e.stopPropagation(); });
+
+  /* ---------- Focus mode ---------- */
+  byId('btn-focus').addEventListener('click', function(){
+    var on = app.classList.toggle('focus');
+    this.classList.toggle('active', on);
+    main.setAttribute('data-focus', on ? 'true' : 'false');
+    try{ localStorage.setItem('liseuse-focus', on ? '1' : '0'); }catch(e){}
+  });
+
+  /* ---------- Drawers mobiles ---------- */
+  byId('btn-toc').addEventListener('click', function(){
+    var on = app.classList.toggle('toc-open'); app.classList.remove('lib-open');
+    if(on) openBackdrop(); else maybeCloseBackdrop();
+  });
+  byId('btn-lib').addEventListener('click', function(){
+    var on = app.classList.toggle('lib-open'); app.classList.remove('toc-open');
+    if(on) openBackdrop(); else maybeCloseBackdrop();
+  });
+
+  /* ---------- Bibliothèque : document actif + progression ---------- */
+  var libItems = Array.prototype.slice.call(document.querySelectorAll('.lib-item'));
+  var libProgress = null;
+  (function(){
+    var here = decodeURIComponent(location.pathname.split(/[\\/]/).pop() || '');
+    libItems.forEach(function(a){
+      var href = a.getAttribute('data-href');
+      if(href && here && decodeURIComponent(href.split(/[\\/]/).pop()) === here){
+        a.classList.add('active');
+      }
+    });
+    var active = document.querySelector('.lib-item.active');
+    if(active) libProgress = active.querySelector('.lib-bar > i');
+  })();
+
+  /* ---------- Bibliothèque : tiroirs repliables par label ---------- */
+  (function(){
+    var groups = Array.prototype.slice.call(document.querySelectorAll('.lib-group'));
+    if(!groups.length) return;
+
+    function setOpen(g, open){
+      g.classList.toggle('collapsed', !open);
+      var head = g.querySelector('.lib-group-head');
+      if(head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    function storeKey(g){ return 'lib-group:' + (g.getAttribute('data-label') || ''); }
+
+    groups.forEach(function(g){
+      // Compteur d'éléments
+      var count = g.querySelectorAll('.lib-item').length;
+      var badge = g.querySelector('.lib-group-count');
+      if(badge) badge.textContent = count;
+
+      // État initial : replié par défaut ; l'ouverture manuelle est mémorisée (localStorage).
+      var stored = null;
+      try{ stored = localStorage.getItem(storeKey(g)); }catch(e){}
+      setOpen(g, stored === '1');
+
+      // Bascule au clic sur l'en-tête
+      var head = g.querySelector('.lib-group-head');
+      if(head) head.addEventListener('click', function(){
+        var nowOpen = g.classList.contains('collapsed');
+        setOpen(g, nowOpen);
+        try{ localStorage.setItem(storeKey(g), nowOpen ? '1' : '0'); }catch(e){}
+      });
+    });
+  })();
+
+  /* ---------- Barre de progression ---------- */
+  var progressFill = byId('progress-fill');
+  var raf = false;
+  function updateProgress(){
+    raf = false;
+    var max = main.scrollHeight - main.clientHeight;
+    var pct = max > 0 ? (main.scrollTop / max) * 100 : 0;
+    if(pct < 0) pct = 0; if(pct > 100) pct = 100;
+    progressFill.style.width = pct + '%';
+    if(libProgress) libProgress.style.width = pct + '%';
+    updateActiveToc();
+  }
+  main.addEventListener('scroll', function(){
+    if(!raf){ raf = true; requestAnimationFrame(updateProgress); }
+  }, { passive:true });
+
+  /* ---------- Sommaire : collecte des titres + scroll-spy ---------- */
+  var headings = Array.prototype.slice.call(main.querySelectorAll('h2, h3, h4, h5'))
+                  .filter(function(h){ return h.id; });
+  var tocLinks = Array.prototype.slice.call(document.querySelectorAll('nav[role="doc-toc"] a, #TOC a'));
+  var tocById = {};
+  tocLinks.forEach(function(a){
+    var href = a.getAttribute('href') || '';
+    if(href.charAt(0) === '#') tocById[href.slice(1)] = a;
+  });
+  function updateActiveToc(){
+    if(!headings.length) return;
+    var top = main.scrollTop + 90, current = headings[0];
+    for(var i=0;i<headings.length;i++){
+      if(headings[i].offsetTop <= top) current = headings[i]; else break;
+    }
+    tocLinks.forEach(function(a){ a.classList.remove('active'); });
+    var link = tocById[current.id];
+    if(link){ link.classList.add('active'); }
+  }
+  function scrollToId(id){
+    var el = document.getElementById(id);
+    if(!el) return;
+    main.scrollTo({ top: el.offsetTop - 24, behavior:'smooth' });
+  }
+  tocLinks.forEach(function(a){
+    a.addEventListener('click', function(e){
+      var href = a.getAttribute('href') || '';
+      if(href.charAt(0) === '#'){
+        e.preventDefault();
+        scrollToId(href.slice(1));
+        app.classList.remove('toc-open'); maybeCloseBackdrop();
+      }
+    });
+  });
+
+  byId('back-top').addEventListener('click', function(){ main.scrollTo({top:0, behavior:'smooth'}); });
+
+  /* ---------- Palette de recherche globale ---------- */
+  var pInput = byId('palette-input'), pResults = byId('palette-results'), pSel = 0, pMatches = [];
+  var globalSearchCache = null;
+  var searchDebounce = null;
+
+  async function buildSearchCache() {
+    if (globalSearchCache) return globalSearchCache;
+    globalSearchCache = [];
+    var promises = libItems.map(async function(item) {
+      var url = item.getAttribute('data-href');
+      if(!url) return;
+      var tEl = item.querySelector('.t');
+      var docTitle = tEl ? tEl.textContent : '';
+      try {
+        var res = await fetch(url);
+        var html = await res.text();
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var elements = Array.prototype.slice.call(doc.querySelectorAll('.reading h1, .reading h2, .reading h3, .reading h4, .reading h5, .reading h6, .reading p, .reading li'));
+        var searchable = elements.map(function(el) {
+          var idEl = el.closest('[id]') || el;
+          return { text: el.textContent.replace(/\s+/g, ' ').trim(), id: idEl.id || '', tag: el.tagName };
+        }).filter(function(e) { return e.text.length > 0; });
+        globalSearchCache.push({ url: url, title: docTitle, elements: searchable });
+      } catch(e) { console.error('Erreur fetch', url, e); }
+    });
+    await Promise.all(promises);
+    return globalSearchCache;
+  }
+
+  function openPalette(){
+    closeAll(); palette.classList.remove('hidden'); openBackdrop();
+    pInput.value = ''; renderPalette(''); pInput.focus();
+    buildSearchCache();
+  }
+
+  async function renderPalette(q){
+    q = q.trim().toLowerCase();
+    if (!q) {
+      pResults.innerHTML = '<div class="empty">Saisissez un texte...</div>';
+      return;
+    }
+    pResults.innerHTML = '<div class="empty">Recherche en cours...</div>';
+
+    var cache = await buildSearchCache();
+    var results = [];
+    
+    for (var i = 0; i < cache.length; i++) {
+      var doc = cache[i];
+      for (var j = 0; j < doc.elements.length; j++) {
+        var el = doc.elements[j];
+        var idx = el.text.toLowerCase().indexOf(q);
+        if (idx !== -1) {
+          var start = Math.max(0, idx - 40);
+          var end = Math.min(el.text.length, idx + q.length + 40);
+          var excerpt = (start > 0 ? '...' : '') + el.text.substring(start, end) + (end < el.text.length ? '...' : '');
+          results.push({
+            docUrl: doc.url,
+            docTitle: doc.title,
+            excerpt: excerpt,
+            id: el.id,
+            tag: el.tag
+          });
+        }
+        if (results.length >= 50) break;
+      }
+      if (results.length >= 50) break;
+    }
+
+    pMatches = results;
+    pSel = 0;
+
+    if(!results.length){ pResults.innerHTML = '<div class="empty">Aucun résultat trouvé</div>'; return; }
+
+    pResults.innerHTML = '';
+    results.forEach(function(r, i){
+      var b = document.createElement('button');
+      b.className = 'presult' + (i===0 ? ' sel' : '');
+      
+      var safeExcerpt = r.excerpt.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var reg = new RegExp('(' + q.replace(/[.*+?^$${}()|[\]\\]/g, '\\$$&') + ')', 'gi');
+      var highlightedExcerpt = safeExcerpt.replace(reg, '<strong style="color:var(--accent)">$$1</strong>');
+
+      b.innerHTML = '<span style="min-width:0; overflow:hidden;"><span class="pt" style="font-weight:normal; line-height:1.4">' + highlightedExcerpt + '</span><span class="ps" style="margin-top:4px">' + r.docTitle + '</span></span>'
+                  + '<span class="pk">' + r.tag + '</span>';
+      
+      b.addEventListener('click', function(){ 
+        var targetUrl = r.docUrl + '?sq=' + encodeURIComponent(q) + (r.id ? '#' + r.id : '');
+        window.location.href = targetUrl;
+      });
+      pResults.appendChild(b);
+    });
+  }
+
+  function moveSel(d){
+    var btns = pResults.querySelectorAll('.presult');
+    if(!btns.length) return;
+    btns[pSel] && btns[pSel].classList.remove('sel');
+    pSel = (pSel + d + btns.length) % btns.length;
+    btns[pSel].classList.add('sel');
+    btns[pSel].scrollIntoView({ block:'nearest' });
+  }
+
+  pInput.addEventListener('input', function(){
+    clearTimeout(searchDebounce);
+    searchDebounce = setTimeout(function() {
+      renderPalette(pInput.value);
+    }, 200);
+  });
+
+  pInput.addEventListener('keydown', function(e){
+    if(e.key === 'ArrowDown'){ e.preventDefault(); moveSel(1); }
+    else if(e.key === 'ArrowUp'){ e.preventDefault(); moveSel(-1); }
+    else if(e.key === 'Enter'){ 
+      e.preventDefault(); 
+      var r = pMatches[pSel]; 
+      if(r){ window.location.href = r.docUrl + '?sq=' + encodeURIComponent(pInput.value) + (r.id ? '#' + r.id : ''); } 
+    }
+  });
+  byId('btn-search').addEventListener('click', openPalette);
+  byId('palette-close').addEventListener('click', closeAll);
+  palette.addEventListener('click', function(e){ if(e.target === palette) closeAll(); });
+
+  /* ---------- Filtre de la bibliothèque ---------- */
+  byId('lib-search').addEventListener('input', function(){
+    var q = this.value.trim().toLowerCase();
+    libItems.forEach(function(a){
+      var t = a.querySelector('.t').textContent.toLowerCase();
+      a.style.display = (!q || t.indexOf(q) !== -1) ? '' : 'none';
+    });
+    // Masque les tiroirs sans résultat ; déplie ceux qui en ont pendant la recherche.
+    document.querySelectorAll('.lib-group').forEach(function(g){
+      var items = g.querySelectorAll('.lib-item');
+      var vis = false;
+      for(var i=0;i<items.length;i++){ if(items[i].style.display !== 'none'){ vis = true; break; } }
+      g.style.display = vis ? '' : 'none';
+      if(q){
+        // Recherche active : ouvre les groupes correspondants sans altérer l'état mémorisé.
+        g.classList.toggle('collapsed', !vis);
+      }else{
+        // Recherche effacée : restaure l'état sauvegardé (replié par défaut).
+        var stored = null;
+        try{ stored = localStorage.getItem('lib-group:' + (g.getAttribute('data-label') || '')); }catch(e){}
+        g.classList.toggle('collapsed', stored !== '1');
+      }
+      var head = g.querySelector('.lib-group-head');
+      if(head) head.setAttribute('aria-expanded', g.classList.contains('collapsed') ? 'false' : 'true');
+    });
+  });
+
+  /* ---------- Raccourcis clavier ---------- */
+  window.addEventListener('keydown', function(e){
+    if((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')){ e.preventDefault(); openPalette(); }
+    else if(e.key === 'Escape'){ closeAll(); byId('lightbox').classList.add('hidden'); }
+  });
+
+  /* ---------- Redimensionnement des panneaux ---------- */
+  function makeDrag(handle, side){
+    handle.addEventListener('mousedown', function(e){
+      e.preventDefault();
+      var startX = e.clientX;
+      var prop = side === 'left' ? '--left-w' : '--right-w';
+      var start = parseInt(getComputedStyle(app).getPropertyValue(prop)) || (side==='left'?299:460);
+      function move(ev){
+        var d = ev.clientX - startX;
+        var w = side === 'left' ? start + d : start - d;
+        w = Math.max(180, Math.min(460, w));
+        app.style.setProperty(prop, w + 'px');
+      }
+      function up(){
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.style.userSelect='';
+        // Mémorise la largeur finale du panneau (restaurée par loadLayout).
+        try{ localStorage.setItem('liseuse-'+prop.slice(2), getComputedStyle(app).getPropertyValue(prop).trim()); }catch(e){}
+      }
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  }
+  makeDrag(byId('drag-left'), 'left');
+  makeDrag(byId('drag-right'), 'right');
+
+  /* ---------- Lightbox (images cliquables) ---------- */
+  var lightbox = byId('lightbox'), lightImg = lightbox.querySelector('img');
+  main.querySelectorAll('.reading img').forEach(function(img){
+    img.style.cursor = 'zoom-in';
+    img.addEventListener('click', function(){
+      lightImg.src = img.currentSrc || img.src;
+      lightbox.classList.remove('hidden');
+    });
+  });
+  lightbox.addEventListener('click', function(){ lightbox.classList.add('hidden'); });
+
+  /* ---------- Notes de bas de page : infobulle au survol (comme les commentaires) ---------- */
+  (function(){
+    var refs = main.querySelectorAll('a.footnote-ref, a[role="doc-noteref"]');
+    Array.prototype.forEach.call(refs, function(ref){
+      var id = (ref.getAttribute('href') || '').replace(/^#/, '');
+      var note = id && document.getElementById(id);
+      if(!note) return;
+      // Copie le contenu de la note en retirant le lien de retour ↩, puis pose le texte en title.
+      var clone = note.cloneNode(true);
+      Array.prototype.forEach.call(clone.querySelectorAll('.footnote-back'), function(b){ b.remove(); });
+      var txt = (clone.textContent || '').replace(/\s+/g, ' ').trim();
+      if(txt){ ref.setAttribute('title', txt); ref.classList.add('has-note-tip'); }
+    });
+  })();
+
+
+  /* ---------- Surlignage de la recherche depuis l'URL ---------- */
+  (function(){
+    var params = new URLSearchParams(window.location.search);
+    var sq = params.get('sq');
+    if(sq){
+      sq = sq.trim().toLowerCase();
+      var firstMark = null;
+      function highlightText(node) {
+        if(firstMark) return;
+        if(node.nodeType === 3) {
+          var idx = node.nodeValue.toLowerCase().indexOf(sq);
+          if(idx !== -1) {
+            var mark = document.createElement('mark');
+            mark.style.cssText = 'background:color-mix(in srgb, var(--accent) 40%, transparent); color:inherit; border-radius:3px; padding:0 2px';
+            mark.textContent = node.nodeValue.substring(idx, idx + sq.length);
+            var after = node.splitText(idx);
+            after.nodeValue = after.nodeValue.substring(sq.length);
+            node.parentNode.insertBefore(mark, after);
+            firstMark = mark;
+          }
+        } else if(node.nodeType === 1 && node.tagName !== 'MARK' && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE') {
+          var children = Array.prototype.slice.call(node.childNodes);
+          for(var i = 0; i < children.length; i++) {
+            highlightText(children[i]);
+          }
+        }
+      }
+      var article = document.querySelector('.reading');
+      if(article) {
+        highlightText(article);
+        if(firstMark) {
+          setTimeout(function(){
+            firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 150);
+        }
+      }
+    }
+  })();
+
+  /* ---------- Init ---------- */
+  loadPrefs();
+  loadLayout();
+  updateProgress();
+})();
+</script>
+</body>
+</html>

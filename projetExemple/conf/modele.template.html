@@ -1,0 +1,1421 @@
+<!DOCTYPE html>
+<html lang="$if(lang)$$lang$$else$fr$endif$" data-fr-scheme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <meta name="generator" content="pandoc + DSFR">
+$for(author-meta)$
+  <meta name="author" content="$author-meta$">
+$endfor$
+  <title>SDS - Documentation Fonctionnelle$if(version)$ ($version$)$endif$ — $if(title)$$title$$else$Document$endif$</title>
+
+  <link rel="stylesheet" href="$library-basedir$resources/dsfr/dist/dsfr.main.css">
+  <link rel="stylesheet" href="$library-basedir$resources/dsfr/dist/utility/utility.main.css">
+
+$if(highlighting-css)$
+  <style>
+$highlighting-css$
+  </style>
+$endif$
+$for(header-includes)$
+  $header-includes$
+$endfor$
+
+  <style>
+    /* Ajustements du rendu Pandoc pour le DSFR */
+    /* Sommaire du volet droit ------------------------------------------------
+       Rythme vertical : tout l'espacement d'un item vient du padding de son
+       <a> ; les <ul> et <li> n'apportent ni marge ni padding vertical. Deux
+       items voisins sont donc espaces de la meme facon quel que soit leur
+       niveau, y compris de part et d'autre d'un sous-arbre.
+       Hierarchie : un pas d'indentation unique (--toc-step) par niveau, et le
+       marqueur de l'item actif est une bordure gauche reservee sur tous les
+       items (transparente au repos) pour qu'aucun texte ne se decale. */
+    #TOC, .toc-nav { --toc-step: 0.75rem; }
+    #TOC ul, .toc-nav ul { list-style-type: none; margin: 0; padding: 0; }
+    #TOC ul ul, .toc-nav ul ul { padding-left: var(--toc-step); }
+    #TOC li, .toc-nav li { margin: 0; }
+    #TOC a, .toc-nav a { text-decoration: none; color: var(--text-action-high-blue-france); font-size: 0.875rem; display: block; line-height: 1.25; padding: 0.1875rem 0.25rem; border: 0; border-left: 2px solid transparent; background-image: none !important; box-shadow: none !important; }
+    #TOC a:hover, .toc-nav a:hover { text-decoration: underline; background-color: var(--background-alt-grey); }
+    #TOC a.active, .toc-nav a.active { font-weight: 700; color: var(--text-active-blue-france); border-left-color: var(--border-active-blue-france); }
+    
+    /* ---- Volet sommaire flottant (bord droit de l'ecran) ------------------
+       Copie du sommaire du volet droit, superposee au contenu. Deux facons de
+       l'ouvrir :
+         * la souris atteint le bord droit (bande de declenchement de 16px) ;
+           le volet se retire des que la souris le quitte. Tout en CSS : la
+           bande et le volet sont deux enfants d'un meme conteneur, dont le
+           :hover couvre donc les deux -- passer de la bande au volet ne
+           referme rien, quitter le volet le referme.
+         * le bouton flottant en bas a droite, qui pose la classe .is-pinned
+           et maintient le volet ouvert independamment du survol.
+       Sous 62em le volet est neutralise. La bande de survol, elle, n'existe
+       que si le survol est reel : sur ecran tactile large seul le bouton
+       ouvre le volet. */
+    #toc-flyout-zone { display: none; }
+    @media (min-width: 62em) {
+      #toc-flyout-zone { display: block; }
+      #toc-flyout {
+        position: fixed; top: 0; right: 0; z-index: 901;
+        width: var(--flyout-w, 340px); max-width: 90vw; height: 100vh;
+        padding: 1rem 1rem 2rem;
+        background-color: var(--background-default-grey);
+        border-left: 1px solid var(--border-default-grey);
+        box-shadow: -8px 0 24px rgba(0, 0, 0, 0.12);
+        overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable;
+        transform: translateX(100%); visibility: hidden;
+        transition: transform 0.18s ease, visibility 0s linear 0.18s;
+      }
+      #toc-flyout-zone.is-pinned #toc-flyout {
+        transform: translateX(0); visibility: visible;
+        transition: transform 0.18s ease, visibility 0s linear 0s;
+      }
+      #toc-flyout .flyout-title {
+        font-weight: 700; font-size: 0.95rem; margin: 0 0 0.75rem;
+        padding-bottom: 0.5rem; border-bottom: 1px solid var(--border-default-grey);
+      }
+      /* Largeur du volet (« Paramètres d'affichage » > Largeur du volet
+         flottant). Repris des paliers de la largeur de colonne pour rester
+         coherent avec les autres reglages. */
+      html[data-flyout-width="Etroite"] { --flyout-w: 260px; }
+      html[data-flyout-width="Moyenne"] { --flyout-w: 340px; }
+      html[data-flyout-width="Large"]   { --flyout-w: 460px; }
+      html[data-flyout-width="XL"]      { --flyout-w: 640px; }
+
+      /* Respecte le reglage « Ascenseur du sommaire » comme le volet fixe. */
+      html[data-scrollbar="Masque"] #toc-flyout { scrollbar-width: none; }
+      html[data-scrollbar="Masque"] #toc-flyout::-webkit-scrollbar { display: none; }
+    }
+
+    /* Ouverture au survol du bord droit : uniquement avec un vrai pointeur. */
+    @media (min-width: 62em) and (hover: hover) {
+      #toc-flyout-edge { position: fixed; top: 0; right: 0; width: 16px; height: 100vh; z-index: 900; }
+      #toc-flyout-zone:hover #toc-flyout {
+        transform: translateX(0); visibility: visible;
+        transition: transform 0.18s ease, visibility 0s linear 0s;
+      }
+    }
+
+    /* Le bouton d'ouverture suit le sort du volet. */
+    #floating-toc-btn { display: none; }
+    @media (min-width: 62em) {
+      #floating-toc-btn { display: flex; }
+    }
+
+    .reading-content pre { background-color: var(--background-alt-grey); padding: 1rem; overflow-x: auto; border-radius: 0.25rem; margin-bottom: 1.5rem; }
+    .reading-content code { font-family: "JetBrains Mono", monospace; font-size: 0.875rem; }
+    /* Code inline (delimiteur ` du Markdown) : Pandoc emet un <code> nu, que
+       seule la police monospace distinguait du texte courant. On lui donne la
+       pastille grise habituelle. Le « :not(pre) > » exclut les blocs de code,
+       dont le fond est deja porte par le <pre> ci-dessus.
+       Fond en contrast-grey et non alt-grey : ce dernier est deja celui des
+       lignes paires des tableaux .striped, ou la pastille disparaitrait. */
+    .reading-content :not(pre) > code {
+      background-color: var(--background-contrast-grey);
+      padding: 0.1em 0.3em;
+      border-radius: 0.1875rem;
+      white-space: break-spaces;
+    }
+    /* ---- Liens du contenu -------------------------------------------------
+       DSFR ne colore que ses propres composants (.fr-link, .fr-btn...) et
+       laisse un <a> nu en « color: inherit » sans soulignement : sans cette
+       regle un lien est indiscernable du texte courant, dans un encadre
+       callout comme ailleurs. Le bleu d'action est celui deja utilise par le
+       sommaire, et il a son equivalent en theme sombre.
+       Les appels de note ([^1]) gardent leur propre style, defini plus bas
+       avec une specificite superieure (.reading-content a.footnote-ref). */
+    .reading-content a {
+      color: var(--text-action-high-blue-france);
+      text-decoration: underline;
+      text-underline-offset: 0.15em;
+    }
+    .reading-content a:visited { color: var(--text-action-high-blue-france); }
+    .reading-content a:hover { background-color: var(--background-alt-blue-france); }
+    /* Vignettes cliquables : le soulignement passerait sous l'image. */
+    .reading-content a:has(> img) { text-decoration: none; background-color: transparent; }
+
+    .reading-content figure { text-align: center; margin: 2rem 0; }
+    /* Meme gris que les legendes de tableaux (voir table caption). */
+    .reading-content figcaption { color: var(--text-default-grey); font-size: 0.875rem; margin-top: 0.5rem; }
+    .reading-content img { max-width: 100%; height: auto; border-radius: 0.25rem; }
+    /* Alignement : fig-align="left|center|right" du Markdown, recopie en
+       data-fig-align par conf/filtre.lua. Les figures sont centrees par
+       defaut (regle ci-dessus), l'attribut ne sert donc qu'a s'en ecarter.
+       Il vaut aussi pour une image sans legende — un <img> nu dans un
+       paragraphe, qu'il faut passer en bloc pour que les marges
+       automatiques le deplacent. */
+    .reading-content figure:has(img[data-fig-align="left"])  { text-align: left; }
+    .reading-content figure:has(img[data-fig-align="right"]) { text-align: right; }
+    .reading-content p > img[data-fig-align] { display: block; }
+    .reading-content p > img[data-fig-align="center"] { margin-inline: auto; }
+    .reading-content p > img[data-fig-align="left"]   { margin-inline: 0 auto; }
+    .reading-content p > img[data-fig-align="right"]  { margin-inline: auto 0; }
+    /* Dans un encadre, la figure respire moins : 2rem est disproportionne
+       face au padding de 0.75rem du corps. */
+    .reading-content .callout-body figure { margin: 1rem 0; }
+    
+    .reading-content table { border-collapse: collapse; width: 100%; margin-bottom: 1.5rem; }
+    .reading-content th, .reading-content td { padding: 0.75rem; border: 1px solid var(--border-default-grey); text-align: left; }
+    /* En-tetes : fond nettement plus soutenu que celui des lignes rayees.
+       Au-dessus de contrast-grey (#eee), DSFR n'offre pas de fond de contenu
+       plus fonce : on emprunte donc sa variante -hover, seul jeton neutre du
+       cran superieur (#d2d2d2 en clair, #474747 en sombre). L'ecart avec les
+       rayures (#f6f6f6 / #1e1e1e) est ainsi net dans les deux themes. */
+    .reading-content th { background-color: var(--background-contrast-grey-hover); font-weight: 700; }
+
+    /* Legende de tableau (la ligne ": Legende" du Markdown, rendue en
+       <caption> par Pandoc) : italique et gris fonce.
+       text-default-grey vaut #3a3a3a en clair et #cecece en sombre. Les
+       legendes de figures partagent ce gris (voir figcaption ci-dessus) ;
+       seule l'italique distingue les legendes de tableaux. */
+    .reading-content table caption { font-style: italic; color: var(--text-default-grey); }
+
+    /* ---- Tableaux rayes : ": Legende {.striped}" en Markdown --------------
+       Le filtre Lua (conf/filtre.lua, fonction Table) releve les classes du
+       bloc d'attributs de la legende et les porte sur <table> ; il ne reste
+       qu'a colorer une ligne sur deux du corps. Le fond est pose sur <tr> :
+       aucune regle ne donne de fond aux <td>, rien ne le recouvre. */
+    .reading-content table.striped tbody tr:nth-child(even) { background-color: var(--background-alt-grey); }
+    
+    .reading-content blockquote { padding: 0.5rem 1rem; border-left: 4px solid var(--border-default-blue-france); margin-bottom: 1.5rem; background: var(--background-alt-blue-france); }
+    
+    
+    .reading-content img, .reading-content svg { max-width: 100% !important; height: auto !important; }
+    .title-wrapper h1 { margin-top: 1.5rem; clear: both; }
+
+    /* Ligne de tete du document : sous-titre suivi, entre parentheses, des
+       liens vers le PDF puis vers le Word de la page. La div est rendue sur
+       une seule ligne dans le modele afin que « :empty » la masque quand ni
+       le sous-titre ni les jumeaux n'existent. */
+    .doc-meta-row {
+      display: flex; align-items: center;
+      gap: 0.35rem; flex-wrap: wrap; margin-bottom: 2rem;
+      font-size: 0.75rem; line-height: 1.25rem;
+      color: var(--text-mention-grey);
+    }
+    .doc-meta-row:empty { display: none; }
+
+    /* Les liens « Version PDF » / « Version Word » restent discrets : ils ne
+       doivent pas concurrencer le titre du document. Memes valeurs que la
+       legende d'un media DSFR (.fr-content-media__caption .fr-link) : texte
+       et icones en 0.75rem, couleur « mention ». La teinte d'action bleue
+       revient au survol et au focus pour garder l'affordance du lien. */
+    .doc-meta-row a.fr-link {
+      font-size: inherit; line-height: inherit;
+      color: inherit;
+    }
+    .doc-meta-row a.fr-link::before,
+    .doc-meta-row a.fr-link::after { --icon-size: 0.75rem; }
+    .doc-meta-row a.fr-link:hover,
+    .doc-meta-row a.fr-link:focus { color: var(--text-action-high-blue-france); }
+
+    /* ---- Saut de page : {{< pagebreak >}} -> <div class="pagebreak"></div> ---- */
+    .reading-content .pagebreak {
+      display: block !important;
+      height: 0;
+      border: 0;
+      border-top: 1px dashed var(--border-default-grey);
+      margin: 2.5rem 0 var(--pagebreak-space, 3rem);
+      position: relative;
+      clear: both;
+      break-after: page;
+      page-break-after: always;
+    }
+
+    /* ---- Encadres « callout » : ::: {.callout-note} ... ::: ---------------
+       Pandoc seul se contente de recopier la classe .callout-note sur la
+       <div> ; conf/filtre.lua reconstruit la structure
+       .callout > .callout-header (icone + titre) + .callout-body.
+       Chaque type ne redefinit que deux variables (teinte et fond du
+       bandeau) ; les jetons DSFR employes ont tous leur equivalent en theme
+       sombre, le rendu suit donc le theme sans regle supplementaire.
+       La largeur eventuelle vient de l'attribut style du Markdown
+       ( style="width: 72%; margin: auto" ), recopie tel quel par Pandoc. */
+    .reading-content .callout {
+      --callout-color: var(--border-plain-info);
+      --callout-bg: var(--background-contrast-info);
+      margin: 1.5rem 0;
+      border: 1px solid var(--callout-color);
+      border-radius: 0.25rem;
+      overflow: hidden;
+      break-inside: avoid;
+    }
+    .reading-content .callout-note      { --callout-color: var(--border-plain-info);              --callout-bg: var(--background-contrast-info); }
+    .reading-content .callout-tip       { --callout-color: var(--border-plain-success);           --callout-bg: var(--background-contrast-success); }
+    .reading-content .callout-warning   { --callout-color: var(--border-plain-warning);           --callout-bg: var(--background-contrast-warning); }
+    .reading-content .callout-caution   { --callout-color: var(--border-plain-yellow-tournesol);  --callout-bg: var(--background-contrast-yellow-tournesol); }
+    .reading-content .callout-important { --callout-color: var(--border-plain-error);             --callout-bg: var(--background-contrast-error); }
+
+    .reading-content .callout-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background-color: var(--callout-bg);
+      color: var(--callout-color);
+      font-weight: 700;
+      line-height: 1.3;
+      border-bottom: 1px solid var(--callout-color);
+    }
+    /* Icone DSFR : masque colore par currentColor, dimensionne par
+       --icon-size (declare par DSFR dans la regle ::before elle-meme, d'ou
+       la redefinition ici plutot que sur le <span>). */
+    .reading-content .callout-icon::before { --icon-size: 1.25rem; }
+    .reading-content .callout-body { padding: 0.75rem; background-color: var(--background-default-grey); }
+    /* Le corps garde le formatage du Markdown tel quel (gras, italique, code,
+       liens, listes, tableaux) : seules les marges extremes sont neutralisees
+       pour que l'encadre reste ajuste a son contenu. */
+    .reading-content .callout-body > :first-child { margin-top: 0; }
+    .reading-content .callout-body > :last-child { margin-bottom: 0; }
+    /* Dans le bandeau, liens et code suivent la couleur du titre plutot que
+       leurs couleurs propres (bleu d'action DSFR, fond gris du code), qui
+       jureraient sur le fond colore. */
+    .reading-content .callout-header a,
+    .reading-content .callout-header code { color: inherit; }
+    .reading-content .callout-header code { background: transparent; padding: 0; font-size: 0.9375em; }
+
+    /* appearance="simple" : titre colore, sans bandeau.
+       appearance="minimal" : ni bandeau ni couleur, simple encadre gris. */
+    .reading-content .callout-style-simple .callout-header,
+    .reading-content .callout-style-minimal .callout-header {
+      background-color: transparent;
+      border-bottom: 0;
+      padding-bottom: 0.25rem;
+    }
+    .reading-content .callout-style-minimal { --callout-color: var(--border-default-grey); }
+    .reading-content .callout-style-minimal .callout-header { color: var(--text-default-grey); }
+
+    /* ---- Notes de bas de page : info-bulle au survol de l'appel [^1] ---- */
+    .reading-content a.footnote-ref { text-decoration: none; cursor: help; }
+    .reading-content a.footnote-ref sup { color: var(--text-action-high-blue-france); font-weight: 700; padding: 0 0.1rem; }
+    .reading-content a.footnote-ref:hover sup,
+    .reading-content a.footnote-ref:focus sup { text-decoration: underline; }
+
+    #footnote-tooltip {
+      position: fixed;
+      z-index: 10000;
+      max-width: min(32rem, 90vw);
+      padding: 0.75rem 1rem;
+      background: var(--background-default-grey);
+      color: var(--text-default-grey);
+      border: 1px solid var(--border-default-grey);
+      border-left: 3px solid var(--border-active-blue-france);
+      border-radius: 0.25rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+      font-family: "Marianne", arial, sans-serif;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      text-align: left;
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+      transition: opacity 0.15s ease;
+    }
+    #footnote-tooltip.is-visible { opacity: 1; visibility: visible; }
+    #footnote-tooltip p { margin: 0; }
+    #footnote-tooltip p + p { margin-top: 0.5rem; }
+    #footnote-tooltip code { font-size: 0.8125rem; }
+
+    /* Sommaire du volet droit : affiche en entier.
+       (Anciennement, des regles #TOC[data-toc-depth="N"] ul ul... masquaient
+       les niveaux plus profonds que le toc-depth du front matter alors que
+       Pandoc les avait generes -- des items disparaissaient du sommaire.
+       La profondeur reste pilotee en amont par --toc-depth.) */
+    #TOC ul { display: block; }
+    
+    
+    /* Resizable Sidebars */
+    @media (min-width: 48em) {
+      .sidebar-left { flex: 0 0 var(--left-w, 320px); max-width: var(--left-w, 320px); position: relative; }
+      .sidebar-right { flex: 0 0 var(--right-w, 320px); max-width: var(--right-w, 320px); position: relative; }
+      .main-fluid { flex: 1 1 0%; max-width: none; min-width: 0; }
+    }
+    .drag { position: absolute; top: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 10; transition: background 0.2s; }
+    .drag:hover, .drag:active { background: var(--border-action-high-blue-france); }
+    .drag.l { right: -4px; }
+    .drag.r { left: -4px; }
+
+        .sidebar-right div::-webkit-scrollbar { display: none; }
+    
+    /* Design Modal Paramètres */
+    .custom-segmented-control { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .custom-segmented-control label { flex: 1; cursor: pointer; margin: 0; }
+    .custom-segmented-control input { display: none; }
+    .custom-segmented-control span { 
+      display: block; text-align: center; padding: 0.5rem 1rem; 
+      border: 1px solid var(--border-default-grey); border-radius: 0.25rem; 
+      background: var(--background-default-grey); font-weight: bold;
+      transition: all 0.2s; 
+    }
+    .custom-segmented-control input:checked + span {
+      background: var(--background-active-blue-france); color: #fff; border-color: var(--background-active-blue-france);
+    }
+    
+    
+    /* Application des paramètres - FORCED WITH !IMPORTANT */
+    .main-content-area[data-font-family="Serif"] .reading-content,
+    .main-content-area[data-font-family="Serif"] .reading-content * { font-family: "Georgia", "Merriweather", serif !important; }
+    .main-content-area[data-font-family="Sans"] .reading-content,
+    .main-content-area[data-font-family="Sans"] .reading-content * { font-family: "Marianne", arial, sans-serif !important; }
+    .main-content-area[data-font-family="Mono"] .reading-content,
+    .main-content-area[data-font-family="Mono"] .reading-content * { font-family: "JetBrains Mono", "Courier New", monospace !important; }
+    
+    .main-content-area[data-font-size="S"] .reading-content,
+    .main-content-area[data-font-size="S"] .reading-content p,
+    .main-content-area[data-font-size="S"] .reading-content li { font-size: 0.875rem !important; line-height: 1.5 !important; }
+    .main-content-area[data-font-size="M"] .reading-content,
+    .main-content-area[data-font-size="M"] .reading-content p,
+    .main-content-area[data-font-size="M"] .reading-content li { font-size: 1rem !important; line-height: 1.5 !important; }
+    .main-content-area[data-font-size="L"] .reading-content,
+    .main-content-area[data-font-size="L"] .reading-content p,
+    .main-content-area[data-font-size="L"] .reading-content li { font-size: 1.125rem !important; line-height: 1.6 !important; }
+    .main-content-area[data-font-size="XL"] .reading-content,
+    .main-content-area[data-font-size="XL"] .reading-content p,
+    .main-content-area[data-font-size="XL"] .reading-content li { font-size: 1.3rem !important; line-height: 1.7 !important; }
+    
+    .main-content-area[data-line-height="Compact"] .reading-content p,
+    .main-content-area[data-line-height="Compact"] .reading-content li { line-height: 1.3 !important; }
+    .main-content-area[data-line-height="Normal"] .reading-content p,
+    .main-content-area[data-line-height="Normal"] .reading-content li { line-height: 1.6 !important; }
+    .main-content-area[data-line-height="Aere"] .reading-content p,
+    .main-content-area[data-line-height="Aere"] .reading-content li { line-height: 2.0 !important; }
+    
+    .main-content-area[data-justify="true"] .reading-content p,
+    .main-content-area[data-justify="true"] .reading-content li { text-align: justify !important; hyphens: auto !important; }
+    .main-content-area[data-justify="false"] .reading-content p,
+    .main-content-area[data-justify="false"] .reading-content li { text-align: left !important; }
+    
+        .main-content-area[data-heading-spacing="Serre"] .reading-content h1, .main-content-area[data-heading-spacing="Serre"] .reading-content h2, .main-content-area[data-heading-spacing="Serre"] .reading-content h3, .main-content-area[data-heading-spacing="Serre"] .reading-content h4, .main-content-area[data-heading-spacing="Serre"] .reading-content h5, .main-content-area[data-heading-spacing="Serre"] .reading-content h6 { margin-top: 0.5rem !important; }
+    .main-content-area[data-heading-spacing="Normal"] .reading-content h1, .main-content-area[data-heading-spacing="Normal"] .reading-content h2, .main-content-area[data-heading-spacing="Normal"] .reading-content h3, .main-content-area[data-heading-spacing="Normal"] .reading-content h4, .main-content-area[data-heading-spacing="Normal"] .reading-content h5, .main-content-area[data-heading-spacing="Normal"] .reading-content h6 { margin-top: 2rem !important; }
+    .main-content-area[data-heading-spacing="Aere"] .reading-content h1, .main-content-area[data-heading-spacing="Aere"] .reading-content h2, .main-content-area[data-heading-spacing="Aere"] .reading-content h3, .main-content-area[data-heading-spacing="Aere"] .reading-content h4, .main-content-area[data-heading-spacing="Aere"] .reading-content h5, .main-content-area[data-heading-spacing="Aere"] .reading-content h6 { margin-top: 4rem !important; }
+    
+    .main-content-area[data-para-spacing="Serre"] .reading-content p { margin-bottom: 0.5rem !important; }
+    .main-content-area[data-para-spacing="Normal"] .reading-content p { margin-bottom: 1.25rem !important; }
+    .main-content-area[data-para-spacing="Aere"] .reading-content p { margin-bottom: 2rem !important; }
+    
+    .main-content-area[data-list-spacing="Serre"] .reading-content li { margin-bottom: 0.2rem !important; padding-bottom: 0 !important; }
+    .main-content-area[data-list-spacing="Normal"] .reading-content li { margin-bottom: 0.5rem !important; padding-bottom: 0 !important; }
+    .main-content-area[data-list-spacing="Aere"] .reading-content li { margin-bottom: 1rem !important; padding-bottom: 0.5rem !important; }
+    
+    .main-content-area[data-col-width="Etroite"] .reading-content { max-width: 600px !important; margin-left: auto !important; margin-right: auto !important; }
+    .main-content-area[data-col-width="Moyenne"] .reading-content { max-width: 800px !important; margin-left: auto !important; margin-right: auto !important; }
+    .main-content-area[data-col-width="Large"] .reading-content { max-width: 1000px !important; margin-left: auto !important; margin-right: auto !important; }
+    .main-content-area[data-col-width="XL"] .reading-content { max-width: none !important; margin-left: 0 !important; margin-right: 0 !important; }
+    
+    html[data-scrollbar="Visible"] .sidebar-right div::-webkit-scrollbar { display: block !important; }
+    html[data-scrollbar="Visible"] .sidebar-right div { scrollbar-width: auto !important; -ms-overflow-style: auto !important; }
+    html[data-scrollbar="Masque"] .sidebar-right div::-webkit-scrollbar { display: none !important; }
+    html[data-scrollbar="Masque"] .sidebar-right div { scrollbar-width: none !important; -ms-overflow-style: none !important; }
+
+    /* Espace apres le trait de saut de page (parametre "Espace apres un saut de page") */
+    .main-content-area[data-pagebreak-spacing="Aucun"]  { --pagebreak-space: 0; }
+    .main-content-area[data-pagebreak-spacing="Serre"]  { --pagebreak-space: 1.5rem; }
+    .main-content-area[data-pagebreak-spacing="Normal"] { --pagebreak-space: 3rem; }
+    .main-content-area[data-pagebreak-spacing="Aere"]   { --pagebreak-space: 6rem; }
+    .main-content-area[data-pagebreak-spacing="Max"]    { --pagebreak-space: 12rem; }
+
+    /* Sommaire du volet droit : affiche en entier.
+       (Anciennement, des regles #TOC[data-toc-depth="N"] ul ul... masquaient
+       les niveaux plus profonds que le toc-depth du front matter alors que
+       Pandoc les avait generes -- des items disparaissaient du sommaire.
+       La profondeur reste pilotee en amont par --toc-depth.) */
+    #TOC ul { display: block; }
+    
+    
+    /* Resizable Sidebars */
+    @media (min-width: 48em) {
+      .sidebar-left { flex: 0 0 var(--left-w, 320px); max-width: var(--left-w, 320px); position: relative; }
+      .sidebar-right { flex: 0 0 var(--right-w, 320px); max-width: var(--right-w, 320px); position: relative; }
+      .main-fluid { flex: 1 1 0%; max-width: none; min-width: 0; }
+    }
+    .drag { position: absolute; top: 0; width: 8px; height: 100%; cursor: col-resize; z-index: 10; transition: background 0.2s; }
+    .drag:hover, .drag:active { background: var(--border-action-high-blue-france); }
+    .drag.l { right: -4px; }
+    .drag.r { left: -4px; }
+
+        .sidebar-right div::-webkit-scrollbar { display: none; }
+    
+    /* Design Modal Paramètres */
+    .custom-segmented-control { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .custom-segmented-control label { flex: 1; cursor: pointer; margin: 0; }
+    .custom-segmented-control input { display: none; }
+    .custom-segmented-control span { 
+      display: block; text-align: center; padding: 0.5rem 1rem; 
+      border: 1px solid var(--border-default-grey); border-radius: 0.25rem; 
+      background: var(--background-default-grey); font-weight: bold;
+      transition: all 0.2s; 
+    }
+    .custom-segmented-control input:checked + span {
+      background: var(--background-active-blue-france); color: #fff; border-color: var(--background-active-blue-france);
+    }
+    
+    /* Application des paramètres */
+    .main-content-area[data-font="S"] p, .main-content-area[data-font="S"] li { font-size: 0.875rem; line-height: 1.5; }
+    .main-content-area[data-font="M"] p, .main-content-area[data-font="M"] li { font-size: 1rem; line-height: 1.5; }
+    .main-content-area[data-font="L"] p, .main-content-area[data-font="L"] li { font-size: 1.125rem; line-height: 1.6; }
+    /* Alignement : contenu du document uniquement. Les menus (bibliotheque a
+       gauche, sommaire a droite) vivent aussi dans .main-content-area, d'ou la
+       restriction a #main-content pour ne pas justifier leurs entrees. */
+    .main-content-area[data-justify="true"] #main-content p,
+    .main-content-area[data-justify="true"] #main-content li { text-align: justify; hyphens: auto; }
+    .main-content-area[data-justify="false"] #main-content p,
+    .main-content-area[data-justify="false"] #main-content li { text-align: left; }
+
+    
+    /* Header compact */
+    .fr-header__body-row { padding: 0.25rem 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
+    .fr-header__service { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+    .fr-header__brand { margin-top: 0 !important; margin-bottom: 0 !important; }
+    .fr-header .fr-logo { font-size: 0.85rem !important; padding: 0.5rem !important; }
+    .fr-header__service-title { font-size: 1.1rem !important; line-height: 1.2 !important; margin-bottom: 0 !important; }
+    .fr-header__service-tagline { font-size: 0.85rem !important; line-height: 1.2 !important; margin-top: 0.25rem !important; }
+
+    /* Layout */
+    .layout-wrapper { min-height: 100vh; }
+    .main-content-area { flex: 1; }
+
+    /* ============ Impression ============ */
+    @media print {
+      .reading-content .pagebreak { border-top: 0; margin: 0 !important; }
+      .reading-content .callout { break-inside: avoid; page-break-inside: avoid; }
+      #footnote-tooltip { display: none !important; }
+    }
+  </style>
+
+  <script>
+    var scheme = localStorage.getItem('scheme') || 'system';
+    document.documentElement.setAttribute('data-fr-theme', scheme);
+    var savedZoom = localStorage.getItem('liseuse-zoom') || '90%';
+    document.documentElement.style.zoom = savedZoom;
+  </script>
+</head>
+
+<body class="layout-wrapper" style="width: 100%; max-width: 100%; background-color: var(--background-default-grey);">
+
+  <header role="banner" class="fr-header">
+    <div class="fr-header__body">
+      <div class="fr-container--fluid" style="margin-left: 18px; margin-right: 10px;">
+        <div class="fr-header__body-row">
+          <div class="fr-header__brand fr-enlarge-link">
+            <div class="fr-header__brand-top">
+              <div class="fr-header__logo">
+                <p class="fr-logo">
+                  République<br>Française
+                </p>
+              </div>
+              <div class="fr-header__navbar">
+                <button class="fr-btn--menu fr-btn" data-fr-opened="false" aria-controls="modal-499" aria-haspopup="menu" id="button-500" title="Menu">
+                  Menu
+                </button>
+              </div>
+            </div>
+            <div class="fr-header__service">
+              <a href="$library-basedir$index.html" title="Accueil - SDS">
+                <p class="fr-header__service-title">
+                  <img src="$library-basedir$resources/img/logoMiniSDS03.png" alt="Logo SDS" style="height:24px; vertical-align:middle; margin-right:8px;">
+                  SDS - Documentation Fonctionnelle$if(version)$ ($version$)$endif$
+                </p>
+              </a>
+              <p class="fr-header__service-tagline">$if(title)$$title$$else$Document$endif$</p>
+            </div>
+          </div>
+          <div class="fr-header__tools">
+            <div class="fr-header__tools-links">
+              <ul class="fr-btns-group">
+                <li>
+                  <div class="fr-btn" style="padding-left: 0.5rem; padding-right: 0.5rem; cursor: default;">
+                    <span id="zoom-out-btn" class="fr-icon-subtract-line" title="Réduire le zoom" style="cursor: pointer; padding: 0 0.25rem;" aria-hidden="true"></span>
+                    <span id="zoom-level-display" style="font-weight: bold; font-size: 0.875rem; min-width: 4ch; text-align: center; user-select: none; margin: 0 0.25rem; line-height: 1;">90%</span>
+                    <span id="zoom-in-btn" class="fr-icon-add-line" title="Agrandir le zoom" style="cursor: pointer; padding: 0 0.25rem;" aria-hidden="true"></span>
+                  </div>
+                </li>
+                <li>
+                  <a class="fr-btn fr-icon-todo-line" href="$library-basedir$filesANN/SFD-CID-SDS-VN-BS-bANN-FV-Livraison-liste.html" title="Fiches de livraison">
+                    Fiches de livraison
+                  </a>
+                </li>
+                <li>
+                  <a class="fr-btn fr-icon-git-commit-line" href="$library-basedir$filesANN/SFD-CID-SDS-VN-BS-bANN-notesDeploiement.html" title="Note de version DF">
+                    Note de version DF
+                  </a>
+                </li>
+                <li>
+                  <button class="fr-btn fr-icon-search-line" aria-controls="modal-search" data-fr-opened="false">
+                    Rechercher
+                  </button>
+                </li>
+                <li>
+                  <button class="fr-btn fr-icon-theme-fill" aria-controls="fr-theme-modal" data-fr-opened="false">
+                    Paramètres d'affichage
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- Menu mobile -->
+    <div class="fr-header__menu fr-modal" id="modal-499" aria-labelledby="button-500">
+      <div class="fr-container--fluid">
+        <button class="fr-btn--close fr-btn" aria-controls="modal-499" title="Fermer">Fermer</button>
+        <div class="fr-header__menu-links"></div>
+      </div>
+    </div>
+  </header>
+
+  <div class="fr-container--fluid fr-mt-4w main-content-area">
+    <div class="fr-grid-row fr-grid-row--gutters" style="margin-left: 10px; margin-right: 10px;">
+      
+      <!-- Bibliothèque (Menu latéral gauche) -->
+      <nav class="fr-sidemenu fr-col-12 sidebar-left" aria-label="Menu latéral">
+        <div class="drag l" id="drag-left"></div>
+        <div class="fr-sidemenu__inner">
+          <button class="fr-sidemenu__btn" aria-controls="fr-sidemenu-wrapper" aria-expanded="false">Bibliothèque</button>
+          <div class="fr-collapse" id="fr-sidemenu-wrapper">
+            <div class="fr-sidemenu__title">Bibliothèque</div>
+            <div class="fr-search-bar fr-mb-2w" id="lib-search-bar" role="search">
+              <input class="fr-input" placeholder="Filtrer..." type="search" id="lib-search" name="lib-search">
+              <button class="fr-btn" title="Rechercher">Rechercher</button>
+            </div>
+            <ul class="fr-sidemenu__list">
+$if(library)$
+$for(library)$
+              <li class="fr-sidemenu__item lib-group">
+                <button class="fr-sidemenu__btn" aria-expanded="false" aria-controls="sidemenu-$library.label$">$library.label$</button>
+                <div class="fr-collapse" id="sidemenu-$library.label$">
+                  <ul class="fr-sidemenu__list">
+$for(library.items)$
+                    <li class="fr-sidemenu__item">
+                      <a class="fr-sidemenu__link lib-item" href="$library-basedir$$library.items.href$" data-href="$library-basedir$$library.items.href$">$library.items.title$</a>
+                    </li>
+$endfor$
+                  </ul>
+                </div>
+              </li>
+$endfor$
+$else$
+              <li class="fr-sidemenu__item">
+                <a class="fr-sidemenu__link" href="#" aria-current="page">$if(title)$$title$$else$Document$endif$</a>
+              </li>
+$endif$
+            </ul>
+          </div>
+        </div>
+      </nav>
+
+      <!-- Contenu principal -->
+      <main class="fr-col-12 main-fluid" id="main-content" role="main">
+        <div class="doc-meta-row">$if(subtitle)$<span class="fr-badge fr-badge--info">$subtitle$</span>$endif$$if(pdf-href)$ (<a class="fr-link fr-link--icon-left fr-icon-file-pdf-line pdf-link" href="$library-basedir$$pdf-href$" target="_blank" rel="noopener" title="Ouvrir la version PDF de cette page">Version PDF</a>)$endif$$if(docx-href)$ (<a class="fr-link fr-link--icon-left fr-icon-file-text-line docx-link" href="$library-basedir$$docx-href$" target="_blank" rel="noopener" title="Ouvrir la version Word de cette page">Version Word</a>)$endif$</div>
+        <div class="title-wrapper"><h1>$if(title)$$title$$else$Document$endif$</h1></div>
+$if(abstract-title)$
+        <p class="fr-text--lead">$abstract-title$</p>
+$endif$
+$if(abstract)$
+        <p class="fr-text--lead">$abstract$</p>
+$endif$
+        
+        <hr class="fr-hr fr-mt-4w fr-mb-4w">
+        
+        <div class="reading-content fr-text--regular">
+$body$
+        </div>
+        
+        
+      </main>
+
+      <!-- Sommaire (droite) -->
+      <aside class="fr-col-12 sidebar-right">
+        <div class="drag r" id="drag-right"></div>
+        <div style="position: sticky; top: 1rem;">
+          <div style="max-height: calc(100vh - 2rem); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; padding-right: 5px;">
+$if(photo)$
+          <div class="fr-mb-2w">
+            <img src="$library-basedir$$photo$" alt="" class="fr-responsive-img" style="border-radius:0.25rem; height:120px; width:100%; object-fit:cover; object-position:top;">
+          </div>
+$endif$
+          <div class="fr-mb-2w fr-text--bold">Dans ce document</div>
+$if(table-of-contents)$
+          <nav id="TOC" role="doc-toc" $if(toc-depth)$data-toc-depth="$toc-depth$"$endif$>
+          $table-of-contents$
+          </nav>
+$else$
+          <p class="fr-text--sm fr-text-mention--grey">Compilez avec <code>--toc</code> pour afficher le sommaire.</p>
+$endif$
+          </div>
+        </div>
+      </aside>
+      
+    </div>
+  </div>
+
+  
+
+  <!-- Volet sommaire flottant : copie du sommaire, en superposition.
+       Le contenu est clone par JS depuis #TOC (voir « 2 bis » plus bas). -->
+  <div id="toc-flyout-zone">
+    <div id="toc-flyout-edge" aria-hidden="true"></div>
+    <div id="toc-flyout">
+      <p class="flyout-title">Dans ce document</p>
+      <div id="toc-flyout-nav"></div>
+    </div>
+  </div>
+
+  <!-- Modal Recherche Globale -->
+  <dialog aria-labelledby="fr-modal-search-title" id="modal-search" class="fr-modal" role="dialog">
+    <div class="fr-container--fluid fr-container-md">
+      <div class="fr-grid-row fr-grid-row--center">
+        <!-- Wrapper redimensionnable -->
+        <div style="margin: 0 auto; width: 66vw; min-width: 300px; max-width: 95vw; height: 60vh; min-height: 250px; max-height: 90vh; resize: both; overflow: auto; padding-right: 15px; padding-bottom: 15px;">
+          <div class="fr-modal__body" style="height: 100%; width: 100%; max-height: none; display: flex; flex-direction: column;">
+            <div class="fr-modal__header">
+              <button class="fr-btn--close fr-btn" aria-controls="modal-search" title="Fermer">Fermer</button>
+            </div>
+            <div class="fr-modal__content" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
+              <h1 id="fr-modal-search-title" class="fr-modal__title">
+                <span class="fr-icon-search-line fr-icon--lg"></span>
+                Recherche globale
+              </h1>
+              <div class="fr-search-bar" id="search-bar-global" role="search">
+                <input class="fr-input" placeholder="Rechercher dans tous les documents... (⌘K)" type="search" id="palette-input" name="search-input">
+                <button class="fr-btn" title="Rechercher">Rechercher</button>
+              </div>
+              <div class="fr-mt-2w" id="palette-results" style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+                <!-- Résultats de recherche -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  
+  
+  
+  <!-- Modal Paramètres d'affichage -->
+  <dialog id="fr-theme-modal" class="fr-modal" role="dialog" aria-labelledby="fr-theme-modal-title">
+    <div class="fr-container fr-container--fluid fr-container-md">
+      <div class="fr-grid-row fr-grid-row--center">
+        <!-- Fenêtre large -->
+        <div class="fr-col-12 fr-col-md-10 fr-col-lg-8">
+          <div class="fr-modal__body">
+            <div class="fr-modal__header">
+              <button class="fr-btn--close fr-btn" aria-controls="fr-theme-modal" title="Fermer">Fermer</button>
+            </div>
+            <div class="fr-modal__content" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
+              <h1 id="fr-theme-modal-title" class="fr-modal__title">
+                <span class="fr-icon-settings-5-line fr-icon--lg"></span>
+                Paramètres d’affichage
+              </h1>
+              
+              <div class="fr-grid-row fr-grid-row--gutters fr-mb-4w">
+                
+                <!-- Colonne 1 -->
+                <div class="fr-col-12 fr-col-md-6">
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-font">Police de lecture</label>
+                    <select class="fr-select" id="select-font" name="font-family">
+                      <option value="Sans">Sans Serif (Marianne)</option>
+                      <option value="Serif">Serif (Georgia)</option>
+                      <option value="Mono">Monospace (JetBrains)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-size">Taille du texte</label>
+                    <select class="fr-select" id="select-size" name="font-size">
+                      <option value="S">Petit (S)</option>
+                      <option value="M">Normal (M)</option>
+                      <option value="L">Grand (L)</option>
+                      <option value="XL">Très grand (XL)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-align">Alignement du texte</label>
+                    <select class="fr-select" id="select-align" name="text-justify">
+                      <option value="false">Aligné à gauche</option>
+                      <option value="true">Justifié</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-line">Interligne</label>
+                    <select class="fr-select" id="select-line" name="line-height">
+                      <option value="Compact">Compact</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Aere">Aéré</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <!-- Colonne 2 -->
+                <div class="fr-col-12 fr-col-md-6">
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-width">Largeur de la zone d'écriture</label>
+                    <select class="fr-select" id="select-width" name="col-width">
+                      <option value="Etroite">Étroite</option>
+                      <option value="Moyenne">Moyenne</option>
+                      <option value="Large">Large</option>
+                      <option value="XL">Maximale (100%)</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                                      <div class="fr-select-group">
+                    <label class="fr-label" for="select-heading-spacing">Espacement au-dessus des titres (1 à 6)</label>
+                    <select class="fr-select" id="select-heading-spacing" name="heading-spacing">
+                      <option value="Serre">Serré</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Aere">Aéré</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-para">Espacement des paragraphes</label>
+                    <select class="fr-select" id="select-para" name="para-spacing">
+                      <option value="Serre">Serré</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Aere">Aéré</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-list">Espacement des listes</label>
+                    <select class="fr-select" id="select-list" name="list-spacing">
+                      <option value="Serre">Serré</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Aere">Aéré</option>
+                    </select>
+                  </div>
+                  
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-pagebreak">Espace après un saut de page</label>
+                    <select class="fr-select" id="select-pagebreak" name="pagebreak-spacing">
+                      <option value="Aucun">Aucun</option>
+                      <option value="Serre">Serré</option>
+                      <option value="Normal">Normal</option>
+                      <option value="Aere">Aéré</option>
+                      <option value="Max">Maximal</option>
+                    </select>
+                  </div>
+
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-scroll">Ascenseur du sommaire</label>
+                    <select class="fr-select" id="select-scroll" name="scrollbar">
+                      <option value="Visible">Visible</option>
+                      <option value="Masque">Masqué</option>
+                    </select>
+                  </div>
+
+                  <div class="fr-select-group">
+                    <label class="fr-label" for="select-flyout">Largeur du volet flottant</label>
+                    <select class="fr-select" id="select-flyout" name="flyout-width">
+                      <option value="Etroite">Étroite</option>
+                      <option value="Moyenne">Moyenne</option>
+                      <option value="Large">Large</option>
+                      <option value="XL">Maximale</option>
+                    </select>
+                    <p class="fr-hint-text">Sommaire qui apparaît au bord droit de l’écran.</p>
+                  </div>
+                </div>
+                
+              </div> <!-- Fin Grille -->
+              
+              <hr class="fr-hr fr-mb-2w">
+              
+              <!-- THEME DSFR NATIF -->
+              <div id="fr-display" class="fr-display">
+                <fieldset class="fr-fieldset" id="display-fieldset">
+                  <legend class="fr-fieldset__legend--regular fr-fieldset__legend" id="display-fieldset-legend">Thème global</legend>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="light" type="radio" id="fr-radios-theme-light" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-light">Thème clair</label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#fff" d="M0 0h80v80H0z"/><path fill="#e3e3fd" d="M14 16h52v48H14z"/><path fill="#fff" d="M19 22h42v36H19z"/><path fill="#000091" d="M26 29h28v6H26z"/><path fill="#cacafb" d="M26 40h12v4H26z"/><path fill="#cacafb" d="M26 48h28v12H26z"/></svg></div>
+                    </div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="dark" type="radio" id="fr-radios-theme-dark" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-dark">Thème sombre</label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#161616" d="M0 0h80v80H0z"/><path fill="#2a2a2a" d="M14 16h52v48H14z"/><path fill="#161616" d="M19 22h42v36H19z"/><path fill="#8585f6" d="M26 29h28v6H26z"/><path fill="#3a3a3a" d="M26 40h12v4H26z"/><path fill="#3a3a3a" d="M26 48h28v12H26z"/></svg></div>
+                    </div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="system" type="radio" id="fr-radios-theme-system" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-system">Système <span class="fr-hint-text">Utilise les paramètres de votre système</span></label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#fff" d="M0 0h40v80H0z"/><path fill="#161616" d="M40 0h40v80H40z"/><path fill="#e3e3fd" d="M14 16h26v48H14z"/><path fill="#2a2a2a" d="M40 16h26v48H40z"/><path fill="#fff" d="M19 22h21v36H19z"/><path fill="#161616" d="M40 22h21v36H40z"/><path fill="#000091" d="M26 29h14v6H26z"/><path fill="#8585f6" d="M40 29h14v6H40z"/><path fill="#cacafb" d="M26 40h14v4H26z"/><path fill="#3a3a3a" d="M40 40h12v4H40z"/><path fill="#cacafb" d="M26 48h14v12H26z"/><path fill="#3a3a3a" d="M40 48h14v12H40z"/></svg></div>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+              
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+
+
+  
+  <!-- Fix invalid IDs with spaces in sidemenu before DSFR initializes -->
+  <script>
+    document.querySelectorAll('.fr-sidemenu__btn').forEach(function(btn, index) {
+      var oldCtrl = btn.getAttribute('aria-controls');
+      if (oldCtrl) {
+        var newCtrl = 'sidemenu-group-' + index;
+        btn.setAttribute('aria-controls', newCtrl);
+        var collapse = btn.nextElementSibling;
+        if (collapse && collapse.classList.contains('fr-collapse')) {
+          collapse.setAttribute('id', newCtrl);
+        }
+      }
+    });
+  </script>
+
+  <!-- Script DSFR -->
+  <script type="module" src="$library-basedir$resources/dsfr/dist/dsfr.module.js"></script>
+  
+  <!-- Logique spécifique -->
+  <script>
+    (function(){
+      "use strict";
+
+      // 1. Activer le menu de gauche pour la page courante
+      var here = decodeURIComponent(location.pathname.split(/[\\/]/).pop() || '');
+      var libItems = Array.prototype.slice.call(document.querySelectorAll('.lib-item'));
+      libItems.forEach(function(a){
+        var href = a.getAttribute('data-href');
+        if(href && here && decodeURIComponent(href.split(/[\\/]/).pop()) === here){
+          a.setAttribute('aria-current', 'page');
+          var parentGroup = a.closest('.lib-group');
+          if (parentGroup) {
+            var btn = parentGroup.querySelector('.fr-sidemenu__btn');
+            if (btn) btn.setAttribute('aria-expanded', 'true');
+          }
+        }
+      });
+
+      // 2. Filtre Bibliothèque
+      var libSearch = document.getElementById('lib-search');
+      if (libSearch) {
+        libSearch.addEventListener('input', function(){
+          var q = this.value.trim().toLowerCase();
+          document.querySelectorAll('.lib-group').forEach(function(g){
+            var items = g.querySelectorAll('.lib-item');
+            var vis = false;
+            items.forEach(function(item){
+              var t = item.textContent.toLowerCase();
+              var match = !q || t.indexOf(q) !== -1;
+              item.closest('li.fr-sidemenu__item').style.display = match ? '' : 'none';
+              if (match) vis = true;
+            });
+            g.style.display = vis ? '' : 'none';
+            if(q && vis) {
+              var btn = g.querySelector('.fr-sidemenu__btn');
+              if (btn) btn.setAttribute('aria-expanded', 'true');
+            }
+          });
+        });
+      }
+
+      // 2 bis. Volet sommaire flottant : copie du sommaire existant.
+      // On clone #TOC plutot que de reconstruire la liste, pour que les deux
+      // sommaires restent identiques par construction. Les id generes par
+      // Pandoc sont retires du clone : ils doivent rester uniques dans la page
+      // (seul #TOC les porte, les ancres du document continuent d'y pointer).
+      var tocFlyoutZone = document.getElementById('toc-flyout-zone');
+      var tocSource = document.getElementById('TOC');
+      var tocFlyoutNav = document.getElementById('toc-flyout-nav');
+      if (tocSource && tocFlyoutNav) {
+        var tocCopy = tocSource.cloneNode(true);
+        tocCopy.removeAttribute('id');
+        tocCopy.removeAttribute('role');
+        tocCopy.classList.add('toc-nav');
+        Array.prototype.forEach.call(tocCopy.querySelectorAll('[id]'), function(el){
+          el.removeAttribute('id');
+        });
+        tocFlyoutNav.appendChild(tocCopy);
+      } else if (tocFlyoutZone) {
+        // Document compile sans --toc : pas de volet flottant.
+        tocFlyoutZone.parentNode.removeChild(tocFlyoutZone);
+        tocFlyoutZone = null;
+      }
+
+      // 3. Sommaire actif (Scroll Spy)
+      var main = document.getElementById('main-content');
+      var headings = Array.prototype.slice.call(main.querySelectorAll('h2, h3, h4, h5, h6')).filter(function(h){ return h.id; });
+      // Le clone est inclus : les deux sommaires surlignent la meme entree.
+      var tocLinks = Array.prototype.slice.call(document.querySelectorAll('#TOC a, #toc-flyout a'));
+      var tocById = {};
+      tocLinks.forEach(function(a){
+        var href = a.getAttribute('href') || '';
+        if(href.charAt(0) !== '#') return;
+        var id = href.slice(1);
+        (tocById[id] = tocById[id] || []).push(a);
+      });
+
+      function updateActiveToc(){
+        if(!headings.length) return;
+        var top = window.scrollY + 100;
+        var current = headings[0];
+        for(var i=0;i<headings.length;i++){
+          if(headings[i].offsetTop <= top) current = headings[i]; else break;
+        }
+        tocLinks.forEach(function(a){ a.classList.remove('active'); });
+        var links = tocById[current.id];
+        if(links){ links.forEach(function(a){ a.classList.add('active'); }); }
+      }
+      window.addEventListener('scroll', updateActiveToc, { passive:true });
+
+      // A l'ouverture du volet, amene l'entree courante sous les yeux :
+      // sans cela un sommaire long s'ouvre toujours sur son premier titre.
+      if (tocFlyoutZone) {
+        tocFlyoutZone.addEventListener('mouseenter', function(){
+          var flyout = document.getElementById('toc-flyout');
+          var active = flyout && flyout.querySelector('a.active');
+          if (active) {
+            flyout.scrollTop = active.offsetTop - flyout.clientHeight / 2;
+          }
+        });
+      }
+
+      // 4. Recherche globale
+      var pInput = document.getElementById('palette-input');
+      var pResults = document.getElementById('palette-results');
+      var searchDebounce = null;
+      var globalSearchCache = null;
+
+      async function buildSearchCache() {
+        if (globalSearchCache) return globalSearchCache;
+        globalSearchCache = [];
+        var promises = libItems.map(async function(item) {
+          var url = item.getAttribute('data-href');
+          if(!url) return;
+          var docTitle = item.textContent || '';
+          try {
+            var res = await fetch(url);
+            var html = await res.text();
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var elements = Array.prototype.slice.call(doc.querySelectorAll('.reading-content h1, .reading-content h2, .reading-content h3, .reading-content h4, .reading-content h5, .reading-content h6, .reading-content p, .reading-content li'));
+            var searchable = elements.map(function(el) {
+              var idEl = el.closest('[id]') || el;
+              return { text: el.textContent.replace(/\s+/g, ' ').trim(), id: idEl.id || '', tag: el.tagName };
+            }).filter(function(e) { return e.text.length > 0; });
+            globalSearchCache.push({ url: url, title: docTitle, elements: searchable });
+          } catch(e) { console.error('Erreur fetch', url, e); }
+        });
+        await Promise.all(promises);
+        return globalSearchCache;
+      }
+
+      async function renderPalette(q){
+        q = q.trim().toLowerCase();
+        if (!q) {
+          pResults.innerHTML = '<p class="fr-text--sm">Saisissez un texte...</p>';
+          return;
+        }
+        pResults.innerHTML = '<p class="fr-text--sm">Recherche en cours...</p>';
+
+        var cache = await buildSearchCache();
+        var results = [];
+        
+        for (var i = 0; i < cache.length; i++) {
+          var doc = cache[i];
+          for (var j = 0; j < doc.elements.length; j++) {
+            var el = doc.elements[j];
+            var idx = el.text.toLowerCase().indexOf(q);
+            if (idx !== -1) {
+              var start = Math.max(0, idx - 40);
+              var end = Math.min(el.text.length, idx + q.length + 40);
+              var excerpt = (start > 0 ? '...' : '') + el.text.substring(start, end) + (end < el.text.length ? '...' : '');
+              results.push({
+                docUrl: doc.url,
+                docTitle: doc.title,
+                excerpt: excerpt,
+                id: el.id,
+                tag: el.tag
+              });
+            }
+            if (results.length >= 50) break;
+          }
+          if (results.length >= 50) break;
+        }
+
+        if(!results.length){ pResults.innerHTML = '<p class="fr-text--sm">Aucun résultat trouvé</p>'; return; }
+
+        pResults.innerHTML = '<ul class="fr-links-group" style="list-style:none; padding:0; text-align:left;"></ul>';
+        var ul = pResults.querySelector('ul');
+
+        results.forEach(function(r, i){
+          var li = document.createElement('li');
+          li.style.marginBottom = '1rem';
+          var a = document.createElement('a');
+          a.href = r.docUrl + '?sq=' + encodeURIComponent(q) + (r.id ? '#' + r.id : '');
+          a.className = 'fr-link';
+          
+          var safeExcerpt = r.excerpt.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var reg = new RegExp('(' + q.replace(/[.*+?^$${}()|[\]\\]/g, '\\$$&') + ')', 'gi');
+          var highlightedExcerpt = safeExcerpt.replace(reg, '<mark>$$1</mark>');
+
+          a.innerHTML = '<strong>' + r.docTitle + '</strong> <span class="fr-badge fr-badge--sm fr-badge--info fr-ml-1w">' + r.tag + '</span><br><span class="fr-text--xs fr-text-default--grey">' + highlightedExcerpt + '</span>';
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+      }
+
+      if(pInput) {
+        pInput.addEventListener('input', function(){
+          clearTimeout(searchDebounce);
+          searchDebounce = setTimeout(function() {
+            renderPalette(pInput.value);
+          }, 200);
+        });
+
+        window.addEventListener('keydown', function(e){
+          if((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')){ 
+            e.preventDefault(); 
+            var btn = document.querySelector('[aria-controls="modal-search"]');
+            if(btn) btn.click();
+            setTimeout(function() { pInput.focus(); buildSearchCache(); }, 100);
+          }
+        });
+      }
+
+      var modalSearchBtn = document.querySelector('[aria-controls="modal-search"]');
+      if (modalSearchBtn) {
+        modalSearchBtn.addEventListener('click', function() {
+          setTimeout(function() { if(pInput) pInput.focus(); buildSearchCache(); }, 100);
+        });
+      }
+
+      // 6. Surlignage de la recherche depuis l'URL
+      (function(){
+        var params = new URLSearchParams(window.location.search);
+        var sq = params.get('sq');
+        if(sq){
+          sq = sq.trim().toLowerCase();
+          var firstMark = null;
+          function highlightText(node) {
+            if(firstMark) return;
+            if(node.nodeType === 3) {
+              var idx = node.nodeValue.toLowerCase().indexOf(sq);
+              if(idx !== -1) {
+                var mark = document.createElement('mark');
+                mark.textContent = node.nodeValue.substring(idx, idx + sq.length);
+                var after = node.splitText(idx);
+                after.nodeValue = after.nodeValue.substring(sq.length);
+                node.parentNode.insertBefore(mark, after);
+                firstMark = mark;
+              }
+            } else if(node.nodeType === 1 && node.tagName !== 'MARK' && node.tagName !== 'SCRIPT' && node.tagName !== 'STYLE') {
+              var children = Array.prototype.slice.call(node.childNodes);
+              for(var i = 0; i < children.length; i++) {
+                highlightText(children[i]);
+              }
+            }
+          }
+          var article = document.querySelector('.reading-content');
+          if(article) {
+            highlightText(article);
+            if(firstMark) {
+              setTimeout(function(){
+                firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 150);
+            }
+          }
+        }
+      })();
+
+    })();
+  </script>
+
+  <script>
+  /* ---------- Redimensionnement des panneaux ---------- */
+  function makeDrag(handle, side){
+    if(!handle) return;
+    handle.addEventListener('mousedown', function(e){
+      e.preventDefault();
+      var startX = e.clientX;
+      var prop = side === 'left' ? '--left-w' : '--right-w';
+      var start = parseInt(getComputedStyle(document.body).getPropertyValue(prop)) || 320;
+      function move(ev){
+        var d = ev.clientX - startX;
+        var w = side === 'left' ? start + d : start - d;
+        w = Math.max(200, Math.min(600, w));
+        document.body.style.setProperty(prop, w + 'px');
+      }
+      function up(){
+        document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up); document.body.style.userSelect='';
+        try{ localStorage.setItem('liseuse-'+prop.slice(2), getComputedStyle(document.body).getPropertyValue(prop).trim()); }catch(e){}
+      }
+      document.body.style.userSelect = 'none';
+      document.addEventListener('mousemove', move);
+      document.addEventListener('mouseup', up);
+    });
+  }
+  makeDrag(document.getElementById('drag-left'), 'left');
+  makeDrag(document.getElementById('drag-right'), 'right');
+  
+  
+  
+  
+  // Fallback d'ouverture et gestion de tous les paramètres
+  (function(){
+    var themeBtn = document.querySelector('[aria-controls="fr-theme-modal"]');
+    var themeModal = document.getElementById('fr-theme-modal');
+    if(themeBtn && themeModal) {
+      themeBtn.addEventListener('click', function(e) { themeModal.classList.add('fr-modal--opened'); });
+      var closeBtns = themeModal.querySelectorAll('.fr-btn--close');
+      closeBtns.forEach(function(btn) { btn.addEventListener('click', function(e) { themeModal.classList.remove('fr-modal--opened'); }); });
+
+      var mainArea = document.querySelector('.main-content-area');
+
+      // Pour les selecteurs (Selects natifs DSFR)
+      function setupSelectSetting(name, attrName, defaultValue, targetEl) {
+        var select = themeModal.querySelector('select[name="' + name + '"]');
+        var savedValue = localStorage.getItem('liseuse-' + name) || defaultValue;
+        if(targetEl) targetEl.setAttribute(attrName, savedValue);
+        if(select) {
+          select.value = savedValue;
+          select.addEventListener('change', function(e) {
+            if(targetEl) targetEl.setAttribute(attrName, e.target.value);
+            localStorage.setItem('liseuse-' + name, e.target.value);
+          });
+        }
+      }
+
+      // Pour le thème (Radios riches)
+      var themeRadios = themeModal.querySelectorAll('input[name="fr-radios-theme"]');
+      var currentScheme = localStorage.getItem('scheme') || 'system';
+      themeRadios.forEach(function(radio) {
+        if(radio.value === currentScheme) radio.checked = true;
+        radio.addEventListener('change', function(e) {
+          if(e.target.checked) {
+            document.documentElement.setAttribute('data-fr-theme', e.target.value);
+            localStorage.setItem('scheme', e.target.value);
+          }
+        });
+      });
+
+      setupSelectSetting('font-family', 'data-font-family', 'Sans', mainArea);
+      setupSelectSetting('font-size', 'data-font-size', 'M', mainArea);
+      setupSelectSetting('text-justify', 'data-justify', 'false', mainArea);
+      setupSelectSetting('line-height', 'data-line-height', 'Normal', mainArea);
+      setupSelectSetting('col-width', 'data-col-width', 'XL', mainArea);
+      setupSelectSetting('heading-spacing', 'data-heading-spacing', 'Normal', mainArea);
+      setupSelectSetting('para-spacing', 'data-para-spacing', 'Normal', mainArea);
+      setupSelectSetting('list-spacing', 'data-list-spacing', 'Normal', mainArea);
+      setupSelectSetting('pagebreak-spacing', 'data-pagebreak-spacing', 'Normal', mainArea);
+      setupSelectSetting('scrollbar', 'data-scrollbar', 'Visible', document.documentElement);
+      setupSelectSetting('flyout-width', 'data-flyout-width', 'Moyenne', document.documentElement);
+    }
+  })();
+
+  // Restore saved sizes
+  try {
+    var l = localStorage.getItem('liseuse-left-w');
+    var r = localStorage.getItem('liseuse-right-w');
+    if (l) document.body.style.setProperty('--left-w', l);
+    if (r) document.body.style.setProperty('--right-w', r);
+  } catch(e) {}
+</script>
+
+
+  <!-- Gestion du Zoom -->
+  <script>
+    (function() {
+      var btnOut = document.getElementById('zoom-out-btn');
+      var btnIn = document.getElementById('zoom-in-btn');
+      var display = document.getElementById('zoom-level-display');
+      
+      if (btnOut && btnIn && display) {
+        var zoomLevels = [50, 75, 80, 90, 100, 110, 125, 150, 175, 200];
+        var currentZoomStr = localStorage.getItem('liseuse-zoom') || '90%';
+        var currentZoom = parseInt(currentZoomStr, 10);
+        if(isNaN(currentZoom)) currentZoom = 90;
+        
+        function applyZoom(z) {
+          currentZoom = z;
+          var val = z + '%';
+          display.textContent = val;
+          document.documentElement.style.zoom = val;
+          localStorage.setItem('liseuse-zoom', val);
+        }
+        
+        applyZoom(currentZoom);
+        
+        btnOut.addEventListener('click', function() {
+          var next = currentZoom;
+          for(var i = zoomLevels.length - 1; i >= 0; i--) {
+            if(zoomLevels[i] < currentZoom) { next = zoomLevels[i]; break; }
+          }
+          applyZoom(next);
+        });
+        
+        btnIn.addEventListener('click', function() {
+          var next = currentZoom;
+          for(var i = 0; i < zoomLevels.length; i++) {
+            if(zoomLevels[i] > currentZoom) { next = zoomLevels[i]; break; }
+          }
+          applyZoom(next);
+        });
+      }
+    })();
+  </script>
+
+  <!-- Boutons flottants : « Retour en haut », puis l'ouverture du volet
+       sommaire a sa droite. Le conteneur porte le positionnement ; les deux
+       boutons gardent une place fixe, « Retour en haut » restant masque par
+       visibility (et non display) pour ne pas decaler son voisin. -->
+  <div id="floating-actions" style="position: fixed; bottom: 2rem; right: 2rem; z-index: 9999; display: flex; align-items: center; gap: 0.75rem;">
+    <button id="floating-back-to-top" class="fr-btn" title="Retour en haut" onclick="window.scrollTo({top:0, behavior:'smooth'})" style="border-radius: 50%; width: 3.5rem; height: 3.5rem; padding: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;">
+      <span class="fr-icon-arrow-up-line" aria-hidden="true" style="margin: 0; font-size: 1.5rem;"></span>
+    </button>
+    <button id="floating-toc-btn" class="fr-btn" title="Afficher le sommaire" aria-controls="toc-flyout" aria-expanded="false" style="border-radius: 50%; width: 3.5rem; height: 3.5rem; padding: 0; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.3); opacity: 0; visibility: hidden; transition: opacity 0.3s, visibility 0.3s;">
+      <span class="fr-icon-list-unordered" aria-hidden="true" style="margin: 0; font-size: 1.5rem;"></span>
+    </button>
+  </div>
+  <script>
+    window.addEventListener('scroll', function() {
+      // Les deux boutons flottants apparaissent et disparaissent ensemble.
+      var shown = window.scrollY > 300;
+      var zone = document.getElementById('toc-flyout-zone');
+      Array.prototype.forEach.call(
+        document.querySelectorAll('#floating-back-to-top, #floating-toc-btn'),
+        function (btn) {
+          // Exception : on ne fait pas disparaitre le bouton du sommaire tant
+          // que le volet qu'il commande est ouvert.
+          var keep = btn.id === 'floating-toc-btn' && zone && zone.classList.contains('is-pinned');
+          btn.style.opacity = (shown || keep) ? '1' : '0';
+          btn.style.visibility = (shown || keep) ? 'visible' : 'hidden';
+        }
+      );
+    });
+  </script>
+
+  <!-- Bouton d'ouverture du volet sommaire -->
+  <script>
+    (function () {
+      var zone = document.getElementById('toc-flyout-zone');
+      var btn = document.getElementById('floating-toc-btn');
+      if (!btn) return;
+      // Document compile sans --toc : la zone a ete retiree, le bouton n'a
+      // plus d'objet.
+      if (!zone) { btn.style.display = 'none'; return; }
+
+      function setOpen(open) {
+        zone.classList.toggle('is-pinned', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('title', open ? 'Masquer le sommaire' : 'Afficher le sommaire');
+        if (open) {
+          // Meme cadrage qu'a l'ouverture au survol : on amene l'entree
+          // courante sous les yeux plutot que d'ouvrir sur le premier titre.
+          var flyout = document.getElementById('toc-flyout');
+          var active = flyout && flyout.querySelector('a.active');
+          if (active) { flyout.scrollTop = active.offsetTop - flyout.clientHeight / 2; }
+        }
+      }
+
+      btn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        setOpen(!zone.classList.contains('is-pinned'));
+      });
+
+      // Clic sur une entree du sommaire : on saute a l'ancre et on referme.
+      zone.addEventListener('click', function (e) {
+        if (e.target.closest && e.target.closest('a')) { setOpen(false); }
+      });
+
+      // Clic hors du volet, ou Echap : on referme.
+      document.addEventListener('click', function (e) {
+        if (zone.classList.contains('is-pinned') && !zone.contains(e.target) && e.target !== btn) {
+          setOpen(false);
+        }
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && zone.classList.contains('is-pinned')) { setOpen(false); }
+      });
+    })();
+  </script>
+
+  <!-- Info-bulle des notes de bas de page -->
+  <script>
+    (function () {
+      var tip = null;
+
+      function getTip() {
+        if (!tip) {
+          tip = document.createElement('div');
+          tip.id = 'footnote-tooltip';
+          tip.setAttribute('role', 'tooltip');
+          document.body.appendChild(tip);
+        }
+        return tip;
+      }
+
+      // Recupere le contenu de la note (#fnN) sans le lien de retour.
+      function contenuNote(ref) {
+        var id = (ref.getAttribute('href') || '').replace(/^#/, '');
+        if (!id) return null;
+        var note = document.getElementById(id);
+        if (!note) return null;
+        var copie = note.cloneNode(true);
+        Array.prototype.forEach.call(
+          copie.querySelectorAll('.footnote-back'),
+          function (a) { a.parentNode.removeChild(a); }
+        );
+        var html = copie.innerHTML.trim();
+        return html || null;
+      }
+
+      // Place l'info-bulle au-dessus de l'appel, ou en dessous si pas la place.
+      function placer(ref) {
+        var t = getTip();
+        var r = ref.getBoundingClientRect();
+        var w = t.offsetWidth, h = t.offsetHeight;
+        var left = r.left + r.width / 2 - w / 2;
+        left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+        var top = r.top - h - 10;
+        if (top < 8) top = r.bottom + 10;
+        t.style.left = left + 'px';
+        t.style.top = top + 'px';
+      }
+
+      function montrer(ref) {
+        var html = contenuNote(ref);
+        if (!html) return;
+        var t = getTip();
+        t.innerHTML = html;
+        t.classList.add('is-visible');
+        placer(ref);
+      }
+
+      function cacher() {
+        if (tip) tip.classList.remove('is-visible');
+      }
+
+      document.addEventListener('DOMContentLoaded', function () {
+        var refs = document.querySelectorAll('.reading-content a.footnote-ref');
+        Array.prototype.forEach.call(refs, function (ref) {
+          ref.addEventListener('mouseenter', function () { montrer(ref); });
+          ref.addEventListener('focus', function () { montrer(ref); });
+          ref.addEventListener('mouseleave', cacher);
+          ref.addEventListener('blur', cacher);
+        });
+        window.addEventListener('scroll', cacher, true);
+        window.addEventListener('resize', cacher);
+        document.addEventListener('keydown', function (e) {
+          if (e.key === 'Escape') cacher();
+        });
+      });
+    })();
+  </script>
+
+</body>
+</html>

@@ -156,7 +156,10 @@ moteur d'édition traiterait autrement : Entrée y pose un saut de ligne (et non
 une coupure de bloc), Tabulation indente comme dans un éditeur de texte —
 Majuscule pour désindenter, la sélection décalant les lignes entières —, et
 Ctrl+Entrée sort du bloc par le bas, sans quoi un bloc en fin de document
-serait sans issue. L'indentation est une vraie tabulation : c'est la frappe
+serait sans issue. Hors d'un bloc de code, Ctrl+Entrée pose un **saut de page**
+(`{{< pagebreak >}}`), sans passer par la boîte des shortcodes : `ui/code.js`
+traite la frappe avant l'écouteur des raccourcis, qui ne reprend pas une frappe
+déjà traitée — les deux sens ne se contrarient donc pas. L'indentation est une vraie tabulation : c'est la frappe
 même, et `tab-size` dit sur quelle colonne elle tombe.
 
 `src/js/markdown.js` assainit **toute** sortie de `marked` avant insertion :
@@ -194,8 +197,14 @@ qu'on colle passe par le Markdown* : le HTML venu d'ailleurs est ramené au
 Markdown par `turndown`, puis relu par `marked` avant d'entrer dans le rendu —
 rien ne s'installe donc dans le document que le fichier ne sache porter, et une
 image collée y gagne au passage son adresse `asset:` d'affichage. Le texte
-brut, lui, reste du texte brut : on ne le relit pas comme du Markdown, sans
-quoi coller « 2. rue du Port » ouvrirait une liste numérotée. Dans un bloc de
+brut, lui, **est lu comme du Markdown** : coller du Markdown dans « Modifier »
+en montre aussitôt la traduction. Un éditeur de texte met souvent aussi du HTML
+dans le presse-papiers — ses couleurs de syntaxe, en `<div>` et `<span>` — que
+`turndown` rendrait en Markdown échappé : ce HTML n'est retenu que s'il porte
+une vraie mise en forme (`formatted`, dans `ui/clipboard.js`), sinon c'est le
+texte qui fait foi. Le prix est connu — « 2. rue du Port » ouvre une liste
+numérotée —, d'où **« Coller en texte brut »** (Ctrl+Maj+V), qui pose le texte
+tel quel et lit pour cela le presse-papiers, comme l'entrée du menu. Dans un bloc de
 code, le texte est du texte : la conversion y sèmerait des échappements.
 
 Les trois commandes ont deux portes — la frappe et l'entrée de menu — et une
@@ -274,6 +283,18 @@ Devant un paragraphe ordinaire, ces quatre espaces en font un **bloc de code
 indenté** : c'est Markdown qui le dit, et la commande écrit ce qu'on lui
 demande — d'où son retrait aux seules entrées de liste dans le rendu, qui ne le
 montrerait pas comme tel.
+
+**Entrée dans une liste** du rendu ne s'en remet pas au moteur d'édition : dans
+une liste aérée il coupait le paragraphe au lieu de créer une entrée, et dans
+une liste à cocher la case ne suivait pas. `ui/listedit.js` prend donc la
+frappe dès que le curseur est dans une entrée : il la coupe au curseur — ce qui
+suit part dans une nouvelle entrée, sous-listes comprises, avec une case
+décochée ou un paragraphe si la liste en porte —, et sur une entrée vide il
+sort d'un rang : une sous-entrée remonte, une entrée de premier rang devient un
+paragraphe entre les deux moitiés de la liste, la numérotée gardant son compte
+par `start`. Majuscule+Entrée reste un saut de ligne. Le module tient aussi
+`nest` et `unnest`, que le retrait du menu lui emprunte : la frappe et la
+commande déplacent une entrée de la même façon.
 
 Le moteur — bornes de la liste sous le curseur, aération, retrait — vit dans
 `src/js/lists.js`, sans DOM ni état, comme `find.js`, `anchors.js` et
@@ -374,6 +395,10 @@ survit dans `data-attrs`. `tbl-align` et `width` répondent au `fig-align` et au
 porte les siennes ; l'alignement d'une **colonne**, lui, vit dans les
 deux-points de la barre de `=`. Un tableau à barres verticales lu dans un fichier
 ressort donc lui aussi en grille, la seule forme que l'application sache écrire.
+À la lecture, `marked` le rend de lui-même, mais en `<table>` nu : or l'aspect
+et la mise en page d'un tableau dans le rendu tiennent à la classe `tbl`, que la
+grille reçoit de `tables.js`. `liftPipeTables` la lui donne, sans quoi il ne se
+présentait pas comme un tableau.
 
 L'alignement d'une colonne se pose sur l'attribut `align` de chaque cellule, et
 la cellule ne le transmet à ce qu'elle contient que par **héritage** — or un
@@ -479,18 +504,148 @@ alphabétique de l'arbre, parfois loin de l'original, et son nom est ce qu'il
 faut pour la retrouver.
 
 `src-tauri/src/files.rs` est le **seul** endroit qui touche au disque de
-l'utilisateur. Le frontend n'y envoie que des chemins relatifs à la racine du
+l'utilisateur — hors la destination d'une compilation, où `pandoc.rs` ouvre le
+dossier de la page et `resources.rs` copie les ressources. Le frontend n'y envoie que des chemins relatifs à la racine du
 projet, et `files::resolve` refuse tout ce qui en sortirait — composant `..`
 comme lien symbolique. Ne pas contourner cette fonction.
 
-La boîte des **paramètres du projet** tient sur **deux colonnes** : les réglages
-d'ensemble — justification, interligne, contour — à gauche, les espacements à
-droite. Sur une seule, ses treize lignes la rendaient plus haute que l'écran et
-il fallait la parcourir au défilement. Les colonnes sont une grille et non deux
-flotteurs, chacune reprenant l'empilement qu'avait le corps entier : un champ ne
-sait pas qu'il est dans une colonne. Sous 660 px de fenêtre elles se remettent
-l'une sous l'autre et le filet qui les sépare passe de leur côté à leur
-dessus — mieux vaut défiler que serrer les champs à l'illisible.
+La boîte des **paramètres du projet** tient sur **trois colonnes**, trois
+sujets — **01 Affichage** (justification, interligne, contour), **02 Mise en
+page** (les espacements), **03 Pandoc** (la compilation) —, à la manière des
+sections d'une revue : un filet épais au-dessus, un numéro à l'accent, un titre
+et une phrase qui dit de quoi il s'agit, puis les champs. Pas de cartes : le
+modèle est fait d'aplats et de traits. « Affichage » porte aussi le **retour à la
+ligne dans le code Markdown** (`wrapSource`, actif par défaut) : retiré, une
+ligne longue défile à l'horizontale. Il passe par `--source-wrap`, lue par la
+règle qui tient ensemble la zone de saisie et le calque de la recherche — le
+repli est de ce qui doit se déclarer une seule fois pour les deux —, et le
+calque reprend alors aussi la hauteur utile de la zone, que la barre
+horizontale réduit. Sous 1100 px, Pandoc passe sous les deux
+autres, sur toute la largeur ; sous 720 px, tout s'empile — mieux vaut défiler
+que serrer les champs à l'illisible. Les réglages s'enregistrent d'eux-mêmes :
+le pied de la boîte le dit, et son bouton ne fait que fermer. Sous le titre, le
+chemin du projet dit lequel on est en train de régler. Les espacements
+s'affichent en vrai tableau — un filet par rangée, le champ fondu dans sa
+cellule, une mesure réglée à l'accent contre la valeur du modèle grisée.
+
+La colonne **« Pandoc »** est la plus large — elle porte des lignes de
+commande. Son groupe
+**« Compilation HTML »** porte le répertoire de destination et le **modèle de
+commande**, écrit une fois pour tout le projet avec des variables à la place de
+ce qui change d'un document à l'autre : `pandoc {fichier} … -o {sortie}`, où
+`{fichier}` est le document relatif à la racine du projet et `{sortie}` la
+destination suivie du même chemin en `.html`. Ces réglages sont **propres au
+projet**, comme la mise en page : la commande nomme ses fichiers — filtre,
+modèle, bibliothèque. Le groupe **« Compilation PDF »**, en dessous, porte les
+deux mêmes champs pour le PDF (`pandoc {fichier} --defaults=conf/defaults-single.yaml
+-o {sortie}`) : mêmes variables, une seule légende sous les deux groupes, et
+`{sortie}` n'y change que d'extension. La **page d'accueil** — `index.md`, à la
+racine du projet seulement — a son propre modèle HTML
+(`pandoc index.md … --template=conf/modele-accueil.template.html …`) : elle ne
+se bâtit pas sur le gabarit des chapitres. Vide, elle prend le modèle commun.
+Le choix du modèle se fait en un seul endroit, `pandoc::template_for`, que
+l'aperçu emprunte comme la compilation — il reçoit pour cela tous les champs à
+l'écran. Côté Rust c'est `ProjectSettings.pandoc`,
+cinq lignes `pandoc.htmlDest`, `pandoc.htmlCommand`, `pandoc.htmlIndexCommand`,
+`pandoc.pdfDest` et `pandoc.pdfCommand` de `project_settings`, rangées sur une seule ligne et
+retirées de la base quand on les vide. Les champs
+s'enregistrent **peu après la frappe** et à la fermeture de la boîte, non au
+seul `change` : fermer la boîte par sa croix ou Échap pendant qu'on tape ne le
+déclenche pas, et la commande saisie se perdait — la compilation prenait alors
+la commande par défaut, sans filtre ni modèle.
+
+**« Compiler en HTML »** et **« Compiler en PDF »** sont deux commandes du
+fichier, qui ne diffèrent que par le format (`pandoc::Format`) : modèle et
+destination lus, modèle par défaut, extension de `{sortie}`. Elles vivent dans
+`ui/fileops.js`, donc dans le menu de l'onglet comme dans celui de la ligne de
+l'arbre, éteintes hors Markdown. Tout se joue dans `src-tauri/src/pandoc.rs`, en
+trois règles :
+
+- **Le modèle est lu en base par Rust**, jamais reçu du frontend : l'interface
+  ne désigne que le document et le format (`compile_document(path, format)`, résolu par
+  `files::resolve`). Et son premier mot doit nommer `pandoc`, seul ou par son
+  chemin. La commande ne devient donc pas une porte ouverte sur n'importe quel
+  exécutable depuis une webview qui expose `__TAURI__`.
+- **Il est découpé en arguments avant que les variables ne soient remplacées**,
+  et lancé **sans shell**, depuis la racine du projet : un chemin à espaces
+  reste un seul argument, et rien de ce qu'un nom de fichier contient ne
+  s'interprète. Des guillemets regroupent, sans échappement.
+- **Une seule lecture du modèle.** L'aperçu des paramètres appelle
+  `pandoc_preview` au lieu de refaire le calcul en JavaScript : il ne peut
+  pas montrer autre chose que ce qui partira. `src/js/pandoc.js` ne tient plus
+  que la légende des variables, dont les noms doivent rester ceux de
+  `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND` ou `DEFAULT_PDF_COMMAND`, côté
+  Rust.
+
+Le **menu de l'application** — le bouton « hamburger » en tête de la barre
+du haut, F10 — porte ce qui vaut pour le projet ou l'application entière :
+**« Compiler le projet en HTML »**, « Paramètres du projet », « Quitter »
+(Ctrl+Q). Il vit dans `ui/appmenu.js` et reprend le cadre de `ui/menu.js`, posé
+sous le bouton. La compilation du projet prend les documents que
+**`conf/bibliotheque.yaml`** nomme — et non tous les `.md` du dossier, qui en
+porte des milliers : chaque clé qui finit par `href` (`href`, `messages-href`)
+désigne une page, dont le document est le même chemin en `.md`. Ils partent
+dans l'ordre du fichier, celui des lots, **sauf `index.md` à la racine** — la
+page d'accueil, qui a son propre modèle. `src-tauri/src/library.rs` fait la
+lecture, une passe sur les lignes comme `resources.rs` ; un document nommé mais
+absent est signalé au journal sans arrêter la série. Les documents se
+compilent un par un comme ceux d'un dossier : la série est la même,
+`compileSeries` dans `ui/fileops.js`. « Paramètres du projet » presse le bouton
+du volet, comme un raccourci de la barre. « Quitter » pose une seule question
+pour les documents modifiés, puis passe par Rust (`quit_app`).
+
+Un **dossier** de l'arbre a aussi son menu, qui compile **un par un** les
+documents Markdown qu'il contient — lui seul, sans ses sous-dossiers : ce qu'on
+voit sous lui en le dépliant (`files::markdown_in`, dans l'ordre de l'arbre).
+Les ressources ne sont copiées qu'au premier document (`compile_document` reçoit
+`resources: false` pour les suivants) : tous visent la même destination. Un
+échec n'arrête pas la série ; le journal dit lequel et pourquoi, le toast fait
+le compte. Les documents ouverts et modifiés font l'objet d'une seule question
+pour toute la série.
+
+Avant Pandoc, et **en HTML seulement**, les **ressources** que liste `conf/resources.yaml` partent vers le
+répertoire de destination, au même chemin — une page compilée pointe vers ses
+images et ses PDF en relatif, ils doivent donc l'y attendre. Un PDF embarque ses images, que Pandoc lit dans le
+projet : rien n'est copié. Deux formes
+d'entrée : un motif (`resources/pdf/*.*`) prend les fichiers du dossier **sans**
+ses sous-dossiers, un chemin (`filesLOT04/img`) prend le dossier entier.
+**Seule la liste** est copiée : le commentaire du fichier parle de dossiers
+copiés d'office par un autre outil, l'application ne les ajoute pas — `conf/`
+n'a rien à faire dans `htdocs`. `src-tauri/src/resources.rs` fait une passe sur
+les lignes, non une analyse YAML ; chaque source passe par `files::resolve`, les
+liens symboliques ne sont pas suivis, et un fichier déjà à jour — même taille,
+copie pas plus ancienne — n'est pas recopié. Une ressource manquante ou une
+copie en échec n'arrête pas la compilation : elle figure dans les
+avertissements du message, avec le compte des fichiers copiés et à jour.
+
+Pandoc lit le fichier **sur le disque** : un document modifié propose d'être
+enregistré avant de compiler, plutôt que de l'être d'office ou de compiler une
+version qu'on n'a plus sous les yeux. Le dossier de la page produite est créé
+s'il manque — c'est la seule écriture de `pandoc.rs` hors de `files.rs`, la
+page elle-même étant l'œuvre de Pandoc. Pandoc tourne dans `spawn_blocking`.
+
+Un **journal de compilation** s'ouvre en bas de l'écran, au-dessus de la barre
+d'état, quand la compilation part : Rust lui envoie ses lignes à mesure par
+l'événement `compile:log` — une par entrée de ressources, la commande lancée,
+puis ce que Pandoc écrit, **au fil de l'eau** (sa sortie d'erreur est lue ligne
+à ligne, sa sortie ordinaire dans un fil à part, faute de quoi Pandoc
+bloquerait sur un tampon plein). Un échec y part aussi, d'où qu'il vienne. Le
+journal reste ouvert à la fin, pour qu'on lise ce que Pandoc a dit, et se
+referme à la main ; le **toast** ne dit que l'issue et y renvoie. Pendant qu'elle
+tourne, la compilation **se voit** par trois repères : l'état de la tête du
+journal, en accent, qui compte les documents et les secondes ; une barre
+d'avancement sur son bord haut — la part faite d'une série (`journal.progress`),
+un trait qui va et vient pour un document seul ; et une **pastille** dans la
+tête de la barre du haut, qui tourne et compte, visible journal fermé comme
+devant « Veille » — un clic rouvre le journal. Elle ne dit que le compte : la
+tête de barre a la largeur du volet des fichiers, l'infobulle dit le reste. Comme la
+barre d'état, `ui/journal.js` écrit ses lignes lui-même, sans `store.emit` :
+elles arrivent par dizaines pendant une copie. Une seule compilation à la
+fois. Sa hauteur se règle par une **poignée couchée sur son bord haut** — ou les
+flèches haut et bas —, sur le modèle de celles des volets : elle vit dans
+`--journal-height`, sur la racine, et part au lâcher dans les réglages de
+l'application (`journalHeight`, `0` pour « jamais redimensionné »), bornée
+entre 90 px et 70 % de la fenêtre.
 
 Le groupe **« Mise en page »** des paramètres du projet règle l'espace
 au-dessus et au-dessous de chaque sorte de bloc : les six niveaux de titre
@@ -575,6 +730,11 @@ Trois choses ont décidé du choix des touches :
   Ctrl+Alt *est* AltGr, dont un clavier français a besoin pour @ et #. Une frappe
   où AltGr est enfoncée ne déclenche donc rien.
 
+On passe d'un onglet à l'autre par **Ctrl+Tab** et Ctrl+Maj+Tab, en bouclant, et
+non par la tabulation seule : elle indente déjà un bloc de code et fait passer
+de cellule en cellule dans un tableau, et le changement d'onglet doit marcher en
+pleine frappe. Il suit le chemin d'un clic sur l'onglet — `flush` d'abord.
+
 Ni Ctrl+Maj+I, ni Ctrl+Maj+J, ni Ctrl+Maj+C : ce sont les outils de développement
 de la webview. Ils ne répondent pas dans un paquet de distribution, mais ils
 répondent sous `cargo tauri dev`, et un raccourci qui ne marche que chez
@@ -642,7 +802,9 @@ cocher, bascule minuscules/majuscules. Recherche et remplacement dans le
 document, en source comme dans le rendu, avec casse, mot entier et expression
 régulière. Couper, copier, coller — dans le menu contextuel de la zone
 d'édition, et un « Couper » de plus dans ceux du tableau et de l'image ;
-annulation et rétablissement de tout ce qui touche au document ; liste serrée
+annulation et rétablissement de tout ce qui touche au document ; Entrée qui
+prolonge une liste — aérée ou à cocher comprises — et en sort sur une entrée
+vide ; Ctrl+Tab d'un onglet à l'autre ; liste serrée
 ou aérée, et retrait des lignes ou des entrées de liste ; insertion d'une
 ligne vide.
 Zoom du document, aux crans de la barre du haut comme
@@ -656,7 +818,12 @@ commandes, annoncés dans les menus et les infobulles. Menu contextuel sur l'ong
 un fichier de l'arbre — enregistrer, renommer, copier le nom, dupliquer,
 supprimer —, barre d'état en pied de fenêtre, thème clair/sombre/gris.
 
+Compilation d'un document en HTML ou en PDF par Pandoc, depuis le menu de
+l'onglet ou de l'arbre, d'après la destination et le modèle de commande réglés
+pour chaque format dans les paramètres du projet.
+
 À faire : écran de réglages détaillés, purge automatique. Pour « Édition » :
+compilation vers d'autres formats que HTML et PDF ;
 création de fichiers et de dossiers, renommage d'un projet depuis la liste.
 
 Le glisser-déposer du volet est bâti sur les événements de pointeur, pas sur

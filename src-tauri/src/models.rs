@@ -166,6 +166,11 @@ pub struct ProjectSettings {
     /// Affiché par défaut : c'est lui qui dit où va la frappe.
     #[serde(default = "default_outline")]
     pub show_outline: bool,
+    /// Retour à la ligne automatique dans « Code Markdown ». Actif par défaut ;
+    /// retiré, une ligne longue défile à l'horizontale. Affaire d'affichage
+    /// seulement : le fichier n'en porte aucune trace.
+    #[serde(default = "default_wrap_source")]
+    pub wrap_source: bool,
     /// Espacements de la mise en page : ce qui s'aère au-dessus et au-dessous
     /// de chaque sorte de bloc — titres, paragraphes, listes, shortcodes,
     /// images, tableaux. En pixels à 100 % de zoom ; le zoom du document les
@@ -182,7 +187,105 @@ pub struct ProjectSettings {
     /// défaut ne sont pas recopiées ici.
     #[serde(default)]
     pub spacing: BTreeMap<String, i64>,
+    /// Compilation du document par Pandoc.
+    #[serde(default)]
+    pub pandoc: PandocSettings,
 }
+
+/// Réglages de la compilation par Pandoc, propres à un projet.
+///
+/// Propres au projet et non à l'application : la commande nomme des fichiers
+/// du projet — un filtre, un modèle, une bibliothèque —, écrits relativement à
+/// sa racine, et deux projets n'ont ni les mêmes ni la même destination.
+///
+/// Vide veut dire « non réglé » : rien ne s'écrit en base, et c'est le
+/// frontend qui sait quel modèle proposer à la place.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PandocSettings {
+    /// Dossier où déposer les pages HTML compilées.
+    #[serde(default)]
+    pub html_dest: String,
+    /// Modèle de la commande de compilation HTML, avec ses variables —
+    /// `{fichier}`, `{sortie}`… — que `pandoc.rs` remplace.
+    #[serde(default)]
+    pub html_command: String,
+    /// Modèle de la commande HTML de la page d'accueil — `index.md`, à la
+    /// racine du projet. Vide, l'accueil prend `html_command`.
+    #[serde(default)]
+    pub html_index_command: String,
+    /// Dossier où déposer les PDF compilés.
+    #[serde(default)]
+    pub pdf_dest: String,
+    /// Modèle de la commande de compilation PDF, aux mêmes variables : seule
+    /// l'extension de `{sortie}` change.
+    #[serde(default)]
+    pub pdf_command: String,
+}
+
+/// La nature d'une ligne du journal de compilation, qui en décide l'aspect.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LogLevel {
+    /// Une étape : « Copie des ressources… ».
+    Step,
+    /// Un compte rendu ordinaire.
+    Info,
+    /// La commande lancée, telle qu'on l'écrirait dans un terminal.
+    Command,
+    /// Ce que Pandoc écrit — ses avertissements, le plus souvent.
+    Output,
+    /// Une ressource manquante, une copie refusée.
+    Warn,
+    /// Ce qui a fait échouer la compilation.
+    Error,
+}
+
+/// Une ligne du journal, telle qu'elle part vers le frontend (`compile:log`).
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LogLine {
+    pub level: LogLevel,
+    pub text: String,
+}
+
+/// Ce qu'une compilation par Pandoc a produit — page HTML ou PDF.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Compiled {
+    /// La commande lancée, telle qu'on l'écrirait dans un terminal.
+    pub command: String,
+    /// La page produite, en chemin absolu — `None` si le modèle ne la nomme pas.
+    pub output: Option<String>,
+    /// Ce que Pandoc a écrit : ses avertissements, vide le plus souvent.
+    pub log: String,
+    /// La copie des ressources de `conf/resources.yaml` — `None` si le projet
+    /// n'en liste pas.
+    pub resources: Option<ResourcesReport>,
+}
+
+/// Les documents du projet selon `conf/bibliotheque.yaml`.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProjectDocuments {
+    /// Les documents Markdown à compiler, dans l'ordre de la bibliothèque.
+    pub found: Vec<String>,
+    /// Ceux qu'elle nomme sans qu'ils existent dans le projet.
+    pub missing: Vec<String>,
+}
+
+/// Ce que la copie des ressources a fait avant la compilation.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ResourcesReport {
+    pub copied: usize,
+    pub up_to_date: usize,
+    pub warnings: Vec<String>,
+}
+
+/// Longueur au-delà de laquelle un réglage de Pandoc n'est plus un chemin ni
+/// une commande, mais une erreur de saisie.
+pub const PANDOC_FIELD_MAX: usize = 4096;
 
 /// Bornes d'un espacement, en pixels. Au-delà, ce n'est plus une mise en page
 /// mais une page blanche ; en deçà de zéro, rien de représentable.
@@ -208,6 +311,9 @@ fn default_line_height() -> i64 {
 fn default_outline() -> bool {
     true
 }
+fn default_wrap_source() -> bool {
+    true
+}
 
 impl Default for ProjectSettings {
     fn default() -> Self {
@@ -215,9 +321,11 @@ impl Default for ProjectSettings {
             align: default_align(),
             line_height: default_line_height(),
             show_outline: default_outline(),
+            wrap_source: default_wrap_source(),
             // Vide : la feuille de style porte les valeurs par défaut, et rien
             // ne s'écrit en base tant qu'on n'y a pas touché.
             spacing: BTreeMap::new(),
+            pandoc: PandocSettings::default(),
         }
     }
 }
@@ -244,6 +352,10 @@ pub struct Settings {
     pub files_width: i64,
     #[serde(default)]
     pub outline_width: i64,
+    /// Hauteur du journal de compilation, en pixels ; `0` comme pour les
+    /// volets : la feuille de style garde la sienne.
+    #[serde(default)]
+    pub journal_height: i64,
     /// Zone d'édition seule : les deux volets latéraux de l'éditeur retirés,
     /// pour n'avoir sous les yeux que le document.
     #[serde(default)]
@@ -283,6 +395,7 @@ impl Default for Settings {
             project_root: None,
             files_width: 0,
             outline_width: 0,
+            journal_height: 0,
             editor_focus: false,
             editor_zoom: default_zoom(),
             theme: default_theme(),

@@ -22,6 +22,8 @@ import * as store from '../store.js';
 import { KEYS, comboOf, match, hint, labelOf } from '../keys.js';
 import * as format from './format.js';
 import * as find from './find.js';
+import { cycleTab } from './editor.js';
+import * as appmenu from './appmenu.js';
 
 const rich = document.getElementById('editor-rich');
 const area = document.getElementById('editor-area');
@@ -56,8 +58,18 @@ function run(key) {
     return;
   }
 
+  if (key.id === 'tab.next' || key.id === 'tab.prev') {
+    cycleTab(key.id === 'tab.next' ? 1 : -1);
+    return;
+  }
+
   // La barre de recherche sait laquelle de ses deux zones prend le clavier, et
   // reprend au passage ce qui est sélectionné dans le document.
+  if (key.id === 'app.quit') {
+    appmenu.quit().catch(store.fail);
+    return;
+  }
+
   if (key.id === 'find' || key.id === 'replace') {
     find.open(key.id === 'find' ? 'query' : 'replacement');
     return;

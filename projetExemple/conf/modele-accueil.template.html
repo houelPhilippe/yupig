@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="fr" data-fr-scheme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <title>SDS - Documentation Fonctionnelle$if(version)$ ($version$)$endif$ — $if(title)$$title$$else$Accueil$endif$</title>
+  
+  <link rel="stylesheet" href="resources/dsfr/dist/dsfr.main.css">
+  <link rel="stylesheet" href="resources/dsfr/dist/utility/utility.main.css">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Marianne:wght@400;700&display=swap" rel="stylesheet">
+  
+  <style>
+    body { background-color: var(--background-default-grey); font-family: "Marianne", arial, sans-serif; }
+    
+    /* Header compact identique au document */
+    .fr-header__body-row { padding: 0.25rem 0 !important; margin-left: 0 !important; margin-right: 0 !important; }
+    .fr-header__service { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+    .fr-header__brand { margin-top: 0 !important; margin-bottom: 0 !important; }
+    .fr-header .fr-logo { font-size: 0.85rem !important; padding: 0.5rem !important; }
+    .fr-header__service-title { font-size: 1.1rem !important; line-height: 1.2 !important; margin-bottom: 0 !important; }
+    .fr-header__service-tagline { font-size: 0.85rem !important; line-height: 1.2 !important; margin-top: 0.25rem !important; }
+
+    /* Hero section */
+    .hero-section { background-color: var(--background-alt-blue-france); padding: 4rem 0; margin-bottom: 3rem; }
+    .hero-title { font-weight: 700; color: var(--text-title-blue-france); }
+    
+    /* Cartes */
+    .lot-section { margin-bottom: 4rem; }
+    .doc-card { height: 100%; transition: transform 0.2s ease, box-shadow 0.2s ease; border: 1px solid var(--border-default-grey); }
+    .doc-card:hover { transform: translateY(-4px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+  
+    /* Accueil custom: plus large, texte plus petit */
+    .hero-title { font-size: 2rem !important; line-height: 1.2 !important; }
+    .hero-section .fr-text--lead { font-size: 1.125rem !important; }
+    .doc-card .fr-card__title { font-size: 1.1rem !important; line-height: 1.3 !important; }
+    .doc-card .fr-card__desc { font-size: 0.85rem !important; line-height: 1.4 !important; }
+    .main-wrapper { padding: 0 2rem; }
+
+  
+    /* Details / Summary pour lots repliables */
+    .lot-details summary { cursor: pointer; list-style: none; }
+    .lot-details summary::-webkit-details-marker { display: none; }
+    .lot-details[open] summary .fold-icon { transform: rotate(90deg); }
+    .fold-icon { display: inline-block; transition: transform 0.2s ease; vertical-align: middle; margin-right: 0.5rem; }
+
+  
+    /* Forcer l'affichage en 4 colonnes via CSS Grid */
+    .cards-container {
+      display: grid !important;
+      grid-template-columns: 1fr !important;
+      gap: 1.5rem !important;
+      margin: 0 !important; /* annuler les marges négatives dsfr */
+    }
+    @media (min-width: 36em) {
+      .cards-container { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (min-width: 48em) {
+      .cards-container { grid-template-columns: repeat(3, 1fr) !important; }
+    }
+    @media (min-width: 62em) {
+      .cards-container { grid-template-columns: repeat(4, 1fr) !important; }
+    }
+    @media (min-width: 75em) {
+      .cards-container { grid-template-columns: repeat(5, 1fr) !important; }
+    }
+    /* Désactiver les largeurs DSFR pour les enfants de la grille */
+    .cards-container > .card-wrapper {
+      width: auto !important;
+      max-width: none !important;
+      flex: none !important;
+      padding: 0 !important; /* annuler les gutters dsfr */
+    }
+
+  
+    /* Filtre + listes deroulantes « Ouvrir un document » et
+       « Dictionnaire des messages » cote a cote */
+    .home-actions {
+      display: flex; align-items: center; justify-content: center;
+      gap: 1rem; flex-wrap: wrap; max-width: 1240px; margin: 0 auto;
+    }
+    .home-actions .fr-search-bar { flex: 1 1 320px; max-width: 520px; }
+    .home-actions .fr-select { flex: 0 1 300px; max-width: 300px; }
+    @media (max-width: 48em) {
+      .home-actions { display: block; }
+      .home-actions .fr-select { max-width: none; margin-top: 1rem; }
+    }
+
+    /* Rendre les cartes hyper compactes et masquer la flèche du titre */
+    .doc-card .fr-card__title a::after { display: none !important; }
+    .doc-card .fr-card__content { padding: 1rem !important; }
+    .doc-card .fr-card__title { margin-bottom: 0.25rem !important; }
+    .doc-card .fr-card__desc { margin-bottom: 0 !important; }
+
+    /* ---- Vignettes de lot (premiere vue de l'accueil) ------------------
+       Une carte par lot ; le clic ouvre la sous-page du lot (#slug-du-lot)
+       qui affiche l'ensemble des vignettes de documents de ce lot. */
+    .lots-container { grid-template-columns: 1fr !important; }
+    @media (min-width: 36em) {
+      .lots-container { grid-template-columns: repeat(2, 1fr) !important; }
+    }
+    @media (min-width: 62em) {
+      .lots-container { grid-template-columns: repeat(3, 1fr) !important; }
+    }
+    @media (min-width: 75em) {
+      .lots-container { grid-template-columns: repeat(4, 1fr) !important; }
+    }
+    .lot-card { cursor: pointer; }
+    .lot-card .fr-card__title { font-size: 1.25rem !important; line-height: 1.3 !important; }
+    .lot-card .fr-card__title a::after { display: none !important; }
+    .lot-card .fr-card__desc { font-size: 0.85rem !important; line-height: 1.4 !important; }
+    .lot-card .fr-card__img img { height: 160px; object-fit: cover; }
+
+    /* Barre de retour affichee sur la sous-page d'un lot */
+    #lot-detail-bar { display: none; align-items: center; gap: 1rem; flex-wrap: wrap; }
+    #lot-detail-title { margin: 0; font-size: 1.25rem; }
+    #lib-grid.is-single-lot .lot-details summary { display: none; }
+    #lib-grid.is-single-lot .lot-section { margin-bottom: 0; }
+
+  </style>
+
+  <script>
+    // Applique le zoom memorise avant le premier rendu, comme la liseuse
+    // (conf/modele.template.html) : la valeur est partagee entre l'accueil et
+    // les documents via la meme cle localStorage.
+    document.documentElement.style.zoom = localStorage.getItem('liseuse-zoom') || '90%';
+  </script>
+</head>
+<body>
+
+  <!-- ===================== En-tête ===================== -->
+    <header role="banner" class="fr-header">
+    <div class="fr-header__body">
+      <div class="fr-container--fluid" style="margin-left: 18px; margin-right: 10px;">
+        <div class="fr-header__body-row">
+          <div class="fr-header__brand fr-enlarge-link">
+            <div class="fr-header__brand-top">
+              <div class="fr-header__logo">
+                <p class="fr-logo">
+                  République<br>Française
+                </p>
+              </div>
+            </div>
+            <div class="fr-header__service">
+              <a href="index.html" title="Accueil - SDS">
+                <p class="fr-header__service-title">
+                  <img src="resources/img/logoMiniSDS03.png" alt="Logo SDS" style="height:24px; vertical-align:middle; margin-right:8px;">
+                  SDS - Documentation Fonctionnelle$if(version)$ ($version$)$endif$
+                </p>
+              </a>
+              <p class="fr-header__service-tagline">Portail d'accueil</p>
+            </div>
+          </div>
+          <div class="fr-header__tools">
+            <div class="fr-header__tools-links">
+              <ul class="fr-btns-group">
+                <li>
+                  <div class="fr-btn" style="padding-left: 0.5rem; padding-right: 0.5rem; cursor: default;">
+                    <span id="zoom-out-btn" class="fr-icon-subtract-line" title="Réduire le zoom" style="cursor: pointer; padding: 0 0.25rem;" aria-hidden="true"></span>
+                    <span id="zoom-level-display" style="font-weight: bold; font-size: 0.875rem; min-width: 4ch; text-align: center; user-select: none; margin: 0 0.25rem; line-height: 1;">90%</span>
+                    <span id="zoom-in-btn" class="fr-icon-add-line" title="Agrandir le zoom" style="cursor: pointer; padding: 0 0.25rem;" aria-hidden="true"></span>
+                  </div>
+                </li>
+                <li>
+                  <a class="fr-btn fr-icon-todo-line" href="filesANN/SFD-CID-SDS-VN-BS-bANN-FV-Livraison-liste.html" title="Fiches de livraison">
+                    Fiches de livraison
+                  </a>
+                </li>
+                <li>
+                  <a class="fr-btn fr-icon-git-commit-line" href="filesANN/SFD-CID-SDS-VN-BS-bANN-notesDeploiement.html" title="Note de version DF">
+                    Note de version DF
+                  </a>
+                </li>
+                <li>
+                  <button class="fr-btn fr-icon-search-line" aria-controls="modal-search" data-fr-opened="false">
+                    Rechercher
+                  </button>
+                </li>
+                <li>
+                  <button class="fr-btn fr-icon-theme-fill" aria-controls="fr-theme-modal" data-fr-opened="false">
+                    Paramètres d'affichage
+                  </button>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ===================== Hero ===================== -->
+  <div class="hero-section">
+    <div class="fr-container--fluid main-wrapper">
+      <div class="fr-grid-row fr-grid-row--center">
+        <div class="fr-col-12 fr-col-md-8 fr-text--center" style="text-align: center;">
+$if(subtitle)$
+          <p><span class="fr-badge fr-badge--info fr-mb-2w">$subtitle$</span></p>
+$endif$
+          <h1 class="hero-title fr-mb-3w">$if(title)$$title$$else$Documentation Fonctionnelle SDS$endif$</h1>
+$if(abstract)$
+          <p class="fr-text--lead">$abstract$</p>
+$endif$
+          <div class="home-actions fr-mt-4w">
+            <div class="fr-search-bar" id="search-bar" role="search">
+              <input class="fr-input" placeholder="Filtrer les documents de la bibliothèque..." type="search" id="home-search" name="home-search">
+              <button class="fr-btn" title="Filtrer">Filtrer</button>
+            </div>
+$if(library)$
+            <select class="fr-select" id="home-jump" aria-label="Ouvrir un document">
+              <option value="">Ouvrir un document…</option>
+$for(library)$
+              <optgroup label="$library.label$">
+$for(library.items)$
+                <option value="$library.items.href$">$library.items.title$</option>
+$endfor$
+              </optgroup>
+$endfor$
+            </select>
+$endif$
+$if(messages)$
+            <select class="fr-select" id="home-msg" aria-label="Dictionnaire des messages">
+              <option value="">Dictionnaire des messages…</option>
+$for(messages)$
+              <optgroup label="$messages.label$">
+$for(messages.items)$
+                <option value="$messages-href$#$messages.items.anchor$">$messages.items.code$ — $messages.items.title$</option>
+$endfor$
+              </optgroup>
+$endfor$
+            </select>
+$endif$
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================== Corps ===================== -->
+  <main class="fr-container--fluid main-wrapper fr-mb-8w" role="main" id="main-content">
+$if(body)$
+    <div class="fr-mb-6w fr-text--regular">
+$body$
+    </div>
+$endif$
+
+    <!-- Vue 1 : une vignette par lot ------------------------------------ -->
+    <div id="lot-grid">
+$if(library)$
+      <div class="cards-container lots-container">
+$for(library)$
+        <div class="lot-card-wrapper" data-label="$library.label$">
+          <div class="fr-card fr-enlarge-link doc-card lot-card">
+            <div class="fr-card__body">
+              <div class="fr-card__content">
+                <div class="fr-card__start">
+                  <ul class="fr-badges-group">
+                    <li><p class="fr-badge fr-badge--sm fr-badge--success lot-count-badge"></p></li>
+                  </ul>
+                </div>
+                <h3 class="fr-card__title">
+                  <a href="#" class="lot-link">$library.label$</a>
+                </h3>
+                <p class="fr-card__desc fr-text--sm">
+$if(library.description)$
+                  $library.description$
+$else$
+                  <span class="lot-desc-auto"></span>
+$endif$
+                  <span class="fr-icon-arrow-right-line" aria-hidden="true" style="font-size: 0.85rem; vertical-align: middle; margin-left: 0.25rem; color: var(--text-action-high-blue-france);"></span>
+                </p>
+              </div>
+            </div>
+            <div class="fr-card__header lot-card-header">
+              <div class="fr-card__img">
+                <img class="fr-responsive-img lot-card-img" alt=""$if(library.photo)$ data-src="$library.photo$"$endif$>
+              </div>
+            </div>
+          </div>
+        </div>
+$endfor$
+      </div>
+$else$
+      <div class="fr-alert fr-alert--warning">
+        <h3 class="fr-alert__title">Biblioth&egrave;que vide</h3>
+        <p>Aucun document d&eacute;clar&eacute; dans <code>conf/bibliotheque.yaml</code>.</p>
+      </div>
+$endif$
+    </div>
+
+    <!-- Vue 2 : sous-page d'un lot (vignettes des documents du lot) ------- -->
+    <div id="lot-detail-bar" class="fr-mb-3w">
+      <button class="fr-btn fr-btn--tertiary fr-icon-arrow-left-line fr-btn--icon-left" id="back-to-lots" type="button">
+        Retour aux lots
+      </button>
+      <h2 id="lot-detail-title" class="fr-h5"></h2>
+      <span id="lot-detail-count" class="fr-badge fr-badge--sm fr-badge--success"></span>
+    </div>
+
+    <div id="lib-grid">
+$if(library)$
+$for(library)$
+      <section class="lot-section" data-label="$library.label$">
+        <details class="lot-details" open>
+          <summary class="fr-h3 fr-mb-3w" style="border-bottom: 2px solid var(--border-plain-blue-france); padding-bottom: 0.5rem; display: inline-block;">
+            <span class="fr-icon-arrow-right-s-line fold-icon" aria-hidden="true"></span>$library.label$ <span class="fr-badge fr-badge--sm fr-badge--success count-badge fr-ml-2w"></span>
+          </summary>
+        <div class="cards-container">
+$for(library.items)$
+          <div class="fr-col-12 fr-col-sm-6 fr-col-md-3 card-wrapper" data-title="$library.items.title$">
+            <div class="fr-card fr-enlarge-link doc-card">
+              <div class="fr-card__body">
+                <div class="fr-card__content">
+                  <h3 class="fr-card__title">
+                    <a href="$library.items.href$">$library.items.title$</a>
+                  </h3>
+                  <p class="fr-card__desc fr-text--sm">
+$if(library.items.abstarct)$
+                    $library.items.abstarct$
+$else$
+$if(library.items.abstract)$
+                    $library.items.abstract$
+$else$
+                    Spécification fonctionnelle
+$endif$
+$endif$
+                    <span class="fr-icon-arrow-right-line" aria-hidden="true" style="font-size: 0.85rem; vertical-align: middle; margin-left: 0.25rem; color: var(--text-action-high-blue-france);"></span>
+                  </p>
+                </div>
+              </div>
+$if(library.items.photo)$
+              <div class="fr-card__header">
+                <div class="fr-card__img">
+                  <img src="$library.items.photo$" class="fr-responsive-img" alt="" style="height: 140px; object-fit: cover;">
+                </div>
+              </div>
+$endif$
+            </div>
+          </div>
+$endfor$
+        </div>
+        </details>
+      </section>
+$endfor$
+$else$
+      <div class="fr-alert fr-alert--warning">
+        <h3 class="fr-alert__title">Bibliothèque vide</h3>
+        <p>Aucun document déclaré dans <code>conf/bibliotheque.yaml</code>.</p>
+      </div>
+$endif$
+      <div class="fr-alert fr-alert--info hidden" id="no-result" style="display: none;">
+        <h3 class="fr-alert__title">Aucun résultat</h3>
+        <p>Aucun document ne correspond à votre recherche.</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Recherche globale -->
+  <dialog aria-labelledby="fr-modal-search-title" id="modal-search" class="fr-modal" role="dialog">
+    <div class="fr-container--fluid fr-container-md">
+      <div class="fr-grid-row fr-grid-row--center">
+        <!-- Wrapper redimensionnable -->
+        <div style="margin: 0 auto; width: 66vw; min-width: 300px; max-width: 95vw; height: 60vh; min-height: 250px; max-height: 90vh; resize: both; overflow: auto; padding-right: 15px; padding-bottom: 15px;">
+          <div class="fr-modal__body" style="height: 100%; width: 100%; max-height: none; display: flex; flex-direction: column;">
+            <div class="fr-modal__header">
+              <button class="fr-btn--close fr-btn" aria-controls="modal-search" title="Fermer">Fermer</button>
+            </div>
+            <div class="fr-modal__content" style="flex: 1; display: flex; flex-direction: column; overflow-y: auto;">
+              <h1 id="fr-modal-search-title" class="fr-modal__title">
+                <span class="fr-icon-search-line fr-icon--lg"></span>
+                Recherche globale
+              </h1>
+              <div class="fr-search-bar" id="search-bar-global" role="search">
+                <input class="fr-input" placeholder="Rechercher dans tous les documents... (⌘K)" type="search" id="palette-input" name="search-input">
+                <button class="fr-btn" title="Rechercher">Rechercher</button>
+              </div>
+              <div class="fr-mt-2w" id="palette-results" style="flex: 1; overflow-y: auto; padding-right: 0.5rem;">
+                <!-- Résultats de recherche -->
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Modal Thème -->
+  <dialog id="fr-theme-modal" class="fr-modal" role="dialog" aria-labelledby="fr-theme-modal-title">
+    <div class="fr-container fr-container--fluid fr-container-md">
+      <div class="fr-grid-row fr-grid-row--center">
+        <div class="fr-col-12 fr-col-md-6 fr-col-lg-4">
+          <div class="fr-modal__body">
+            <div class="fr-modal__header">
+              <button class="fr-btn--close fr-btn" aria-controls="fr-theme-modal" title="Fermer">Fermer</button>
+            </div>
+            <div class="fr-modal__content">
+              <h1 id="fr-theme-modal-title" class="fr-modal__title">Paramètres d’affichage</h1>
+              <div id="fr-display" class="fr-display">
+                <fieldset class="fr-fieldset" id="display-fieldset">
+                  <legend class="fr-fieldset__legend--regular fr-fieldset__legend" id="display-fieldset-legend">Choisissez un thème pour personnaliser l’apparence globale.</legend>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="light" type="radio" id="fr-radios-theme-light" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-light">Thème clair</label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#fff" d="M0 0h80v80H0z"/><path fill="#e3e3fd" d="M14 16h52v48H14z"/><path fill="#fff" d="M19 22h42v36H19z"/><path fill="#000091" d="M26 29h28v6H26z"/><path fill="#cacafb" d="M26 40h12v4H26z"/><path fill="#cacafb" d="M26 48h28v12H26z"/></svg></div>
+                    </div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="dark" type="radio" id="fr-radios-theme-dark" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-dark">Thème sombre</label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#161616" d="M0 0h80v80H0z"/><path fill="#2a2a2a" d="M14 16h52v48H14z"/><path fill="#161616" d="M19 22h42v36H19z"/><path fill="#8585f6" d="M26 29h28v6H26z"/><path fill="#3a3a3a" d="M26 40h12v4H26z"/><path fill="#3a3a3a" d="M26 48h28v12H26z"/></svg></div>
+                    </div>
+                  </div>
+                  <div class="fr-fieldset__element">
+                    <div class="fr-radio-group fr-radio-rich">
+                      <input value="system" type="radio" id="fr-radios-theme-system" name="fr-radios-theme">
+                      <label class="fr-label" for="fr-radios-theme-system">Système <span class="fr-hint-text">Utilise les paramètres de votre système</span></label>
+                      <div class="fr-radio-rich__img"><svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 80 80"><path fill="#fff" d="M0 0h40v80H0z"/><path fill="#161616" d="M40 0h40v80H40z"/><path fill="#e3e3fd" d="M14 16h26v48H14z"/><path fill="#2a2a2a" d="M40 16h26v48H40z"/><path fill="#fff" d="M19 22h21v36H19z"/><path fill="#161616" d="M40 22h21v36H40z"/><path fill="#000091" d="M26 29h14v6H26z"/><path fill="#8585f6" d="M40 29h14v6H40z"/><path fill="#cacafb" d="M26 40h14v4H26z"/><path fill="#3a3a3a" d="M40 40h12v4H40z"/><path fill="#cacafb" d="M26 48h14v12H26z"/><path fill="#3a3a3a" d="M40 48h14v12H40z"/></svg></div>
+                    </div>
+                  </div>
+                </fieldset>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- Script de fallback JS -->
+  <script>
+    (function(){
+      "use strict";
+      
+      // Fallback modal (le module JS du DSFR n'est pas charge sur l'accueil) :
+      // l'ouverture et la fermeture se font a la main via fr-modal--opened.
+      // Le bouton de fermeture porte le meme aria-controls que celui qui
+      // ouvre : le « :not(.fr-btn--close) » evite qu'il serve aussi a ouvrir.
+      function wireModal(id) {
+        var modal = document.getElementById(id);
+        if(!modal) return null;
+        function close(e) { if(e) e.preventDefault(); modal.classList.remove('fr-modal--opened'); }
+        Array.prototype.forEach.call(
+          document.querySelectorAll('[aria-controls="' + id + '"]:not(.fr-btn--close)'),
+          function(btn) {
+            btn.addEventListener('click', function(e) { e.preventDefault(); modal.classList.add('fr-modal--opened'); });
+          });
+        Array.prototype.forEach.call(modal.querySelectorAll('.fr-btn--close'), function(btn) {
+          btn.addEventListener('click', close);
+        });
+        document.addEventListener('keydown', function(e) {
+          if(e.key === 'Escape' && modal.classList.contains('fr-modal--opened')) close(e);
+        });
+        return modal;
+      }
+
+      var themeModal = wireModal('fr-theme-modal');
+      if(themeModal) {
+        var themeRadios = themeModal.querySelectorAll('input[name="fr-radios-theme"]');
+        var currentScheme = localStorage.getItem('scheme') || 'system';
+        document.documentElement.setAttribute('data-fr-theme', currentScheme);
+        themeRadios.forEach(function(radio) {
+          if(radio.value === currentScheme) radio.checked = true;
+          radio.addEventListener('change', function(e) {
+            if(e.target.checked) {
+              document.documentElement.setAttribute('data-fr-theme', e.target.value);
+              localStorage.setItem('scheme', e.target.value);
+            }
+          });
+        });
+      }
+
+      // ==================================================================
+      //  Navigation : vignettes des lots  ->  sous-page d'un lot
+      // ------------------------------------------------------------------
+      //  Trois modes d'affichage, tous rendus par render() :
+      //    « lots »   : la grille des vignettes de lots (#lot-grid)
+      //    « lot »    : la sous-page d'un lot, c.-a-d. la seule section
+      //                 correspondante de #lib-grid + la barre de retour
+      //    « search » : le filtre est renseigne, on montre les documents de
+      //                 tous les lots qui correspondent au mot cle
+      //  Le lot ouvert est porte par le hash de l'URL (index.html#lot-01-...)
+      //  pour que le lien soit partageable et que « Precedent » fonctionne.
+      // ==================================================================
+      // « LOT 01 - Version Nominale » -> « lot-01-version-nominale »
+      function slugify(s) {
+        var t = (s || '').toLowerCase();
+        if(t.normalize) t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        return t.replace(/[^a-z0-9]+/g, '-').replace(/^-+/, '').replace(/-+$$/, '');
+      }
+
+      var lotGrid    = document.getElementById('lot-grid');
+      var libGrid    = document.getElementById('lib-grid');
+      var detailBar  = document.getElementById('lot-detail-bar');
+      var detailTitle= document.getElementById('lot-detail-title');
+      var backBtn    = document.getElementById('back-to-lots');
+      var noResult   = document.getElementById('no-result');
+      var search     = document.getElementById('home-search');
+      var sections   = Array.prototype.slice.call(document.querySelectorAll('.lot-section'));
+      var lotCards   = Array.prototype.slice.call(document.querySelectorAll('.lot-card-wrapper'));
+      var cards      = Array.prototype.slice.call(document.querySelectorAll('.card-wrapper'));
+      var slugs      = [];
+      var labels     = {};
+      var currentLot = null;
+
+      // Chaque section de #lib-grid recoit le slug de son lot ; les sections
+      // sont toujours depliees, le repli n'a plus de sens en sous-page.
+      sections.forEach(function(sec){
+        var label = sec.getAttribute('data-label') || '';
+        var slug = slugify(label);
+        sec.setAttribute('data-lot', slug);
+        slugs.push(slug);
+        labels[slug] = label;
+        var det = sec.querySelector('details');
+        if(det) det.open = true;
+        var badge = sec.querySelector('.count-badge');
+        if(badge) badge.textContent = sec.querySelectorAll('.card-wrapper').length;
+      });
+
+      // Vignette de lot : compteur, apercu et image. L'image provient de la
+      // cle « photo » du lot dans bibliotheque.yaml ; a defaut on reprend la
+      // photo du premier document du lot, et sans photo du tout l'en-tete
+      // image est retiree pour ne pas laisser de cadre vide.
+      lotCards.forEach(function(w){
+        var slug = slugify(w.getAttribute('data-label') || '');
+        w.setAttribute('data-lot', slug);
+        var sec = null;
+        for(var k = 0; k < sections.length; k++) {
+          if(sections[k].getAttribute('data-lot') === slug) { sec = sections[k]; break; }
+        }
+        var docs = sec ? Array.prototype.slice.call(sec.querySelectorAll('.card-wrapper')) : [];
+
+        var badge = w.querySelector('.lot-count-badge');
+        if(badge) badge.textContent = docs.length + (docs.length > 1 ? ' documents' : ' document');
+
+        var auto = w.querySelector('.lot-desc-auto');
+        if(auto) {
+          auto.textContent = docs.slice(0, 3).map(function(c){
+            return c.getAttribute('data-title') || '';
+          }).join(' \u00b7 ') + (docs.length > 3 ? '\u2026' : '');
+        }
+
+        var img = w.querySelector('.lot-card-img');
+        if(img) {
+          var src = img.getAttribute('data-src');
+          if(!src && sec) {
+            var firstImg = sec.querySelector('.card-wrapper img');
+            if(firstImg) src = firstImg.getAttribute('src');
+          }
+          if(src) img.src = src;
+          else {
+            var hdr = w.querySelector('.lot-card-header');
+            if(hdr && hdr.parentNode) hdr.parentNode.removeChild(hdr);
+          }
+        }
+
+        var link = w.querySelector('.lot-link');
+        if(link) {
+          link.setAttribute('href', '#' + slug);
+          link.addEventListener('click', function(e){
+            e.preventDefault();
+            openLot(slug);
+          });
+        }
+      });
+
+      function openLot(slug) {
+        if(search) search.value = '';
+        if(('#' + slug) === location.hash) { currentLot = slug; render(); }
+        else location.hash = slug;   // declenche hashchange -> render()
+        window.scrollTo(0, 0);
+      }
+
+      function backToLots() {
+        if(search) search.value = '';
+        currentLot = null;
+        try { history.replaceState(null, '', location.pathname + location.search); }
+        catch(err) { location.hash = ''; }
+        render();
+        window.scrollTo(0, 0);
+      }
+
+      function render() {
+        var q = search ? search.value.trim().toLowerCase() : '';
+        var mode = q ? 'search' : (currentLot ? 'lot' : 'lots');
+        var anyVisible = false;
+
+        cards.forEach(function(c){
+          var t = (c.getAttribute('data-title') || '').toLowerCase();
+          var show = !q || t.indexOf(q) !== -1;
+          c.style.display = show ? '' : 'none';
+          if(show) anyVisible = true;
+        });
+
+        sections.forEach(function(sec){
+          var vis = Array.prototype.filter.call(sec.querySelectorAll('.card-wrapper'), function(c){
+            return c.style.display !== 'none';
+          }).length;
+          var badge = sec.querySelector('.count-badge');
+          if(badge) badge.textContent = vis;
+          var show = (mode === 'search') ? vis > 0
+                   : (mode === 'lot' && sec.getAttribute('data-lot') === currentLot);
+          sec.style.display = show ? '' : 'none';
+        });
+
+        if(lotGrid)   lotGrid.style.display   = (mode === 'lots') ? '' : 'none';
+        if(libGrid)   libGrid.style.display   = (mode === 'lots') ? 'none' : '';
+        if(detailBar) detailBar.style.display = (mode === 'lots') ? 'none' : 'flex';
+        if(libGrid) {
+          if(mode === 'lot') libGrid.classList.add('is-single-lot');
+          else libGrid.classList.remove('is-single-lot');
+        }
+        if(detailTitle) {
+          detailTitle.textContent = (mode === 'search')
+            ? 'R\u00e9sultats pour \u00ab\u00a0' + q + '\u00a0\u00bb'
+            : (labels[currentLot] || '');
+        }
+        var detailCount = document.getElementById('lot-detail-count');
+        if(detailCount) {
+          var n = 0;
+          cards.forEach(function(c){
+            if(c.style.display === 'none') return;
+            var sec = c.closest ? c.closest('.lot-section') : null;
+            if(!sec || sec.style.display !== 'none') n++;
+          });
+          detailCount.textContent = n + (n > 1 ? ' documents' : ' document');
+        }
+        if(noResult) noResult.style.display = (mode === 'search' && !anyVisible) ? 'block' : 'none';
+      }
+
+      function syncFromHash() {
+        var raw = (location.hash || '').replace(/^#/, '');
+        var h = raw;
+        try { h = decodeURIComponent(raw); } catch(err) { h = raw; }
+        currentLot = (slugs.indexOf(h) !== -1) ? h : null;
+        render();
+      }
+
+      if(backBtn) backBtn.addEventListener('click', backToLots);
+      if(search)  search.addEventListener('input', render);
+      window.addEventListener('hashchange', syncFromHash);
+      syncFromHash();
+
+      // Liste deroulante : ouvre directement le document choisi
+      var jump = document.getElementById('home-jump');
+      if(jump) {
+        jump.addEventListener('change', function(){
+          if(this.value) window.location.href = this.value;
+        });
+      }
+
+      // Dictionnaire des messages : ouvre la page « Liste des messages »
+      // directement sur l'ancre du message choisi (ex. IE501 -> ...#501).
+      var msgJump = document.getElementById('home-msg');
+      if(msgJump) {
+        msgJump.addEventListener('change', function(){
+          if(this.value) window.location.href = this.value;
+        });
+      }
+
+      // ---- Zoom (memes paliers et meme cle que la liseuse) ----------------
+      var btnOut = document.getElementById('zoom-out-btn');
+      var btnIn = document.getElementById('zoom-in-btn');
+      var zoomDisplay = document.getElementById('zoom-level-display');
+      if (btnOut && btnIn && zoomDisplay) {
+        var zoomLevels = [50, 75, 80, 90, 100, 110, 125, 150, 175, 200];
+        var currentZoom = parseInt(localStorage.getItem('liseuse-zoom') || '90%', 10);
+        if(isNaN(currentZoom)) currentZoom = 90;
+
+        function applyZoom(z) {
+          currentZoom = z;
+          var val = z + '%';
+          zoomDisplay.textContent = val;
+          document.documentElement.style.zoom = val;
+          localStorage.setItem('liseuse-zoom', val);
+        }
+        applyZoom(currentZoom);
+
+        btnOut.addEventListener('click', function() {
+          var next = currentZoom;
+          for(var i = zoomLevels.length - 1; i >= 0; i--) {
+            if(zoomLevels[i] < currentZoom) { next = zoomLevels[i]; break; }
+          }
+          applyZoom(next);
+        });
+
+        btnIn.addEventListener('click', function() {
+          var next = currentZoom;
+          for(var i = 0; i < zoomLevels.length; i++) {
+            if(zoomLevels[i] > currentZoom) { next = zoomLevels[i]; break; }
+          }
+          applyZoom(next);
+        });
+      }
+
+      // ---- Recherche globale dans tous les documents ----------------------
+      // Meme mecanique que la liseuse (conf/modele.template.html) : chaque
+      // document de la bibliotheque est telecharge une fois, son contenu
+      // decoupe en titres / paragraphes / items, puis filtre a la volee. Le
+      // resultat renvoie vers le document avec ?sq=..., que la liseuse
+      // exploite pour surligner le terme cherche a l'arrivee.
+      // La liseuse part de sa liste laterale ; ici, des liens des cartes.
+      wireModal('modal-search');
+      var pInput = document.getElementById('palette-input');
+      var pResults = document.getElementById('palette-results');
+      var docLinks = Array.prototype.slice.call(document.querySelectorAll('#lib-grid .fr-card__title a'));
+      var searchDebounce = null;
+      var globalSearchCache = null;
+
+      async function buildSearchCache() {
+        if (globalSearchCache) return globalSearchCache;
+        globalSearchCache = [];
+        await Promise.all(docLinks.map(async function(link) {
+          var url = link.getAttribute('href');
+          if(!url) return;
+          var docTitle = (link.textContent || '').replace(/\s+/g, ' ').trim();
+          try {
+            var res = await fetch(url);
+            var html = await res.text();
+            var doc = new DOMParser().parseFromString(html, 'text/html');
+            var elements = Array.prototype.slice.call(doc.querySelectorAll('.reading-content h1, .reading-content h2, .reading-content h3, .reading-content h4, .reading-content h5, .reading-content h6, .reading-content p, .reading-content li'));
+            var searchable = elements.map(function(el) {
+              var idEl = el.closest('[id]') || el;
+              return { text: el.textContent.replace(/\s+/g, ' ').trim(), id: idEl.id || '', tag: el.tagName };
+            }).filter(function(e) { return e.text.length > 0; });
+            globalSearchCache.push({ url: url, title: docTitle, elements: searchable });
+          } catch(e) { console.error('Erreur fetch', url, e); }
+        }));
+        return globalSearchCache;
+      }
+
+      async function renderPalette(q){
+        q = q.trim().toLowerCase();
+        if (!q) { pResults.innerHTML = '<p class="fr-text--sm">Saisissez un texte...</p>'; return; }
+        pResults.innerHTML = '<p class="fr-text--sm">Recherche en cours...</p>';
+
+        var cache = await buildSearchCache();
+        var results = [];
+        for (var i = 0; i < cache.length; i++) {
+          var doc = cache[i];
+          for (var j = 0; j < doc.elements.length; j++) {
+            var el = doc.elements[j];
+            var idx = el.text.toLowerCase().indexOf(q);
+            if (idx !== -1) {
+              var start = Math.max(0, idx - 40);
+              var end = Math.min(el.text.length, idx + q.length + 40);
+              var excerpt = (start > 0 ? '...' : '') + el.text.substring(start, end) + (end < el.text.length ? '...' : '');
+              results.push({ docUrl: doc.url, docTitle: doc.title, excerpt: excerpt, id: el.id, tag: el.tag });
+            }
+            if (results.length >= 50) break;
+          }
+          if (results.length >= 50) break;
+        }
+
+        if(!results.length){ pResults.innerHTML = '<p class="fr-text--sm">Aucun résultat trouvé</p>'; return; }
+
+        pResults.innerHTML = '<ul class="fr-links-group" style="list-style:none; padding:0; text-align:left;"></ul>';
+        var ul = pResults.querySelector('ul');
+        results.forEach(function(r){
+          var li = document.createElement('li');
+          li.style.marginBottom = '1rem';
+          var a = document.createElement('a');
+          a.href = r.docUrl + '?sq=' + encodeURIComponent(q) + (r.id ? '#' + r.id : '');
+          a.className = 'fr-link';
+          var safeExcerpt = r.excerpt.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          var reg = new RegExp('(' + q.replace(/[.*+?^$${}()|[\]\\]/g, '\\$$&') + ')', 'gi');
+          var highlightedExcerpt = safeExcerpt.replace(reg, '<mark>$$1</mark>');
+          a.innerHTML = '<strong>' + r.docTitle + '</strong> <span class="fr-badge fr-badge--sm fr-badge--info fr-ml-1w">' + r.tag + '</span><br><span class="fr-text--xs fr-text-default--grey">' + highlightedExcerpt + '</span>';
+          li.appendChild(a);
+          ul.appendChild(li);
+        });
+      }
+
+      if(pInput) {
+        pInput.addEventListener('input', function(){
+          clearTimeout(searchDebounce);
+          searchDebounce = setTimeout(function(){ renderPalette(pInput.value); }, 200);
+        });
+        // Raccourci ⌘K / Ctrl+K, comme dans la liseuse.
+        window.addEventListener('keydown', function(e){
+          if((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')){
+            e.preventDefault();
+            var btn = document.querySelector('[aria-controls="modal-search"]:not(.fr-btn--close)');
+            if(btn) btn.click();
+            setTimeout(function(){ pInput.focus(); buildSearchCache(); }, 100);
+          }
+        });
+        var modalSearchBtn = document.querySelector('[aria-controls="modal-search"]:not(.fr-btn--close)');
+        if (modalSearchBtn) {
+          modalSearchBtn.addEventListener('click', function(){
+            setTimeout(function(){ pInput.focus(); buildSearchCache(); }, 100);
+          });
+        }
+      }
+    })();
+  </script>
+</body>
+</html>

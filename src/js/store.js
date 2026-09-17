@@ -14,7 +14,7 @@ export const state = {
   stats: { total: 0, unread: 0, favorites: 0, feeds: 0, lastSync: null },
   settings: {
     refreshMinutes: 15, feedPaneOpen: false, showThumbnails: true, showReservedTile: true,
-    app: 'veille', projectRoot: null, filesWidth: 0, outlineWidth: 0,
+    app: 'veille', projectRoot: null, filesWidth: 0, outlineWidth: 0, journalHeight: 0,
     editorFocus: false, editorZoom: 100,
   },
 
@@ -61,7 +61,10 @@ export const state = {
     // Mise en page, propre au projet ouvert. `spacing` ne porte que ce à quoi
     // l'on a touché : une clé absente veut dire « comme la feuille de style le
     // dit », et c'est `ui/project.js` qui connaît ces valeurs par défaut.
-    project: { align: 'gauche', lineHeight: 165, spacing: {} },
+    project: {
+      align: 'gauche', lineHeight: 165, spacing: {},
+      pandoc: { htmlDest: '', htmlCommand: '', htmlIndexCommand: '', pdfDest: '', pdfCommand: '' },
+    },
     dialogOpen: false,
 
     // Barre de recherche : ouverte ou non, ce qu'on y cherche, et les trois
@@ -726,6 +729,32 @@ export async function renameFile(path, name) {
 }
 
 /** Copie un fichier à côté de lui-même et rend le chemin de la copie. */
+/**
+ * Compile un document par Pandoc, en HTML ou en PDF (`format`).
+ *
+ * Rien ne change dans l'état : la page part hors du projet, le plus souvent,
+ * et l'arbre n'a rien à relire. L'action passe quand même par ici, comme toute
+ * commande qui touche au disque.
+ */
+export async function compileDocument(path, format, resources = true) {
+  return api.compileDocument(path, format, resources);
+}
+
+/** Les documents Markdown d'un dossier, pour une compilation en série. */
+export async function markdownInDir(path) {
+  return api.markdownInDir(path);
+}
+
+/** Les documents de la bibliothèque du projet, pour « Compiler le projet ». */
+export async function markdownInProject() {
+  return api.markdownInProject();
+}
+
+/** Quitte l'application. */
+export async function quit() {
+  return api.quitApp();
+}
+
 export async function duplicateFile(path) {
   const next = await api.duplicateFile(path);
   state.edition.tree = await api.projectTree(state.edition.expanded);
@@ -808,9 +837,10 @@ let noticeTick = 0;
  * Affiche un message transitoire.
  *
  * Une erreur y reste plus longtemps qu'un accusé de réception : la première
- * demande à être lue, le second se contente d'être vu.
+ * demande à être lue, le second se contente d'être vu. `ms` prolonge un message
+ * qui a plus à dire — le chemin d'une page compilée, ses avertissements.
  */
-export function notify(text, kind = 'ok') {
+export function notify(text, kind = 'ok', ms = null) {
   state.notice = { text: String(text), kind };
   emit();
 
@@ -821,7 +851,7 @@ export function notify(text, kind = 'ok') {
       state.notice = null;
       emit();
     },
-    kind === 'error' ? 6000 : 2500,
+    ms ?? (kind === 'error' ? 6000 : 2500),
   );
 }
 
