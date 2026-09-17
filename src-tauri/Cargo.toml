@@ -1,6 +1,6 @@
 [package]
 name = "veille"
-version = "4.1.0"
+version = "1.0.3"
 description = "Tableau de bord de veille — agrégateur RSS/Atom autonome"
 authors = ["Philippe Houel"]
 edition = "2021"
