@@ -63,7 +63,7 @@ export const state = {
     // dit », et c'est `ui/project.js` qui connaît ces valeurs par défaut.
     project: {
       align: 'gauche', lineHeight: 165, spacing: {},
-      pandoc: { htmlDest: '', htmlCommand: '', htmlIndexCommand: '', pdfDest: '', pdfCommand: '' },
+      pandoc: { htmlDest: '', htmlCommand: '', htmlIndexCommand: '', pdfDest: '', pdfCommand: '', docxDest: '', docxCommand: '', bookDest: '', bookFile: '' },
     },
     dialogOpen: false,
 
@@ -713,6 +713,36 @@ function step(path, from, to) {
 // (`renameFile`) ou s'en va avec lui (`deleteFile`).
 
 /** Renomme un fichier, et l'onglet qui le montrait suit son nouveau nom. */
+/**
+ * Crée un document Markdown vide dans un dossier — `dir` vide pour la racine —
+ * et l'ouvre dans un onglet : on vient d'y écrire, pas de le regarder dans
+ * l'arbre.
+ *
+ * Le dossier se déplie : sans cela le document neuf n'y paraîtrait pas, et
+ * l'arbre semblerait n'avoir rien fait.
+ */
+export async function createFile(dir, name) {
+  const path = await api.createFile(dir, name);
+  expand(dir);
+  await refreshTree();
+  await openDocument(path);
+  return path;
+}
+
+/** Crée un dossier, et le déplie : ce qu'on y met vient juste après. */
+export async function createDir(dir, name) {
+  const path = await api.createDir(dir, name);
+  expand(dir);
+  expand(path);
+  await refreshTree();
+  return path;
+}
+
+/** Déplie un dossier de l'arbre, s'il ne l'était pas déjà. */
+function expand(dir) {
+  if (dir && !state.edition.expanded.includes(dir)) state.edition.expanded.push(dir);
+}
+
 export async function renameFile(path, name) {
   const next = await api.renameFile(path, name);
   if (next !== path) {
@@ -748,6 +778,11 @@ export async function markdownInDir(path) {
 /** Les documents de la bibliothèque du projet, pour « Compiler le projet ». */
 export async function markdownInProject() {
   return api.markdownInProject();
+}
+
+/** Compile le book du projet : un seul PDF, assemblé par le script du projet. */
+export async function compileBook() {
+  return api.compileBook();
 }
 
 /** Quitte l'application. */

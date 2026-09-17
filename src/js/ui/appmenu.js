@@ -2,7 +2,8 @@
 //
 // Un menu traditionnel, commun aux deux coques, pour ce qui porte sur le projet
 // ou l'application entière plutôt que sur un document : compiler les documents
-// de la bibliothèque du projet, régler le projet, quitter.
+// de la bibliothèque du projet en HTML, en PDF ou en Word, régler le projet,
+// quitter.
 //
 // Il reprend le cadre de `ui/menu.js` — celui des menus contextuels — posé sous
 // le bouton plutôt qu'au pointeur : mêmes entrées, même fermeture au clic à
@@ -26,18 +27,20 @@ const button = document.getElementById('app-menu');
 /** Ouvre le menu sous le bouton, calé sur son bord gauche. */
 function openMenu() {
   const noProject = !store.state.edition.root;
+  // Une compilation à la fois : les entrées s'éteignent tant qu'une autre tourne.
+  const off = noProject || journal.busy();
   const box = button.getBoundingClientRect();
   button.setAttribute('aria-expanded', 'true');
 
   menu.open(box.left, box.bottom + 4, [
     menu.title('Projet'),
-    menu.item(
-      'Compiler le projet en HTML',
-      PATH.compile,
-      () => fileops.compileProject(flush),
-      // Une compilation à la fois : l'entrée s'éteint tant qu'une autre tourne.
-      noProject || journal.busy(),
-    ),
+    // Les documents que nomme conf/bibliotheque.yaml, dans les trois formats.
+    menu.item('Compiler le projet en HTML', PATH.compile, () => fileops.compileProject('html', flush), off),
+    menu.item('Compiler le projet en PDF', PATH.compile, () => fileops.compileProject('pdf', flush), off),
+    menu.item('Compiler le projet en Word', PATH.compile, () => fileops.compileProject('docx', flush), off),
+    // Le book : un seul PDF, assemblé par le script du projet.
+    menu.item('Compiler un book (PDF)', PATH.book, () => fileops.compileBook(flush), off),
+    menu.separator(),
     menu.item(
       'Paramètres du projet',
       PATH.sliders,

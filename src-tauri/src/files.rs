@@ -425,6 +425,60 @@ fn file(root: &Path, rel: &str) -> Result<PathBuf> {
     Ok(path)
 }
 
+/// Le dossier visé, s'il en est bien un. `rel` vide désigne la racine.
+fn directory(root: &Path, rel: &str) -> Result<PathBuf> {
+    let path = resolve(root, rel)?;
+    if !path.is_dir() {
+        return Err(Error::Other(format!("« {rel} » n'est pas un dossier")));
+    }
+    Ok(path)
+}
+
+/// Crée un document Markdown vide dans `dir`, et rend son chemin relatif.
+///
+/// L'extension est ajoutée si le nom n'en porte pas : la commande crée un
+/// document, et c'est l'extension qui en fait un — l'arbre ne l'ouvrirait pas
+/// autrement, et le sommaire n'en dirait rien.
+///
+/// Un nom déjà pris est refusé plutôt qu'écrasé, comme pour un renommage : le
+/// fichier existant porte peut-être tout un chapitre.
+pub fn create_file(root: &Path, dir: &str, name: &str) -> Result<String> {
+    let parent = directory(root, dir)?;
+    let name = check_name(name)?;
+    let name = if is_markdown(name) {
+        name.to_string()
+    } else {
+        format!("{name}.md")
+    };
+
+    let target = parent.join(&name);
+    if target.exists() {
+        return Err(Error::Other(format!(
+            "« {name} » existe déjà dans ce dossier"
+        )));
+    }
+    // Vide : c'est un document neuf, et rien n'a à y être écrit d'office.
+    std::fs::write(&target, "")?;
+    Ok(relative(&real_root(root)?, &target))
+}
+
+/// Crée un dossier dans `dir`, et rend son chemin relatif.
+pub fn create_dir(root: &Path, dir: &str, name: &str) -> Result<String> {
+    let parent = directory(root, dir)?;
+    let name = check_name(name)?;
+
+    let target = parent.join(name);
+    if target.exists() {
+        return Err(Error::Other(format!(
+            "« {name} » existe déjà dans ce dossier"
+        )));
+    }
+    // `create_dir` et non `create_dir_all` : un nom sans dossier ne peut pas en
+    // demander plusieurs, et l'erreur dit alors ce qui manque.
+    std::fs::create_dir(&target)?;
+    Ok(relative(&real_root(root)?, &target))
+}
+
 /// Renomme un fichier sans le déplacer, et rend son nouveau chemin relatif.
 ///
 /// Un nom déjà pris est refusé plutôt qu'écrasé : `rename` remplacerait le
@@ -802,6 +856,30 @@ mod tests {
         assert!(markdown_in(&root, "e.md").is_err());
 
         std::fs::remove_dir_all(&base).ok();
+    }
+
+    /// Création d'un document et d'un dossier : l'extension posée, les noms
+    /// déjà pris refusés, et rien hors du projet.
+    #[test]
+    fn creation_d_un_document_et_d_un_dossier() {
+        let dir = Temp::new("creer");
+        let root = &dir.0;
+        std::fs::create_dir_all(root.join("lot")).unwrap();
+
+        assert_eq!(create_file(root, "", "notes").unwrap(), "notes.md");
+        assert_eq!(std::fs::read_to_string(root.join("notes.md")).unwrap(), "");
+        assert_eq!(create_file(root, "lot", "Chap 1.markdown").unwrap(), "lot/Chap 1.markdown");
+        assert_eq!(create_dir(root, "lot", "img").unwrap(), "lot/img");
+        assert!(root.join("lot/img").is_dir());
+
+        // Déjà pris, nom vide, nom caché, dossier dans le nom, hors du projet.
+        assert!(create_file(root, "", "notes.md").is_err());
+        assert!(create_dir(root, "lot", "img").is_err());
+        assert!(create_file(root, "", "  ").is_err());
+        assert!(create_file(root, "", ".cache").is_err());
+        assert!(create_file(root, "", "sous/notes.md").is_err());
+        assert!(create_file(root, "..", "dehors.md").is_err());
+        assert!(create_file(root, "notes.md", "x.md").is_err());
     }
 
     #[test]

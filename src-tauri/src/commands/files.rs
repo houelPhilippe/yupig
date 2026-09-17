@@ -227,6 +227,19 @@ pub async fn rename_file(db: State<'_, Arc<Db>>, path: String, name: String) -> 
     files::rename(&root(&db)?, &path, &name)
 }
 
+/// Crée un document Markdown vide dans un dossier du projet — `path` vide
+/// désigne la racine — et rend son chemin.
+#[tauri::command]
+pub async fn create_file(db: State<'_, Arc<Db>>, path: String, name: String) -> Result<String> {
+    files::create_file(&root(&db)?, &path, &name)
+}
+
+/// Crée un dossier dans un dossier du projet, et rend son chemin.
+#[tauri::command]
+pub async fn create_dir(db: State<'_, Arc<Db>>, path: String, name: String) -> Result<String> {
+    files::create_dir(&root(&db)?, &path, &name)
+}
+
 /// Copie un fichier à côté de lui-même et rend le chemin de la copie.
 #[tauri::command]
 pub async fn duplicate_file(db: State<'_, Arc<Db>>, path: String) -> Result<String> {
@@ -408,6 +421,53 @@ async fn compile(
 #[tauri::command]
 pub async fn markdown_in_dir(db: State<'_, Arc<Db>>, path: String) -> Result<Vec<String>> {
     files::markdown_in(&root(&db)?, &path)
+}
+
+/// Compile le **book** : un seul PDF pour tout le projet.
+///
+/// C'est le script du projet qui assemble les documents — `conf/generate_book.py`
+/// sur `conf/book_structure.yaml` — puis appelle Pandoc. L'interface ne donne
+/// rien à lancer : les trois chemins sont fixes, et seuls le répertoire de
+/// destination et le nom du PDF viennent des réglages du projet.
+///
+/// Le script et la structure passent par `files::resolve` : ils doivent être
+/// dans le projet, liens symboliques écartés.
+#[tauri::command]
+pub async fn compile_book(app: tauri::AppHandle, db: State<'_, Arc<Db>>) -> Result<Compiled> {
+    let result = book(app.clone(), &db).await;
+    if let Err(e) = &result {
+        journal(&app, LogLevel::Error, e.to_string());
+    }
+    result
+}
+
+async fn book(app: tauri::AppHandle, db: &Db) -> Result<Compiled> {
+    let root = root(db)?;
+    for needed in [pandoc::BOOK_SCRIPT, pandoc::BOOK_STRUCTURE, pandoc::BOOK_DEFAULTS] {
+        if !files::resolve(&root, needed)?.is_file() {
+            return Err(Error::Other(format!("{needed} introuvable dans le projet")));
+        }
+    }
+
+    let settings = db.project_settings(&root.to_string_lossy())?.pandoc;
+    let plan = pandoc::plan_book(&settings.book_dest, &settings.book_file)?;
+    let command = pandoc::display(&plan);
+
+    let outcome = tauri::async_runtime::spawn_blocking(move || {
+        let mut log = |level: LogLevel, text: String| journal(&app, level, text);
+        log(LogLevel::Step, "Assemblage du book puis compilation par Pandoc".into());
+        log(LogLevel::Command, pandoc::display(&plan));
+        pandoc::run(&root, &plan, &mut log)
+    })
+    .await
+    .map_err(|e| Error::Other(format!("compilation interrompue : {e}")))??;
+
+    Ok(Compiled {
+        command,
+        output: outcome.output.map(|o| o.to_string_lossy().into_owned()),
+        log: outcome.log,
+        resources: None,
+    })
 }
 
 /// Les documents du projet : ceux dont `conf/bibliotheque.yaml` nomme la page,

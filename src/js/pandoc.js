@@ -15,7 +15,7 @@
 
 export const VARIABLES = [
   { name: 'fichier', label: 'le document, relatif au projet' },
-  { name: 'sortie', label: 'le document produit : destination + même chemin, en .html ou .pdf' },
+  { name: 'sortie', label: 'le document produit : destination + même chemin, en .html, .pdf ou .docx' },
   { name: 'destination', label: 'le répertoire de destination' },
   { name: 'dossier', label: 'le dossier du document, relatif au projet' },
   { name: 'nom', label: 'le nom du document, sans extension' },
@@ -25,4 +25,5 @@ export const VARIABLES = [
 export const FORMATS = {
   html: { label: 'HTML', product: 'Page HTML produite' },
   pdf: { label: 'PDF', product: 'PDF produit' },
+  docx: { label: 'Word', product: 'Document Word produit' },
 };

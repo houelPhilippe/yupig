@@ -243,6 +243,16 @@ export function wire() {
         return;
       }
 
+      // Un bloc de code a le sien : son retrait. Même règle que pour un lien —
+      // le `<pre>` visé dans le rendu, les clôtures qui entourent le curseur
+      // dans la source.
+      const block = host === rich ? richCodeAt(ev.target) : sourceCodeAt();
+      if (block) {
+        close();
+        openCodeMenu(block, ev.clientX, ev.clientY);
+        return;
+      }
+
       // Un shortcode a le sien : ses propriétés, ou son retrait. Il ne vaut
       // que dans le rendu — dans la source, le shortcode n'est que du texte,
       // et c'est le menu de mise en forme qui s'ouvre.
@@ -1721,6 +1731,77 @@ function sourceLinkAt() {
     return { from: start, to: end, text: match[0], label: match[2], href: match[3] };
   }
   return null;
+}
+
+// ------------------------------------------------------------ blocs de code
+
+/** Le bloc de code du rendu sous le pointeur, s'il y en a un. */
+function richCodeAt(target) {
+  const pre = target.closest?.('pre');
+  return pre && rich.contains(pre) ? { node: pre } : null;
+}
+
+/**
+ * Le bloc de code clôturé de la source où se trouve le curseur : de la ligne
+ * qui l'ouvre à celle qui le ferme, comprises.
+ *
+ * Une clôture est une suite d'au moins trois accents graves ou tildes en tête
+ * de ligne ; elle se ferme par une suite du même caractère, au moins aussi
+ * longue, seule sur sa ligne. Un bloc resté ouvert court jusqu'à la fin du
+ * document, comme Markdown le lit.
+ */
+function sourceCodeAt() {
+  const { selectionStart: caret, value } = area;
+  const lines = value.split('\n');
+
+  let at = 0;
+  let open = null;
+  for (const line of lines) {
+    const end = at + line.length;
+    if (!open) {
+      const fence = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1];
+      if (fence) open = { from: at, char: fence[0], size: fence.length };
+    } else {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/)?.[1];
+      if (close && close[0] === open.char && close.length >= open.size) {
+        if (caret >= open.from && caret <= end) return { from: open.from, to: end };
+        open = null;
+      }
+    }
+    at = end + 1;
+  }
+  if (open && caret >= open.from) return { from: open.from, to: value.length };
+  return null;
+}
+
+function openCodeMenu(block, x, y) {
+  ctxMenu.open(x, y, [
+    ctxMenu.title('Bloc de code'),
+    ctxMenu.item('Supprimer le bloc de code', PATH.trash, () => removeCode(block)),
+  ]);
+}
+
+/**
+ * Retire le bloc de code, clôtures et langage compris.
+ *
+ * Dans la source, la ligne vide qui le séparait du bloc suivant part avec lui :
+ * sans cela, deux lignes vides se suivraient à sa place. Comme toute écriture,
+ * le retrait passe par `store.edit` — il s'annule.
+ */
+function removeCode(block) {
+  if (block.node) {
+    if (!block.node.isConnected) return;
+    block.node.remove();
+    commit();
+    return;
+  }
+
+  const { value } = area;
+  let { from, to } = block;
+  // Le saut de ligne qui termine la clôture, puis une ligne vide qui suivrait.
+  if (value[to] === '\n') to += 1;
+  if (value[to] === '\n' && (from === 0 || value[from - 1] === '\n')) to += 1;
+  replaceRange(from, to, '');
 }
 
 /**

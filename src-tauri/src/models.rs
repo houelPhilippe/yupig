@@ -221,6 +221,19 @@ pub struct PandocSettings {
     /// l'extension de `{sortie}` change.
     #[serde(default)]
     pub pdf_command: String,
+    /// Dossier où déposer les documents Word compilés.
+    #[serde(default)]
+    pub docx_dest: String,
+    /// Modèle de la commande de compilation Word (`.docx`), aux mêmes
+    /// variables.
+    #[serde(default)]
+    pub docx_command: String,
+    /// Dossier où déposer le PDF du book.
+    #[serde(default)]
+    pub book_dest: String,
+    /// Nom du PDF du book — un nom, non un chemin.
+    #[serde(default)]
+    pub book_file: String,
 }
 
 /// La nature d'une ligne du journal de compilation, qui en décide l'aspect.

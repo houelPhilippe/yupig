@@ -187,7 +187,7 @@ function clean(node) {
   // Une image désignée par un chemin relatif au document ne veut rien dire
   // pour la webview : on la traduit en adresse `asset:`.
   if (tag === 'img' && resolveImage) {
-    const src = out.getAttribute('src');
+    const src = filePath(out.getAttribute('src'));
     if (src && !/^[a-z][a-z0-9+.-]*:/i.test(src)) {
       const url = resolveImage(src);
       // Le chemin d'origine est conservé : c'est lui qui doit repartir dans le
@@ -320,6 +320,73 @@ function liftFigures(doc) {
 
 /** L'appel d'une note de bas de page, dans la syntaxe de Pandoc : `[^1]`. */
 const FOOTNOTE = /\[\^([^\]\s]+)\]/g;
+
+/**
+ * Le chemin de fichier d'une adresse d'image, tel que le document l'écrit.
+ *
+ * `marked` encode l'adresse qu'il rend — une espace devient `%20`, une lettre
+ * accentuée `%C3%A9`. Ce n'est plus le nom du fichier : l'aperçu chercherait
+ * un fichier qui n'existe pas, et le chemin reparti dans le document porterait
+ * ces codes au lieu du nom. `decodeURI` défait cet encodage sans toucher aux
+ * caractères réservés (`%23` reste `%23`) ; une adresse mal formée reste telle
+ * quelle.
+ */
+function filePath(src) {
+  if (!src) return src;
+  try {
+    return decodeURI(src);
+  } catch {
+    return src;
+  }
+}
+
+/** Une image dont l'adresse porte une espace, hors titre entre guillemets. */
+const SPACED_IMAGE = /(!\[(?:[^[\]]|\[[^\]]*\])*\]\()([^()<>"'\n]*?\s[^()<>"'\n]*?)(\))/g;
+
+/**
+ * Met entre chevrons l'adresse d'une image qui porte des espaces.
+ *
+ * Pandoc lit `![légende](img/mon schéma.svg)` ; CommonMark, donc `marked`, non :
+ * une adresse s'y arrête à la première espace, et toute la ligne restait du
+ * texte — que `turndown` réécrivait ensuite en crochets échappés, abîmant le
+ * fichier à la première frappe. La forme `(<img/mon schéma.svg>)` est la même
+ * image pour les deux ; elle n'est posée que pour la lecture, et la règle
+ * `image` réécrit le chemin tel qu'il était, espaces comprises.
+ *
+ * Rien n'est touché dans un bloc de code ni dans du code en ligne. Une adresse
+ * suivie d'un titre — `(img.png "titre")` — n'est pas concernée : ses
+ * guillemets l'écartent du motif.
+ */
+function expandImagePaths(markdown) {
+  let fence = null;
+
+  return String(markdown ?? '')
+    .split('\n')
+    .map((line) => {
+      const rail = line.match(/^\s*(```+|~~~+)/)?.[1];
+      if (rail) {
+        if (!fence) fence = rail[0];
+        else if (rail[0] === fence) fence = null;
+        return line;
+      }
+      if (fence || !line.includes('![')) return line;
+
+      // Les morceaux impairs sont du code en ligne : on les laisse.
+      return line
+        .split(/(`+[^`]*`+)/)
+        .map((part, i) =>
+          i % 2
+            ? part
+            : part.replace(SPACED_IMAGE, (_all, head, dest, tail) =>
+                dest.trim().includes(' ') || dest.trim().includes('\t')
+                  ? `${head}<${dest.trim()}>${tail}`
+                  : _all,
+              ),
+        )
+        .join('');
+    })
+    .join('\n');
+}
 
 /**
  * Désamorce les définitions de notes avant que `marked` ne les lise.
@@ -637,7 +704,10 @@ export function toFragment(markdown, resolve = null) {
   const { body } = splitFront(markdown);
   // Les grilles de Pandoc deviennent du HTML avant l'analyse : `marked` ne les
   // connaît pas et les rendrait en texte brut.
-  const html = globalThis.marked.parse(expand(expandFootnotes(body)), { gfm: true, breaks: false });
+  const html = globalThis.marked.parse(
+    expand(expandImagePaths(expandFootnotes(body))),
+    { gfm: true, breaks: false },
+  );
   const doc = new DOMParser().parseFromString(html, 'text/html');
   liftFigures(doc);
   liftPipeTables(doc);

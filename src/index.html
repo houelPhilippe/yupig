@@ -284,6 +284,9 @@
                 title="Paramètres du projet" style="width:24px;height:24px"></button>
         <button class="btn btn-ghost btn-icon" id="project-open"
                 title="Projets…" style="width:24px;height:24px"></button>
+        <button class="btn btn-ghost btn-icon" id="project-new"
+                title="Créer un fichier ou un répertoire à la racine du projet"
+                aria-haspopup="menu" style="width:24px;height:24px"></button>
         <button class="btn btn-ghost btn-icon" id="project-refresh"
                 title="Actualiser l'arborescence" style="width:24px;height:24px"></button>
       </div>
@@ -609,6 +612,60 @@
           <div class="settings__field">
             <div class="settings__label">Aperçu pour le document ouvert</div>
             <code class="pandoc__preview" id="pandoc-pdf-preview"></code>
+          </div>
+        </div>
+
+        <div class="settings__group" role="group" aria-labelledby="pandoc-docx-title">
+          <h4 class="settings__group-title" id="pandoc-docx-title">
+            <span class="settings__tag">DOCX</span> Compilation Word
+          </h4>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-docx-dest">Répertoire de destination</label>
+            <div class="meta__row">
+              <input class="input" id="pandoc-docx-dest" type="text" autocomplete="off"
+                     spellcheck="false" placeholder="/chemin/vers/resources/docx">
+              <button class="btn btn-secondary" id="pandoc-docx-browse" type="button">Parcourir…</button>
+            </div>
+          </div>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-docx-command">Modèle de commande Word</label>
+            <textarea class="input pandoc__command" id="pandoc-docx-command" rows="4"
+                      autocomplete="off" spellcheck="false"></textarea>
+          </div>
+
+          <div class="settings__field">
+            <div class="settings__label">Aperçu pour le document ouvert</div>
+            <code class="pandoc__preview" id="pandoc-docx-preview"></code>
+          </div>
+        </div>
+
+        <!-- Le book n'a pas de modèle de commande : c'est le script du projet
+             qui assemble les documents, et les trois chemins qu'il emploie sont
+             fixes (`conf/generate_book.py`, `conf/book_structure.yaml`,
+             `conf/defaults-book.yaml`). -->
+        <div class="settings__group" role="group" aria-labelledby="pandoc-book-title">
+          <h4 class="settings__group-title" id="pandoc-book-title">
+            <span class="settings__tag">BOOK</span> Compilation d'un book (PDF)
+          </h4>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-book-dest">Répertoire de destination</label>
+            <div class="meta__row">
+              <input class="input" id="pandoc-book-dest" type="text" autocomplete="off"
+                     spellcheck="false" placeholder="/chemin/vers/resources/pdf">
+              <button class="btn btn-secondary" id="pandoc-book-browse" type="button">Parcourir…</button>
+            </div>
+          </div>
+
+          <div class="settings__field">
+            <label class="settings__label" for="pandoc-book-file">Nom du PDF</label>
+            <input class="input" id="pandoc-book-file" type="text" autocomplete="off"
+                   spellcheck="false" placeholder="SDS-Book.pdf">
+            <p class="settings__note">Un nom, non un chemin. Les documents et leurs parties
+              viennent de <code>conf/book_structure.yaml</code>, assemblés par
+              <code>conf/generate_book.py</code>.</p>
           </div>
         </div>
 

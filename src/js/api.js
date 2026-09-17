@@ -60,6 +60,9 @@ export const readDocument = (path) => invoke('read_document', { path });
 export const writeDocument = (path, content) => invoke('write_document', { path, content });
 // Renommer, dupliquer, effacer : les trois rendent un chemin — le nouveau —
 // ou rien. C'est au `store` de recaler ce qui désignait l'ancien.
+// Créer : `path` est le dossier — vide pour la racine —, `name` le nom voulu.
+export const createFile = (path, name) => invoke('create_file', { path, name });
+export const createDir = (path, name) => invoke('create_dir', { path, name });
 export const renameFile = (path, name) => invoke('rename_file', { path, name });
 export const duplicateFile = (path) => invoke('duplicate_file', { path });
 /**
@@ -72,6 +75,8 @@ export const compileDocument = (path, format, resources = true) =>
 export const markdownInDir = (path) => invoke('markdown_in_dir', { path });
 /** Les documents du projet selon conf/bibliotheque.yaml : `{ found, missing }`. */
 export const markdownInProject = () => invoke('markdown_in_project');
+/** Compile le book : un seul PDF pour tout le projet, par son script. */
+export const compileBook = () => invoke('compile_book');
 /** Quitte l'application ; la question des documents modifiés est déjà posée. */
 export const quitApp = () => invoke('quit_app');
 /** La commande qui partirait, d'après les champs à l'écran ; rien n'est lancé. */

@@ -13,6 +13,7 @@ import { saveTab, flush } from './editor.js';
 const list = document.getElementById('files-tree');
 const rootLabel = document.getElementById('files-root');
 const refreshBtn = document.getElementById('project-refresh');
+const newBtn = document.getElementById('project-new');
 
 // Un rendu survient à chaque frappe dans l'éditeur. Rien de ce qui compose
 // l'arbre n'en dépend : on saute le travail tant que rien n'a bougé.
@@ -109,6 +110,11 @@ function row(node, depth, isOpen, activePath) {
   }
   if (node.path === activePath) btn.classList.add('tree__row--active');
   return btn;
+}
+
+/** Le menu de création à la racine : le bouton de la tête, le fond du volet. */
+export function openNewMenu(x, y) {
+  menu.open(x, y, [menu.title('Racine du projet'), ...fileops.newEntries('')]);
 }
 
 /** Le menu d'un dossier : ce qu'on fait des documents qu'il contient. */

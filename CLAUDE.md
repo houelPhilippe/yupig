@@ -162,6 +162,13 @@ traite la frappe avant l'écouteur des raccourcis, qui ne reprend pas une frappe
 déjà traitée — les deux sens ne se contrarient donc pas. L'indentation est une vraie tabulation : c'est la frappe
 même, et `tab-size` dit sur quelle colonne elle tombe.
 
+Un bloc de code a son **menu contextuel** — « Supprimer le bloc de code » —, dans
+« Modifier » comme dans « Code Markdown », selon la règle des liens : le `<pre>`
+sous le pointeur d'un côté, le bloc dont les clôtures entourent le curseur de
+l'autre (`sourceCodeAt`, une clôture ne se fermant que par le même caractère, au
+moins aussi long). Le bloc part avec ses clôtures et son langage ; dans la
+source, la ligne vide qui le suivait aussi, pour ne pas en laisser deux.
+
 `src/js/markdown.js` assainit **toute** sortie de `marked` avant insertion :
 `marked` n'assainit plus rien depuis sa v5 et la webview expose `__TAURI__`,
 donc l'accès au disque. Ne jamais insérer sa sortie brute dans le DOM.
@@ -353,7 +360,14 @@ rendu — la note disparaîtrait du fichier au premier aller-retour. `markdown.j
 la désamorce donc **avant** l'analyse (`expandFootnotes`), en remplaçant l'appel
 de tête par la balise qu'il aurait de toute façon ; les appels du texte, eux,
 sont relevés après (`liftFootnotes`), faute de quoi `turndown` échapperait leurs
-crochets.
+crochets. Dans le rendu, l'appel et le numéro de sa définition portent la même balise,
+`<sup class="fn">` ; une définition se reconnaît à sa place — elle **ouvre** son
+bloc, suivie de « : ». `ui/footnote.js` en tire trois gestes : le pointeur sur
+un appel montre la note dans une bulle, un clic sur l'appel porte le curseur au
+début du texte de la note, un clic sur le numéro de la note le ramène juste
+après son (premier) appel. La bulle vit dans `document.body`, hors du document,
+et copie les nœuds déjà assainis de la note ; la cible d'un saut se signale par
+`CSS.highlights` — rien de tout cela n'entre dans ce que `turndown` relit.
 
 `marked` ne connaît pas plus ce span que les attributs d'une image :
 `markdown.js` le relit lui-même sur l'arbre rendu (`liftSpans`) et le réécrit à
@@ -382,6 +396,15 @@ dossier du projet à son ouverture. La balise porte les deux : `src` pour
 l'affichage, `data-src` pour le chemin qui repart dans le fichier. **Ne jamais
 laisser `turndown` écrire le `src`** — il y mettrait l'adresse `asset:`, qui ne
 veut rien dire hors de cette machine.
+
+Un chemin d'image peut porter des **espaces** — `![…](img/Traitement de la
+Sortie.svg)` —, que Pandoc lit et CommonMark non : `marked` laissait toute la
+ligne en texte, et `turndown` la réécrivait en crochets échappés à la première
+frappe. `expandImagePaths` met donc l'adresse entre chevrons **avant** `marked`,
+pour la seule lecture, hors code et hors image à titre. Et comme `marked` encode
+l'adresse qu'il rend (`%20`, lettres accentuées), `data-src` en garde la forme
+décodée (`filePath`) : c'est le nom du fichier, celui que l'aperçu résout et que
+la règle `image` réécrit tel qu'il était.
 
 Un tableau s'écrit en **grille Pandoc** — barres de `+---+`, barre de `=` sous
 la ligne de titre, et une ligne `: Légende {tbl-colwidths="[50, 50]"
@@ -489,6 +512,16 @@ et supprimer posent chacune leur message. Sans cela, une suppression réussie ne
 se distinguait pas d'une suppression annulée — l'arbre change, mais on n'a pas
 forcément le fichier sous les yeux.
 
+**Créer** un document ou un dossier se fait par trois portes qui donnent sur
+les mêmes deux entrées (`fileops.newEntries`) : le bouton « + » de la tête du
+volet et le clic droit sur son fond, qui visent la **racine**, et le menu d'un
+dossier de l'arbre, qui vise **ce** dossier. Un document neuf est vide, prend
+l'extension `.md` si le nom n'en porte pas, et s'ouvre dans un onglet : on
+vient d'y écrire, pas de le regarder dans l'arbre. Le dossier qui le reçoit se
+déplie, sans quoi il n'y paraîtrait pas. Un nom déjà pris est refusé plutôt
+qu'écrasé, comme pour un renommage ; c'est un nom et non un chemin, et
+`files::create_file` comme `files::create_dir` passent par `files::resolve`.
+
 Un fichier du projet porte quatre commandes — **« Renommer », « Copier le
 nom », « Dupliquer », « Supprimer »** — et deux portes : le menu de son onglet,
 celui de sa ligne dans l'arbre. C'est le même fichier des deux côtés, donc les
@@ -539,23 +572,29 @@ projet**, comme la mise en page : la commande nomme ses fichiers — filtre,
 modèle, bibliothèque. Le groupe **« Compilation PDF »**, en dessous, porte les
 deux mêmes champs pour le PDF (`pandoc {fichier} --defaults=conf/defaults-single.yaml
 -o {sortie}`) : mêmes variables, une seule légende sous les deux groupes, et
-`{sortie}` n'y change que d'extension. La **page d'accueil** — `index.md`, à la
+`{sortie}` n'y change que d'extension. Le groupe **« Compilation Word »** fait
+de même pour le `.docx` (`pandoc {fichier} --defaults=conf/defaults-docx.yaml
+--resource-path={dossier} -o {sortie}`) : `--resource-path` y compte, Pandoc
+lancé depuis la racine devant trouver les images, écrites en relatif au
+document, pour les embarquer. La **page d'accueil** — `index.md`, à la
 racine du projet seulement — a son propre modèle HTML
 (`pandoc index.md … --template=conf/modele-accueil.template.html …`) : elle ne
 se bâtit pas sur le gabarit des chapitres. Vide, elle prend le modèle commun.
 Le choix du modèle se fait en un seul endroit, `pandoc::template_for`, que
 l'aperçu emprunte comme la compilation — il reçoit pour cela tous les champs à
 l'écran. Côté Rust c'est `ProjectSettings.pandoc`,
-cinq lignes `pandoc.htmlDest`, `pandoc.htmlCommand`, `pandoc.htmlIndexCommand`,
-`pandoc.pdfDest` et `pandoc.pdfCommand` de `project_settings`, rangées sur une seule ligne et
+les lignes `pandoc.htmlDest`, `pandoc.htmlCommand`, `pandoc.htmlIndexCommand`,
+`pandoc.pdfDest`, `pandoc.pdfCommand`, `pandoc.docxDest` et `pandoc.docxCommand`
+de `project_settings` — toutes sous le préfixe `pandoc.`, retirées ensemble
+avant d'être réécrites —, rangées sur une seule ligne et
 retirées de la base quand on les vide. Les champs
 s'enregistrent **peu après la frappe** et à la fermeture de la boîte, non au
 seul `change` : fermer la boîte par sa croix ou Échap pendant qu'on tape ne le
 déclenche pas, et la commande saisie se perdait — la compilation prenait alors
 la commande par défaut, sans filtre ni modèle.
 
-**« Compiler en HTML »** et **« Compiler en PDF »** sont deux commandes du
-fichier, qui ne diffèrent que par le format (`pandoc::Format`) : modèle et
+**« Compiler en HTML »**, **« Compiler en PDF »** et **« Compiler en Word »**
+sont trois commandes du fichier, qui ne diffèrent que par le format (`pandoc::Format`) : modèle et
 destination lus, modèle par défaut, extension de `{sortie}`. Elles vivent dans
 `ui/fileops.js`, donc dans le menu de l'onglet comme dans celui de la ligne de
 l'arbre, éteintes hors Markdown. Tout se joue dans `src-tauri/src/pandoc.rs`, en
@@ -574,12 +613,13 @@ trois règles :
   `pandoc_preview` au lieu de refaire le calcul en JavaScript : il ne peut
   pas montrer autre chose que ce qui partira. `src/js/pandoc.js` ne tient plus
   que la légende des variables, dont les noms doivent rester ceux de
-  `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND` ou `DEFAULT_PDF_COMMAND`, côté
-  Rust.
+  `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND`, `DEFAULT_PDF_COMMAND` ou
+  `DEFAULT_DOCX_COMMAND`, côté Rust.
 
 Le **menu de l'application** — le bouton « hamburger » en tête de la barre
 du haut, F10 — porte ce qui vaut pour le projet ou l'application entière :
-**« Compiler le projet en HTML »**, « Paramètres du projet », « Quitter »
+**« Compiler le projet en HTML »**, **« … en PDF »**, **« … en Word »**,
+« Paramètres du projet », « Quitter »
 (Ctrl+Q). Il vit dans `ui/appmenu.js` et reprend le cadre de `ui/menu.js`, posé
 sous le bouton. La compilation du projet prend les documents que
 **`conf/bibliotheque.yaml`** nomme — et non tous les `.md` du dossier, qui en
@@ -591,10 +631,21 @@ lecture, une passe sur les lignes comme `resources.rs` ; un document nommé mais
 absent est signalé au journal sans arrêter la série. Les documents se
 compilent un par un comme ceux d'un dossier : la série est la même,
 `compileSeries` dans `ui/fileops.js`. « Paramètres du projet » presse le bouton
-du volet, comme un raccourci de la barre. « Quitter » pose une seule question
+du volet, comme un raccourci de la barre. **« Compiler un book (PDF) »** ne
+compile pas une série mais **un seul PDF** pour tout le projet, parties et
+chapitres compris : Pandoc ne connaissant ni `\part` ni `\chapter`, c'est un
+script du projet qui assemble les documents — `conf/generate_book.py` sur
+`conf/book_structure.yaml`, avec `conf/defaults-book.yaml` — et n'appelle Pandoc
+qu'une fois. Ces trois chemins sont **fixes**, et il n'y a donc pas de modèle de
+commande à régler : seuls le répertoire de destination et le nom du PDF viennent
+des paramètres du projet (`pandoc.bookDest`, `pandoc.bookFile` — un nom, non un
+chemin). Le programme lancé n'en est pas plus ouvert qu'ailleurs : `python3`, ce
+script-là, et rien d'autre ; script et structure passent par `files::resolve`.
+Côté Rust, `pandoc::plan_book` et la commande `compile_book`, qui rendent tous
+deux au journal ce que le script et Pandoc écrivent. « Quitter » pose une seule question
 pour les documents modifiés, puis passe par Rust (`quit_app`).
 
-Un **dossier** de l'arbre a aussi son menu, qui compile **un par un** les
+Un **dossier** de l'arbre a aussi son menu — en HTML, en PDF ou en Word —, qui compile **un par un** les
 documents Markdown qu'il contient — lui seul, sans ses sous-dossiers : ce qu'on
 voit sous lui en le dépliant (`files::markdown_in`, dans l'ordre de l'arbre).
 Les ressources ne sont copiées qu'au premier document (`compile_document` reçoit
@@ -605,8 +656,8 @@ pour toute la série.
 
 Avant Pandoc, et **en HTML seulement**, les **ressources** que liste `conf/resources.yaml` partent vers le
 répertoire de destination, au même chemin — une page compilée pointe vers ses
-images et ses PDF en relatif, ils doivent donc l'y attendre. Un PDF embarque ses images, que Pandoc lit dans le
-projet : rien n'est copié. Deux formes
+images et ses PDF en relatif, ils doivent donc l'y attendre. Un PDF ou un document Word embarque ses images,
+que Pandoc lit dans le projet : rien n'est copié. Deux formes
 d'entrée : un motif (`resources/pdf/*.*`) prend les fichiers du dossier **sans**
 ses sous-dossiers, un chemin (`filesLOT04/img`) prend le dossier entier.
 **Seule la liste** est copiée : le commentaire du fichier parle de dossiers
@@ -824,7 +875,7 @@ pour chaque format dans les paramètres du projet.
 
 À faire : écran de réglages détaillés, purge automatique. Pour « Édition » :
 compilation vers d'autres formats que HTML et PDF ;
-création de fichiers et de dossiers, renommage d'un projet depuis la liste.
+renommage d'un projet depuis la liste.
 
 Le glisser-déposer du volet est bâti sur les événements de pointeur, pas sur
 l'API HTML5 `dragstart` : celle-ci est irrégulière dans la webview WebKitGTK.

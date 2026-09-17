@@ -1,6 +1,6 @@
 [package]
 name = "veille"
-version = "1.0.3"
+version = "1.1.0"
 description = "Tableau de bord de veille — agrégateur RSS/Atom autonome"
 authors = ["Philippe Houel"]
 edition = "2021"
@@ -34,6 +34,13 @@ quick-xml = "0.37"
 [features]
 # Utilisé par `tauri dev` / `tauri build --debug`
 default = []
+
+# Compilation de développement : seules les tables de lignes sont gardées dans
+# les informations de débogage. Les messages d'erreur et les traces de panique
+# restent situés à la ligne près, mais `target/debug` ne pèse plus une dizaine
+# de gigaoctets.
+[profile.dev]
+debug = "line-tables-only"
 
 [profile.release]
 codegen-units = 1

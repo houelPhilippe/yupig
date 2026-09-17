@@ -26,6 +26,13 @@ const PANDOC_HTML_COMMAND: &str = "pandoc.htmlCommand";
 const PANDOC_HTML_INDEX_COMMAND: &str = "pandoc.htmlIndexCommand";
 const PANDOC_PDF_DEST: &str = "pandoc.pdfDest";
 const PANDOC_PDF_COMMAND: &str = "pandoc.pdfCommand";
+const PANDOC_DOCX_DEST: &str = "pandoc.docxDest";
+const PANDOC_DOCX_COMMAND: &str = "pandoc.docxCommand";
+const PANDOC_BOOK_DEST: &str = "pandoc.bookDest";
+const PANDOC_BOOK_FILE: &str = "pandoc.bookFile";
+/// Le préfixe commun aux réglages de Pandoc : ils se retirent ensemble avant
+/// d'être réécrits. Pas de `_` dedans, joker de `LIKE`.
+const PANDOC_PREFIX: &str = "pandoc.";
 
 /// Connexion SQLite partagée. Le `Mutex` est volontairement std et non tokio :
 /// aucun verrou n'est conservé au travers d'un `.await`, toutes les méthodes
@@ -603,6 +610,10 @@ impl Db {
                 PANDOC_HTML_INDEX_COMMAND => s.pandoc.html_index_command = v,
                 PANDOC_PDF_DEST => s.pandoc.pdf_dest = v,
                 PANDOC_PDF_COMMAND => s.pandoc.pdf_command = v,
+                PANDOC_DOCX_DEST => s.pandoc.docx_dest = v,
+                PANDOC_DOCX_COMMAND => s.pandoc.docx_command = v,
+                PANDOC_BOOK_DEST => s.pandoc.book_dest = v,
+                PANDOC_BOOK_FILE => s.pandoc.book_file = v,
                 // Les espacements vivent sous un préfixe : une ligne par valeur,
                 // lisible à l'œil dans la table, et rien à migrer quand le
                 // frontend en nomme un de plus.
@@ -633,15 +644,8 @@ impl Db {
             )?;
             // Même règle pour Pandoc : un champ vidé quitte la base.
             tx.execute(
-                "DELETE FROM project_settings WHERE root = ?1 AND key IN (?2, ?3, ?4, ?5, ?6)",
-                params![
-                    root,
-                    PANDOC_HTML_DEST,
-                    PANDOC_HTML_COMMAND,
-                    PANDOC_HTML_INDEX_COMMAND,
-                    PANDOC_PDF_DEST,
-                    PANDOC_PDF_COMMAND
-                ],
+                "DELETE FROM project_settings WHERE root = ?1 AND key LIKE ?2",
+                params![root, format!("{PANDOC_PREFIX}%")],
             )?;
 
             let mut stmt = tx.prepare(
@@ -681,6 +685,10 @@ impl Db {
                 (PANDOC_HTML_INDEX_COMMAND, &s.pandoc.html_index_command),
                 (PANDOC_PDF_DEST, &s.pandoc.pdf_dest),
                 (PANDOC_PDF_COMMAND, &s.pandoc.pdf_command),
+                (PANDOC_DOCX_DEST, &s.pandoc.docx_dest),
+                (PANDOC_DOCX_COMMAND, &s.pandoc.docx_command),
+                (PANDOC_BOOK_DEST, &s.pandoc.book_dest),
+                (PANDOC_BOOK_FILE, &s.pandoc.book_file),
             ] {
                 let value = pandoc_field(value);
                 if !value.is_empty() {
@@ -937,6 +945,9 @@ mod tests {
                 pdf_dest: "/mnt/hgfs/DEV/sds-sfd-v2027/resources/pdf".into(),
                 pdf_command: "pandoc {fichier} --defaults=conf/defaults-single.yaml -o {sortie}"
                     .into(),
+                docx_dest: "/mnt/hgfs/DEV/sds-sfd-v2027/resources/docx".into(),
+                docx_command: "pandoc {fichier} --defaults=conf/defaults-docx.yaml -o {sortie}"
+                    .into(),
                 ..PandocSettings::default()
             },
             ..ProjectSettings::default()
@@ -950,6 +961,11 @@ mod tests {
         assert_eq!(
             back.pdf_command,
             "pandoc {fichier} --defaults=conf/defaults-single.yaml -o {sortie}"
+        );
+        assert_eq!(back.docx_dest, "/mnt/hgfs/DEV/sds-sfd-v2027/resources/docx");
+        assert_eq!(
+            back.docx_command,
+            "pandoc {fichier} --defaults=conf/defaults-docx.yaml -o {sortie}"
         );
         // Un autre projet n'en sait rien.
         assert_eq!(db.project_settings("/b").unwrap().pandoc, PandocSettings::default());
@@ -968,7 +984,7 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(rows, 3);
+        assert_eq!(rows, 5);
     }
 
     #[test]

@@ -26,7 +26,7 @@ const spacingReset = document.getElementById('spacing-reset');
 const legend = document.getElementById('pandoc-legend');
 
 /**
- * Les deux groupes de Pandoc — HTML et PDF —, bâtis sur le même modèle : une
+ * Les groupes de Pandoc — HTML, PDF et Word —, bâtis sur le même modèle : une
  * destination, des modèles de commande, un aperçu. `fields` associe à chaque
  * champ de `project.pandoc` sa zone de saisie ; `format` est le format côté
  * Rust. Le HTML porte un modèle de plus, celui de la page d'accueil.
@@ -35,6 +35,9 @@ const byId = (id) => document.getElementById(id);
 const COMPILERS = [
   { format: 'html', keys: ['htmlDest', 'htmlCommand', 'htmlIndexCommand'] },
   { format: 'pdf', keys: ['pdfDest', 'pdfCommand'] },
+  { format: 'docx', keys: ['docxDest', 'docxCommand'] },
+  // Le book n'a ni modèle de commande ni aperçu : son script est fixe.
+  { format: 'book', keys: ['bookDest', 'bookFile'] },
 ].map(({ format, keys }) => ({
   format,
   fields: keys.map((key) => [key, byId(`pandoc-${kebab(key)}`)]),
@@ -196,7 +199,7 @@ function fillPandoc(pandoc) {
       const wanted = pandoc[key] ?? '';
       if (field.value !== wanted) field.value = wanted;
     }
-    showPreview(c);
+    if (c.preview) showPreview(c);
   }
 }
 
@@ -340,7 +343,7 @@ export function wire() {
   // le champ est vide.
   for (const c of COMPILERS) {
     const command = byId(`pandoc-${c.format}-command`);
-    command.placeholder = 'Vide : la commande par défaut de Pandoc, visible dans l’aperçu';
+    if (command) command.placeholder = 'Vide : la commande par défaut de Pandoc, visible dans l’aperçu';
   }
   byId('pandoc-html-index-command').placeholder = 'Vide : le modèle de commande HTML';
   // La légende vient de la table des variables : une variable ajoutée dans
@@ -423,7 +426,7 @@ export function wire() {
   for (const c of COMPILERS) {
     for (const [key, field] of c.fields) {
       field.addEventListener('input', () => {
-        showPreview(c);
+        if (c.preview) showPreview(c);
         clearTimeout(pandocTimer);
         pandocTimer = setTimeout(flushPandoc, 600);
       });
@@ -443,7 +446,7 @@ export function wire() {
         const dir = await api.pickDirectory(c.dest.value.trim());
         if (!dir) return;
         c.dest.value = dir;
-        showPreview(c);
+        if (c.preview) showPreview(c);
         flushPandoc();
       } catch (err) {
         store.fail(err);

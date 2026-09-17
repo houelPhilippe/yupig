@@ -44,12 +44,66 @@ pub const DEFAULT_HTML_COMMAND: &str =
 /// sortie, et choisit lui-même son moteur.
 pub const DEFAULT_PDF_COMMAND: &str = "pandoc {fichier} -f markdown -o {sortie}";
 
+/// La commande Word par défaut. `--resource-path` : les images d'un document
+/// sont écrites en relatif à son dossier, et Pandoc, lancé depuis la racine,
+/// doit les y trouver pour les embarquer dans le `.docx`.
+pub const DEFAULT_DOCX_COMMAND: &str =
+    "pandoc {fichier} -f markdown --resource-path={dossier} -o {sortie}";
+
+/// Le « book » : un seul PDF pour tout le projet, parties et chapitres compris.
+///
+/// Pandoc ne connaît ni `\part` ni `\chapter` : c'est un script du projet qui
+/// assemble les documents dans l'ordre d'une structure, chaque partie devenant
+/// un fichier temporaire, puis appelle Pandoc une fois sur la liste entière.
+/// Les trois chemins sont **fixes**, dans `conf/` : le modèle de commande d'un
+/// format ordinaire n'a pas d'équivalent ici, et le programme lancé n'est donc
+/// pas plus ouvert qu'ailleurs — `python3`, ce script-là, et rien d'autre.
+pub const BOOK_SCRIPT: &str = "conf/generate_book.py";
+pub const BOOK_STRUCTURE: &str = "conf/book_structure.yaml";
+pub const BOOK_DEFAULTS: &str = "conf/defaults-book.yaml";
+
+/// De quoi lancer le script du book : `python3 conf/generate_book.py
+/// conf/book_structure.yaml <sortie> conf/defaults-book.yaml`.
+///
+/// `dest` est le répertoire de destination — vide, la sortie reste relative à
+/// la racine du projet, comme pour `{sortie}` — et `file` le nom du PDF.
+pub fn plan_book(dest: &str, file: &str) -> Result<Plan> {
+    let name = file.trim();
+    if name.is_empty() {
+        return Err(Error::Other("aucun nom de fichier PDF réglé pour le book".into()));
+    }
+    // Un nom, non un chemin : la destination dit où le PDF se pose.
+    if name.contains('/') || name.contains('\\') {
+        return Err(Error::Other(format!(
+            "« {name} » n'est pas un nom de fichier : le dossier se règle à part"
+        )));
+    }
+    let name = if name.to_ascii_lowercase().ends_with(".pdf") {
+        name.to_string()
+    } else {
+        format!("{name}.pdf")
+    };
+
+    let output = join(dest, &name);
+    Ok(Plan {
+        program: "python3".into(),
+        args: vec![
+            BOOK_SCRIPT.to_string(),
+            BOOK_STRUCTURE.to_string(),
+            output.clone(),
+            BOOK_DEFAULTS.to_string(),
+        ],
+        output: Some(output),
+    })
+}
+
 /// Le format que produit une compilation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Format {
     Html,
     Pdf,
+    Docx,
 }
 
 impl Format {
@@ -58,6 +112,7 @@ impl Format {
         match self {
             Format::Html => "html",
             Format::Pdf => "pdf",
+            Format::Docx => "docx",
         }
     }
 
@@ -66,6 +121,7 @@ impl Format {
         match self {
             Format::Html => "HTML",
             Format::Pdf => "PDF",
+            Format::Docx => "Word",
         }
     }
 
@@ -73,6 +129,7 @@ impl Format {
         match self {
             Format::Html => DEFAULT_HTML_COMMAND,
             Format::Pdf => DEFAULT_PDF_COMMAND,
+            Format::Docx => DEFAULT_DOCX_COMMAND,
         }
     }
 }
@@ -101,6 +158,7 @@ pub fn template_for<'a>(
         }
         Format::Html => (&settings.html_command, &settings.html_dest),
         Format::Pdf => (&settings.pdf_command, &settings.pdf_dest),
+        Format::Docx => (&settings.docx_command, &settings.docx_dest),
     }
 }
 
@@ -331,7 +389,7 @@ pub fn run(root: &Path, plan: &Plan, log: &mut dyn FnMut(LogLevel, String)) -> R
         .spawn()
         .map_err(|e| match e.kind() {
             std::io::ErrorKind::NotFound => Error::Other(format!(
-                "Pandoc introuvable (« {} ») : vérifiez qu'il est installé et accessible",
+                "« {} » introuvable : vérifiez qu'il est installé et accessible",
                 plan.program
             )),
             _ => Error::Io(e),
@@ -497,6 +555,38 @@ mod tests {
         assert_eq!(display(&plan), "pandoc a/b.md -f markdown -o a/b.pdf");
     }
 
+    /// La commande Word du projet : `{sortie}` en `.docx`, `{dossier}` pour
+    /// les images relatives au document.
+    #[test]
+    fn le_modele_word_donne_la_commande_attendue() {
+        let settings = PandocSettings {
+            docx_dest: "/mnt/hgfs/DEV/sds-sfd-v2027/resources/docx".into(),
+            docx_command: "pandoc {fichier} --defaults=conf/defaults-docx.yaml \
+                --resource-path={dossier} -o {sortie}"
+                .into(),
+            ..PandocSettings::default()
+        };
+        let doc = "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.md";
+        let (template, dest) = template_for(&settings, Format::Docx, doc);
+        let plan = plan_for(Format::Docx, template, doc, dest).unwrap();
+        assert_eq!(
+            display(&plan),
+            "pandoc filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.md \
+             --defaults=conf/defaults-docx.yaml --resource-path=filesLOT01 \
+             -o /mnt/hgfs/DEV/sds-sfd-v2027/resources/docx/filesLOT01/\
+             SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.docx"
+        );
+
+        // Pas de modèle d'accueil en Word : index.md prend le modèle commun.
+        assert_eq!(template_for(&settings, Format::Docx, "index.md").0, settings.docx_command);
+
+        let plan = plan_for(Format::Docx, "", "a/b.md", "").unwrap();
+        assert_eq!(
+            display(&plan),
+            "pandoc a/b.md -f markdown --resource-path=a -o a/b.docx"
+        );
+    }
+
     /// `index.md`, à la racine, prend le modèle d'accueil quand il est réglé.
     #[test]
     fn la_page_d_accueil_a_son_modele() {
@@ -528,6 +618,24 @@ mod tests {
         let commun = PandocSettings { html_index_command: " ".into(), ..settings.clone() };
         assert_eq!(template_for(&commun, Format::Html, "index.md").0, EXEMPLE);
         assert!(is_home("INDEX.markdown"));
+    }
+
+    /// Le book : trois chemins fixes de `conf/`, et le PDF à la destination.
+    #[test]
+    fn le_book_se_lance_par_son_script() {
+        let plan = plan_book("/mnt/hgfs/DEV/pdf/", "SDS-Book").unwrap();
+        assert_eq!(
+            display(&plan),
+            "python3 conf/generate_book.py conf/book_structure.yaml \
+             /mnt/hgfs/DEV/pdf/SDS-Book.pdf conf/defaults-book.yaml"
+        );
+        assert_eq!(plan.output.as_deref(), Some("/mnt/hgfs/DEV/pdf/SDS-Book.pdf"));
+
+        // Sans destination, le PDF se pose dans le projet.
+        assert_eq!(plan_book("", "livre.pdf").unwrap().output.as_deref(), Some("livre.pdf"));
+        // Un nom, non un chemin ; et un nom est obligatoire.
+        assert!(plan_book("/d", "sous/livre.pdf").is_err());
+        assert!(plan_book("/d", "  ").is_err());
     }
 
     #[test]

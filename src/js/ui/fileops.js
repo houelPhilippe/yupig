@@ -1,5 +1,5 @@
-// Ce qu'on fait d'un fichier du projet : le compiler en HTML ou en PDF, le
-// renommer, copier son nom, le dupliquer, l'effacer.
+// Ce qu'on fait d'un fichier du projet : le compiler en HTML, en PDF ou en
+// Word, le renommer, copier son nom, le dupliquer, l'effacer.
 //
 // Les commandes ont deux portes — le menu de l'onglet, celui de la ligne
 // de l'arbre —, et c'est le même fichier des deux côtés : un document n'a pas
@@ -36,6 +36,7 @@ export function entries(file, flush) {
     // l'on y apprend ce qu'un document permet.
     menu.item('Compiler en HTML', PATH.compile, () => compile(file, 'html', flush), !markdown),
     menu.item('Compiler en PDF', PATH.compile, () => compile(file, 'pdf', flush), !markdown),
+    menu.item('Compiler en Word', PATH.compile, () => compile(file, 'docx', flush), !markdown),
     menu.separator(),
     menu.item('Renommer…', PATH.pencil, () => rename(file, flush)),
     menu.item('Copier le nom', PATH.copy, () => copyName(file)),
@@ -102,6 +103,59 @@ async function compile(file, format, flush) {
 }
 
 /**
+ * Créer, dans un dossier du projet — `dir` vide pour la racine.
+ *
+ * Les deux entrées valent partout où l'on crée : le menu d'un dossier de
+ * l'arbre, celui du fond du volet et le bouton de sa tête, qui visent la
+ * racine. C'est le même geste, donc les mêmes entrées.
+ */
+export function newEntries(dir = '') {
+  return [
+    menu.item('Créer un fichier Markdown…', PATH.file, () => createFile(dir)),
+    menu.item('Créer un répertoire…', PATH.folder, () => createDir(dir)),
+  ];
+}
+
+/** Le dossier tel qu'un message le nomme : la racine n'a pas de nom. */
+const place = (dir) => (dir ? `« ${dir.split('/').pop()} »` : 'le projet');
+
+async function createFile(dir) {
+  const asked = await prompt.open({
+    title: 'Créer un fichier Markdown',
+    label: `Nom du document, dans ${place(dir)}`,
+    value: '',
+    okLabel: 'Créer',
+    hint: 'L’extension .md est ajoutée si vous ne l’écrivez pas.',
+  });
+  if (asked === null || !asked.trim()) return;
+
+  try {
+    const path = await store.createFile(dir, asked);
+    store.notify(`« ${path.split('/').pop()} » créé.`);
+  } catch (err) {
+    store.fail(err);
+  }
+}
+
+async function createDir(dir) {
+  const asked = await prompt.open({
+    title: 'Créer un répertoire',
+    label: `Nom du dossier, dans ${place(dir)}`,
+    value: '',
+    okLabel: 'Créer',
+    hint: 'Un nom, non un chemin : le dossier est créé là où vous êtes.',
+  });
+  if (asked === null || !asked.trim()) return;
+
+  try {
+    const path = await store.createDir(dir, asked);
+    store.notify(`Dossier « ${path.split('/').pop()} » créé.`);
+  } catch (err) {
+    store.fail(err);
+  }
+}
+
+/**
  * Les commandes d'un dossier de l'arbre.
  *
  * `flush` arrive par l'appelant, comme pour un fichier : la saisie en cours
@@ -109,8 +163,11 @@ async function compile(file, format, flush) {
  */
 export function dirEntries(dir, flush) {
   return [
+    ...newEntries(dir.path),
+    menu.separator(),
     menu.item('Compiler en HTML les documents du dossier', PATH.compile, () => compileDir(dir, 'html', flush)),
     menu.item('Compiler en PDF les documents du dossier', PATH.compile, () => compileDir(dir, 'pdf', flush)),
+    menu.item('Compiler en Word les documents du dossier', PATH.compile, () => compileDir(dir, 'docx', flush)),
   ];
 }
 
@@ -141,7 +198,8 @@ async function compileDir(dir, format, flush) {
 }
 
 /**
- * Compile en HTML, un par un, les documents du projet : ceux dont
+ * Compile en HTML, en PDF ou en Word (`format`), un par un, les documents du
+ * projet : ceux dont
  * `conf/bibliotheque.yaml` nomme la page, dans l'ordre du fichier — celui des
  * lots —, sauf la page d'accueil, `index.md` à la racine.
  *
@@ -150,13 +208,13 @@ async function compileDir(dir, format, flush) {
  * nomme sans qu'il existe est signalé au journal, sans arrêter la série.
  *
  * Mêmes règles que pour un dossier : une question pour tous les documents
- * modifiés, ressources copiées au premier seulement, un échec qui n'arrête pas
- * la série. Le journal nomme chaque document par son chemin : deux dossiers
+ * modifiés, ressources copiées au premier seulement (en HTML), un échec qui
+ * n'arrête pas la série. Le journal nomme chaque document par son chemin : deux dossiers
  * peuvent porter un fichier du même nom.
  */
-export async function compileProject(flush) {
+export async function compileProject(format, flush) {
   await compileSeries({
-    format: 'html',
+    format,
     flush,
     list: async () => {
       const { found, missing } = await store.markdownInProject();
@@ -167,6 +225,54 @@ export async function compileProject(flush) {
     scope: 'Projet',
     shown: (path) => path,
   });
+}
+
+/**
+ * Compile le **book** : un seul PDF pour tout le projet, parties comprises.
+ *
+ * Ce n'est pas une série : le script du projet assemble les documents de
+ * `conf/book_structure.yaml` et n'appelle Pandoc qu'une fois. Les documents
+ * modifiés font l'objet d'une seule question, comme pour une série — le script
+ * lit les fichiers sur le disque.
+ */
+export async function compileBook(flush) {
+  if (journal.busy()) {
+    store.notify('Une compilation est déjà en cours.', 'error');
+    return;
+  }
+  flush();
+
+  const dirty = store.state.edition.tabs.filter((t) => store.isDirty(t));
+  if (dirty.length) {
+    const names = dirty.map((t) => `« ${t.name} »`).join(', ');
+    const ok = await api.ask(
+      `Modifications non enregistrées : ${names}.\n\n` +
+        'Le book est assemblé depuis les fichiers du disque : enregistrer puis compiler ?',
+      { title: 'Compiler un book', okLabel: 'Enregistrer et compiler' },
+    );
+    if (!ok) return;
+    try {
+      for (const tab of dirty) await store.saveDocument(tab.path);
+    } catch (err) {
+      store.fail(err);
+      return;
+    }
+  }
+
+  journal.start('Compilation du book (PDF)');
+  try {
+    const done = await store.compileBook();
+    journal.finish(true, done.output ? `Book produit : ${done.output}` : 'Compilation terminée.');
+    const note = done.log ? '\nDes avertissements sont au journal.' : '';
+    store.notify(`Book produit${done.output ? ` : ${done.output}` : '.'}${note}`, 'ok', 6000);
+  } catch (err) {
+    journal.finish(false, '');
+    store.notify(
+      `Échec de la compilation du book : voir le journal.\n${clip(String(err?.message ?? err), 160)}`,
+      'error',
+      8000,
+    );
+  }
 }
 
 /**

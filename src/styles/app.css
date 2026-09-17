@@ -1226,7 +1226,34 @@ body { overflow: hidden; }
 .editor__rich .fn {
   color: var(--color-accent);
   font-weight: 600;
+  /* Un clic y mène : de l'appel à la note, de la note à l'appel. */
+  cursor: pointer;
 }
+.editor__rich .fn:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+/* La bulle d'une note, au survol de son appel : la surface d'un menu, posée
+   hors de la zone d'édition. Sa taille de texte suit le zoom du document, dont
+   elle montre un morceau. */
+.fn-tip {
+  position: fixed; z-index: 70;
+  max-width: min(440px, calc(100vw - 16px));
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg);
+  border: var(--rule-frame) solid var(--color-text);
+  box-shadow: var(--shadow-md);
+  font-size: calc(13px * var(--doc-zoom, 1)); line-height: 1.5;
+  pointer-events: none;
+}
+.fn-tip__head {
+  margin-bottom: 2px;
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-accent);
+}
+.fn-tip__body { overflow-wrap: anywhere; }
+.fn-tip__body > :first-child { margin-top: 0; }
+.fn-tip__body > :last-child { margin-bottom: 0; }
+.fn-tip__body img { max-width: 100%; height: auto; }
+.fn-tip__body--missing { font-style: italic; color: color-mix(in srgb, var(--color-text) 60%, transparent); }
 
 /* La case d'une liste à cocher : un clic la coche, d'où le curseur. */
 .editor__rich li input[type="checkbox"] {
@@ -1607,6 +1634,8 @@ body.is-resizing .resizer::after { background: var(--color-accent); }
    porte l'accent, les autres un simple aplat. */
 ::highlight(find) { background-color: var(--find-hit); }
 ::highlight(find-current) { background-color: var(--find-hit-on); }
+/* La cible d'un saut entre une note et son appel, signalée un instant. */
+::highlight(fn-target) { background-color: var(--find-hit); }
 
 /* Les marques du calque de la source. Les deux teintes sont celles du rendu :
    la recherche doit se reconnaître d'un mode à l'autre. Un aplat translucide

@@ -35,6 +35,7 @@ import * as keys from './ui/keys.js';
 import * as listedit from './ui/listedit.js';
 import * as clipboard from './ui/clipboard.js';
 import * as appmenu from './ui/appmenu.js';
+import * as footnote from './ui/footnote.js';
 import { icon, PATH } from './ui/dom.js';
 
 // `shell` en tête : il décide quelle application est à l'écran, les vues qui
@@ -58,6 +59,7 @@ function wire() {
   editor.wire();
   format.wire();
   clipboard.wire();
+  footnote.wire();
   status.wire();
   journal.wire();
   prompt.wire();
@@ -201,6 +203,24 @@ function wireEdition() {
   const refresh = document.getElementById('project-refresh');
   refresh.append(icon(PATH.refresh, { size: 14 }));
   refresh.addEventListener('click', () => store.refreshTree().catch(store.fail));
+
+  // Créer : le bouton vise la racine, comme le clic droit sur le fond du volet.
+  // Un dossier de l'arbre, lui, porte les deux mêmes entrées dans son menu.
+  const create = document.getElementById('project-new');
+  create.append(icon(PATH.plus, { size: 14 }));
+  create.addEventListener('click', (ev) => {
+    ev.stopPropagation();
+    const box = create.getBoundingClientRect();
+    tree.openNewMenu(box.left, box.bottom + 4);
+  });
+
+  // Le fond du volet — hors de toute ligne : c'est la racine qu'on y vise.
+  document.getElementById('files-tree').addEventListener('contextmenu', (ev) => {
+    if (ev.target.closest('.tree__row')) return;
+    if (!store.state.edition.root) return;
+    ev.preventDefault();
+    tree.openNewMenu(ev.clientX, ev.clientY);
+  });
 }
 
 function previous() {
