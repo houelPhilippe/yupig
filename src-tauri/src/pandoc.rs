@@ -27,8 +27,9 @@
 //! document (`Format`).
 //!
 //! La page d'accueil du site — `index.md`, à la racine du projet — a son
-//! propre modèle HTML, qui prend le pas sur celui des autres documents quand il
-//! est réglé (`template_for`) : elle ne se bâtit pas sur le même gabarit.
+//! propre modèle HTML, qui prend le pas sur celui des autres documents
+//! (`template_for`) : elle ne se bâtit pas sur le même gabarit. Son champ
+//! laissé vide vaut son propre défaut, et non le modèle des chapitres.
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -36,19 +37,40 @@ use std::process::Command;
 use crate::error::{Error, Result};
 use crate::models::{LogLevel, PandocSettings};
 
-/// La commande proposée tant que le projet n'en a pas réglé une.
-pub const DEFAULT_HTML_COMMAND: &str =
-    "pandoc {fichier} -f markdown -t html5 --standalone -o {sortie}";
+/// Les commandes proposées tant que le projet n'en a pas réglé une.
+///
+/// Elles nomment les fichiers de `conf/` — filtre, modèles, bibliothèque,
+/// configurations : c'est la disposition qu'un projet de cette application
+/// porte, celle de `projetExemple`. Un champ laissé vide donne donc déjà une
+/// compilation complète, et non un Pandoc nu dont la page sortirait sans
+/// gabarit ni table des matières. Un projet bâti autrement écrit les siennes.
+pub const DEFAULT_HTML_COMMAND: &str = concat!(
+    "pandoc {fichier} -f markdown -t html5 --standalone --toc --toc-depth=6",
+    " --lua-filter=conf/filtre.lua --template=conf/modele.template.html",
+    " --metadata-file=conf/bibliotheque.yaml -o {sortie}",
+);
 
-/// La commande PDF par défaut : Pandoc déduit le format de l'extension de la
-/// sortie, et choisit lui-même son moteur.
-pub const DEFAULT_PDF_COMMAND: &str = "pandoc {fichier} -f markdown -o {sortie}";
+/// La commande de la page d'accueil : son propre gabarit, et pas de table des
+/// matières — elle n'est pas un chapitre.
+pub const DEFAULT_HTML_INDEX_COMMAND: &str = concat!(
+    "pandoc {fichier} -f markdown -t html5 --standalone",
+    " --template=conf/modele-accueil.template.html",
+    " --metadata-file=conf/bibliotheque.yaml -o {sortie}",
+);
+
+/// La commande PDF par défaut : tout est dans le fichier de configuration —
+/// moteur LaTeX, préambule, chemins des images, filtre.
+pub const DEFAULT_PDF_COMMAND: &str =
+    "pandoc {fichier} --defaults=conf/defaults-single.yaml -o {sortie}";
 
 /// La commande Word par défaut. `--resource-path` : les images d'un document
 /// sont écrites en relatif à son dossier, et Pandoc, lancé depuis la racine,
-/// doit les y trouver pour les embarquer dans le `.docx`.
-pub const DEFAULT_DOCX_COMMAND: &str =
-    "pandoc {fichier} -f markdown --resource-path={dossier} -o {sortie}";
+/// doit les y trouver pour les embarquer dans le `.docx`. `--reference-doc`
+/// donne au document ses styles.
+pub const DEFAULT_DOCX_COMMAND: &str = concat!(
+    "pandoc {fichier} --defaults=conf/defaults-docx.yaml",
+    " --resource-path={dossier} --reference-doc=conf/reference.docx -o {sortie}",
+);
 
 /// Le « book » : un seul PDF pour tout le projet, parties et chapitres compris.
 ///
@@ -125,12 +147,18 @@ impl Format {
         }
     }
 
-    fn default_command(self) -> &'static str {
-        match self {
-            Format::Html => DEFAULT_HTML_COMMAND,
-            Format::Pdf => DEFAULT_PDF_COMMAND,
-            Format::Docx => DEFAULT_DOCX_COMMAND,
-        }
+}
+
+/// Le modèle qui vaut pour `file` quand le projet n'en a réglé aucun.
+///
+/// La page d'accueil a le sien, comme elle a le sien dans les réglages : un
+/// champ vide vaut le défaut de ce champ, et non celui du voisin.
+fn default_command(format: Format, file: &str) -> &'static str {
+    match format {
+        Format::Html if is_home(file) => DEFAULT_HTML_INDEX_COMMAND,
+        Format::Html => DEFAULT_HTML_COMMAND,
+        Format::Pdf => DEFAULT_PDF_COMMAND,
+        Format::Docx => DEFAULT_DOCX_COMMAND,
     }
 }
 
@@ -145,17 +173,16 @@ pub fn is_home(file: &str) -> bool {
 /// Le modèle et la destination qui valent pour `file` dans le format `format`.
 ///
 /// C'est ici, et nulle part ailleurs, que se décide quel modèle part : la
-/// compilation et l'aperçu des paramètres passent tous deux par là. Un modèle
-/// d'accueil vide laisse la page d'accueil au modèle commun.
+/// compilation et l'aperçu des paramètres passent tous deux par là. Le champ
+/// est rendu tel qu'il est, vide compris : c'est `plan_for` qui lui donne alors
+/// son défaut, et celui de l'accueil n'est pas celui d'un chapitre.
 pub fn template_for<'a>(
     settings: &'a PandocSettings,
     format: Format,
     file: &str,
 ) -> (&'a str, &'a str) {
     match format {
-        Format::Html if is_home(file) && !settings.html_index_command.trim().is_empty() => {
-            (&settings.html_index_command, &settings.html_dest)
-        }
+        Format::Html if is_home(file) => (&settings.html_index_command, &settings.html_dest),
         Format::Html => (&settings.html_command, &settings.html_dest),
         Format::Pdf => (&settings.pdf_command, &settings.pdf_dest),
         Format::Docx => (&settings.docx_command, &settings.docx_dest),
@@ -311,7 +338,7 @@ fn is_pandoc(program: &str) -> bool {
 /// projet. Un modèle vide vaut la commande par défaut du format.
 pub fn plan_for(format: Format, template: &str, file: &str, dest: &str) -> Result<Plan> {
     let template = if template.trim().is_empty() {
-        format.default_command()
+        default_command(format, file)
     } else {
         template
     };
@@ -551,8 +578,13 @@ mod tests {
              filesLOT04/SFD-CID-SDS-STOCK-BS-bLOT04-Chap01Introduction.pdf"
         );
 
+        // Champ vide : le défaut du format, qui est ce même fichier de
+        // configuration — la commande ci-dessus à la destination près.
         let plan = plan_for(Format::Pdf, "", "a/b.md", "").unwrap();
-        assert_eq!(display(&plan), "pandoc a/b.md -f markdown -o a/b.pdf");
+        assert_eq!(
+            display(&plan),
+            "pandoc a/b.md --defaults=conf/defaults-single.yaml -o a/b.pdf"
+        );
     }
 
     /// La commande Word du projet : `{sortie}` en `.docx`, `{dossier}` pour
@@ -580,10 +612,12 @@ mod tests {
         // Pas de modèle d'accueil en Word : index.md prend le modèle commun.
         assert_eq!(template_for(&settings, Format::Docx, "index.md").0, settings.docx_command);
 
+        // Champ vide : le défaut du format, qui ajoute le document de styles.
         let plan = plan_for(Format::Docx, "", "a/b.md", "").unwrap();
         assert_eq!(
             display(&plan),
-            "pandoc a/b.md -f markdown --resource-path=a -o a/b.docx"
+            "pandoc a/b.md --defaults=conf/defaults-docx.yaml --resource-path=a \
+             --reference-doc=conf/reference.docx -o a/b.docx"
         );
     }
 
@@ -614,9 +648,17 @@ mod tests {
         assert_eq!(template_for(&settings, Format::Html, "indexation.md").0, EXEMPLE);
         // En PDF, l'accueil n'a rien de particulier.
         assert_eq!(template_for(&settings, Format::Pdf, "index.md").0, "");
-        // Vide, le modèle d'accueil laisse la place au modèle commun.
-        let commun = PandocSettings { html_index_command: " ".into(), ..settings.clone() };
-        assert_eq!(template_for(&commun, Format::Html, "index.md").0, EXEMPLE);
+        // Vide, le champ de l'accueil vaut son propre défaut — le gabarit
+        // d'accueil —, et non le modèle commun réglé juste au-dessus.
+        let vide = PandocSettings { html_index_command: " ".into(), ..settings.clone() };
+        let (template, dest) = template_for(&vide, Format::Html, "index.md");
+        let plan = plan_for(Format::Html, template, "index.md", dest).unwrap();
+        assert_eq!(
+            display(&plan),
+            "pandoc index.md -f markdown -t html5 --standalone \
+             --template=conf/modele-accueil.template.html \
+             --metadata-file=conf/bibliotheque.yaml -o /mnt/hgfs/DEV/htdocs/index.html"
+        );
         assert!(is_home("INDEX.markdown"));
     }
 
@@ -641,10 +683,25 @@ mod tests {
     #[test]
     fn modele_vide_et_programme_refuse() {
         let plan = plan_for(Format::Html, "  ", "a.md", "").unwrap();
-        assert_eq!(display(&plan), "pandoc a.md -f markdown -t html5 --standalone -o a.html");
+        assert_eq!(
+            display(&plan),
+            "pandoc a.md -f markdown -t html5 --standalone --toc --toc-depth=6 \
+             --lua-filter=conf/filtre.lua --template=conf/modele.template.html \
+             --metadata-file=conf/bibliotheque.yaml -o a.html"
+        );
+        // Et pour la page d'accueil, le défaut de l'accueil : son gabarit, sans
+        // table des matières ni filtre.
+        let plan = plan_for(Format::Html, "", "index.md", "").unwrap();
+        assert_eq!(
+            display(&plan),
+            "pandoc index.md -f markdown -t html5 --standalone \
+             --template=conf/modele-accueil.template.html \
+             --metadata-file=conf/bibliotheque.yaml -o index.html"
+        );
 
         assert!(plan_for(Format::Html, "/usr/local/bin/pandoc {fichier}", "a.md", "").is_ok());
         assert!(plan_for(Format::Html, "rm -rf {destination}", "a.md", "/").is_err());
         assert!(plan_for(Format::Html, "sh -c pandoc", "a.md", "").is_err());
     }
 }
+

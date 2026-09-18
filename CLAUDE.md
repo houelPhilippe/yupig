@@ -604,7 +604,16 @@ lancé depuis la racine devant trouver les images, écrites en relatif au
 document, pour les embarquer. La **page d'accueil** — `index.md`, à la
 racine du projet seulement — a son propre modèle HTML
 (`pandoc index.md … --template=conf/modele-accueil.template.html …`) : elle ne
-se bâtit pas sur le gabarit des chapitres. Vide, elle prend le modèle commun.
+se bâtit pas sur le gabarit des chapitres.
+
+**Un champ vide vaut le défaut de ce champ**, et non celui du voisin : l'accueil
+laissé vide prend le gabarit d'accueil, non le modèle des chapitres. Et ces
+défauts nomment les fichiers de `conf/` — filtre, modèles, bibliothèque,
+configurations —, la disposition que `projetExemple` porte : un projet neuf
+compile donc complètement sans qu'on ait rien réglé, là où un Pandoc nu rendait
+une page sans gabarit ni table des matières. Un projet bâti autrement écrit ses
+propres commandes ; c'est à quoi les champs servent.
+
 Le choix du modèle se fait en un seul endroit, `pandoc::template_for`, que
 l'aperçu emprunte comme la compilation — il reçoit pour cela tous les champs à
 l'écran. Côté Rust c'est `ProjectSettings.pandoc`,
@@ -638,8 +647,10 @@ trois règles :
   `pandoc_preview` au lieu de refaire le calcul en JavaScript : il ne peut
   pas montrer autre chose que ce qui partira. `src/js/pandoc.js` ne tient plus
   que la légende des variables, dont les noms doivent rester ceux de
-  `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND`, `DEFAULT_PDF_COMMAND` ou
-  `DEFAULT_DOCX_COMMAND`, côté Rust.
+  `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND`,
+  `DEFAULT_HTML_INDEX_COMMAND` pour l'accueil, `DEFAULT_PDF_COMMAND` ou
+  `DEFAULT_DOCX_COMMAND`, côté Rust : c'est `default_command`, qui reçoit le
+  document autant que le format, qui les départage.
 
 Un cadre posé au pointeur — les menus contextuels, la bulle d'une note — est
 **mesuré au large avant d'être calé** : `place`, dans `ui/menu.js`, le pose au
