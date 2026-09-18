@@ -25,16 +25,32 @@ export function open(x, y, items) {
   });
   replace(menu, items.filter(Boolean));
 
-  // Poser d'abord au pointeur : un élément en `position: fixed` sans décalage
-  // s'afficherait un instant en bas de page avant d'être recalé.
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  document.body.append(menu);
+  place(menu, x, y);
+}
 
-  // Puis corriger : la taille du menu n'est connue qu'une fois dans le document.
-  const box = menu.getBoundingClientRect();
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - box.width - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - box.height - 8))}px`;
+/**
+ * Pose un cadre au pointeur, sans le laisser sortir de la fenêtre.
+ *
+ * Il est d'abord posé au coin haut-gauche, et non au pointeur : la largeur
+ * d'un élément en `position: fixed` se calcule sur la place qui lui reste à
+ * droite de son bord gauche. Posé près du bord droit, il replie donc ses
+ * colonnes et coupe ses intitulés — et la mesure prise sur ce repli est
+ * justement assez étroite pour l'y maintenir au recalage : le menu reste
+ * désorganisé, et ce qui déborde par le bas devient hors d'atteinte. Mesuré
+ * au large, il garde sa taille pleine et se recale une bonne fois.
+ *
+ * Le décalage est posé avant l'insertion : sans lui, le cadre s'afficherait un
+ * instant en bas de page.
+ */
+export function place(node, x, y) {
+  node.style.left = '0px';
+  node.style.top = '0px';
+  document.body.append(node);
+
+  // La taille n'est connue qu'une fois dans le document.
+  const box = node.getBoundingClientRect();
+  node.style.left = `${Math.max(8, Math.min(x, window.innerWidth - box.width - 8))}px`;
+  node.style.top = `${Math.max(8, Math.min(y, window.innerHeight - box.height - 8))}px`;
 }
 
 export function close() {

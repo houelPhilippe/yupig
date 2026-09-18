@@ -440,10 +440,13 @@
 
   <!-- Barre d'état : ce que l'on sait du document sans avoir à le regarder —
        sa sorte, et l'endroit du texte où se trouve le curseur. Elle ne paraît
-       qu'en « Édition », un document ouvert : une barre vide n'apprendrait
-       rien et prendrait la place d'une ligne de texte. Tout y est à droite,
-       loin des volets, là où le regard ne va que lorsqu'il la cherche. -->
+       qu'en « Édition » : elle y porte toujours au moins la version, et ce
+       qui parle du document — sa sorte, la position du curseur — ne paraît
+       qu'avec lui. Ce dernier est à droite, loin des volets, là où le regard
+       ne va que lorsqu'il la cherche ; la version, elle, est à gauche : on ne
+       la lit qu'une fois, et elle n'a pas à déplacer le reste en changeant. -->
   <footer class="statusbar" id="statusbar" hidden>
+    <span class="statusbar__item" id="status-version"></span>
     <div class="spacer"></div>
     <!-- La position ne se dit qu'en « Code Markdown » : c'est la seule vue qui
          ait des lignes. -->

@@ -472,16 +472,9 @@ function open(x, y, cell = null) {
   // dans un tableau.
   replace(menu, [el('div.ctx__cols', {}, format, block, insert, source ? null : tableMenu(cell))]);
 
-  // Poser d'abord au pointeur : un élément en `position: fixed` sans décalage
-  // s'afficherait un instant en bas de page avant d'être recalé.
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  document.body.append(menu);
-
-  // Puis corriger : la taille du menu n'est connue qu'une fois dans le document.
-  const box = menu.getBoundingClientRect();
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - box.width - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - box.height - 8))}px`;
+  // Trois colonnes à poser : c'est ce menu-ci qui a le plus à perdre à être
+  // mesuré à l'étroit, `ctx__cols` repliant la dernière sous les autres.
+  ctxMenu.place(menu, x, y);
 }
 
 /** La colonne « Tableau » du menu, quand le clic est tombé dans une cellule. */

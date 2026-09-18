@@ -1,5 +1,6 @@
-// Barre d'état, en pied de fenêtre : la sorte du document ouvert, et — en
-// « Code Markdown » seulement — la ligne et la colonne où se trouve le curseur.
+// Barre d'état, en pied de fenêtre : la version de l'application à gauche, la
+// sorte du document ouvert à droite, et — en « Code Markdown » seulement — la
+// ligne et la colonne où se trouve le curseur.
 //
 // La position ne passe pas par l'état : elle change à chaque flèche du clavier,
 // et la faire transiter par `store.emit` redessinerait tout le document pour
@@ -8,8 +9,10 @@
 // vient bien de l'état — l'application à l'écran, l'onglet, le mode.
 
 import * as store from '../store.js';
+import * as api from '../api.js';
 
 const bar = document.getElementById('statusbar');
+const versionLabel = document.getElementById('status-version');
 const kindLabel = document.getElementById('status-kind');
 const positionLabel = document.getElementById('status-position');
 const area = document.getElementById('editor-area');
@@ -41,9 +44,17 @@ export function render(state) {
     return;
   }
 
+  // Elle reste là sans document ouvert, ce qu'elle ne faisait pas : ce qui la
+  // faisait se retirer, c'est qu'elle n'apprenait alors rien — la version y
+  // étant toujours, ce n'est plus le cas.
+  bar.hidden = false;
+
   const tab = store.activeTab();
-  bar.hidden = !tab;
-  if (!tab) return;
+  kindLabel.hidden = !tab;
+  if (!tab) {
+    positionLabel.hidden = true;
+    return;
+  }
 
   kindLabel.textContent = kindOf(tab.name);
   kindLabel.title = tab.path;
@@ -92,6 +103,13 @@ function refresh() {
 }
 
 export function wire() {
+  // La version ne change pas d'une session à l'autre : une seule lecture au
+  // démarrage. Si l'API venait à la refuser, la place reste vide — une barre
+  // d'état n'est pas un endroit où signaler une panne.
+  api.appVersion().then((v) => {
+    versionLabel.textContent = `Version ${v}`;
+  }).catch(() => {});
+
   // `selectionchange` couvre tout ce qui déplace le curseur, la souris comme
   // les flèches ; les trois autres sont là parce que sa portée aux champs de
   // saisie n'est pas également acquise d'un moteur à l'autre. Les poser tous

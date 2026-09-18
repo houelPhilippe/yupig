@@ -423,6 +423,24 @@ et la mise en page d'un tableau dans le rendu tiennent à la classe `tbl`, que l
 grille reçoit de `tables.js`. `liftPipeTables` la lui donne, sans quoi il ne se
 présentait pas comme un tableau.
 
+La grille écrite dans le fichier est **à l'image de ce que montre
+« Modifier »** : une ligne de cellule y est une ligne de la grille, quelle que
+soit sa longueur, et une cellule d'une seule ligne se lit d'un seul tenant.
+C'est la colonne qui s'élargit — une grille peut donc être large, et c'est le
+prix de cette correspondance. Aucun budget de largeur ne vient la rogner : le
+texte s'y enroulerait, et la source ne dirait plus ce qu'on a sous les yeux.
+Les bords, eux, tombent toujours aux mêmes colonnes, la cellule étant complétée
+d'espaces jusqu'à sa barre.
+
+Un saut de ligne dans une cellule se dit donc par une **barre oblique
+inverse** en fin de ligne, et non par les deux espaces qu'écrit `turndown` :
+ce remplissage les avale, si bien qu'ils ne se distinguent plus de lui — ni
+pour Pandoc, ni pour la relecture, qui rogne chaque ligne. `breaks`, dans
+`tables.js`, fait la traduction à l'écriture ; `marked` connaît la barre
+d'elle-même. Dans un bloc de code, elle ne se pose pas : elle y paraîtrait
+telle quelle. Et un retour à la ligne nu, qu'un fichier venu d'ailleurs peut
+porter, reste ce que Pandoc en fait : une **espace**, non un saut.
+
 L'alignement d'une colonne se pose sur l'attribut `align` de chaque cellule, et
 la cellule ne le transmet à ce qu'elle contient que par **héritage** — or un
 héritage cède devant la moindre déclaration. La justification du texte courant
@@ -481,13 +499,20 @@ comme les propriétés d'une image — mais seulement si sa valeur a bougé, san
 quoi une simple visite marquerait le document modifié.
 
 Une **barre d'état** court en pied de fenêtre, sous les deux volets comme sous
-le document : ce qu'elle dit vaut du fichier entier et non d'un volet. Tout y
-est calé à droite, loin des volets, là où le regard ne va que lorsqu'il la
-cherche — la sorte du document, et la position du curseur. Celle-ci ne se dit
-qu'en « Code Markdown » : c'est la seule vue qui ait des lignes, et un rang
-compté dans le rendu ne désignerait rien de ce que le fichier porte. La barre
-se retire quand aucun document n'est ouvert : vide, elle n'apprendrait rien et
-prendrait la place d'une ligne de texte. Les deux nombres ne passent **pas**
+le document : ce qu'elle dit vaut du fichier entier et non d'un volet. Ce qui
+parle du document est calé **à droite**, loin des volets, là où le regard ne va
+que lorsqu'il la cherche — la sorte du document, et la position du curseur.
+Celle-ci ne se dit qu'en « Code Markdown » : c'est la seule vue qui ait des
+lignes, et un rang compté dans le rendu ne désignerait rien de ce que le
+fichier porte. À **gauche** se tient la **version de l'application**, seule
+chose de la barre qui ne parle pas du fichier : elle ne bouge jamais, et de ce
+côté-là elle ne déplace rien. Elle vient de Tauri (`api.appVersion`, soit
+`version` de `tauri.conf.json`) et non d'une constante du frontend — c'est la
+même que le paquet Windows et la release du tag, et rien n'est à tenir à jour
+à deux endroits. La barre ne paraît qu'en « Édition », mais elle **y reste
+sans document ouvert** : ce qui la faisait autrefois se retirer, c'est qu'elle
+n'apprenait alors rien — la version y étant toujours, ce n'est plus le cas.
+Les deux nombres ne passent **pas**
 par l'état : ils changent à chaque flèche du clavier, et les faire transiter
 par `store.emit` redessinerait tout le document pour deux chiffres —
 `ui/status.js` les écrit donc lui-même, sur les événements de la zone de
@@ -615,6 +640,17 @@ trois règles :
   que la légende des variables, dont les noms doivent rester ceux de
   `Vars::value`. Un modèle vide vaut `DEFAULT_HTML_COMMAND`, `DEFAULT_PDF_COMMAND` ou
   `DEFAULT_DOCX_COMMAND`, côté Rust.
+
+Un cadre posé au pointeur — les menus contextuels, la bulle d'une note — est
+**mesuré au large avant d'être calé** : `place`, dans `ui/menu.js`, le pose au
+coin haut-gauche, relève sa taille, puis le ramène dans la fenêtre. La largeur
+d'un élément en `position: fixed` se calcule sur la place qui lui reste à droite
+de son bord gauche : posé d'abord au pointeur, près du bord droit, il replie ses
+colonnes et coupe ses intitulés, et la mesure prise sur ce repli est justement
+assez étroite pour l'y maintenir au recalage — le menu reste désorganisé, plus
+haut que large, et ce qui déborde par le bas devient hors d'atteinte. Les trois
+cadres qui se posent ainsi passent par la même fonction plutôt que d'en recopier
+le calcul.
 
 Le **menu de l'application** — le bouton « hamburger » en tête de la barre
 du haut, F10 — porte ce qui vaut pour le projet ou l'application entière :

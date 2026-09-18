@@ -114,6 +114,11 @@ function showTip(sup) {
       ? el('div.fn-tip__body', {}, contentOf(definition))
       : el('div.fn-tip__body.fn-tip__body--missing', {}, `Aucune définition [^${label}]: dans ce document.`),
   );
+  // Au large avant d'être mesurée, comme les menus : la largeur d'un élément en
+  // `position: fixed` se calcule sur la place qui lui reste à droite, et une
+  // bulle mesurée à l'étroit garderait le texte replié qu'on y aurait lu.
+  tip.style.left = '0px';
+  tip.style.top = '0px';
   document.body.append(tip);
 
   // Sous l'appel, calée sur lui ; au-dessus s'il n'y a pas la place en bas, et

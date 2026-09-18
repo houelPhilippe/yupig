@@ -41,8 +41,6 @@ const CAPTION = /^ {0,3}(?::[ \t]+|Table:[ \t]*)(.*)$/;
 /** Les seules classes que l'aspect connaît — le reste est écarté au nettoyage. */
 export const CLASSES = ['tbl', 'tbl--bordered', 'tbl--striped'];
 
-/** Largeur, en caractères, de la grille écrite dans le fichier. */
-const BUDGET = 72;
 /** Une colonne plus étroite ne se lit plus dans la source. */
 const MIN = 5;
 
@@ -230,8 +228,11 @@ function content(text) {
   if (/\n[ \t]*\n/.test(value) || /^[ \t]*([-*+>#]|\d+[.)] |```|~~~)/m.test(value)) {
     return globalThis.marked.parse(value, { gfm: true, breaks: false });
   }
-  // Sinon, les retours à la ligne de la cellule sont voulus : ils se voient.
-  return inline(value).replace(/\n/g, '<br>');
+  // Sinon, un retour à la ligne nu n'est pas un saut : Pandoc le lit comme une
+  // espace, et une cellule repliée par un autre outil revient donc d'un seul
+  // tenant. Seul un vrai saut se voit, dit par la barre oblique inverse de fin
+  // de ligne, que `marked` connaît.
+  return inline(value).replace(/\n/g, ' ');
 }
 
 function inline(text) {
@@ -313,13 +314,13 @@ export function toGrid(table, cellMarkdown) {
   if (!rows.length) return '';
 
   const grid = rows.map((row) =>
-    [...row.children].map((cell) => cellMarkdown(cell).replace(/[ \t]+$/gm, '').trim()),
+    [...row.children].map((cell) => breaks(cellMarkdown(cell))),
   );
   const columns = Math.max(...grid.map((row) => row.length));
   for (const row of grid) while (row.length < columns) row.push('');
 
   const widths = percentages(table, columns);
-  const size = sizes(grid, widths, columns);
+  const size = sizes(grid, columns);
   const align = alignments(rows[0], columns);
 
   // Les deux-points ne se posent que sur la barre qui porte l'alignement : celle
@@ -347,11 +348,51 @@ export function toGrid(table, cellMarkdown) {
   return out.join('\n');
 }
 
-/** Les lignes de texte d'une rangée, cellules mises à la même hauteur. */
+/**
+ * Le Markdown d'une cellule, ses sauts de ligne dits par une barre oblique.
+ *
+ * `turndown` écrit un `<br>` en deux espaces de fin de ligne — la forme
+ * ordinaire du Markdown, la seule que la grille ne puisse pas porter : la
+ * cellule est complétée d'espaces jusqu'à sa barre, et Pandoc ne voit plus
+ * rien de ces deux-là. La barre oblique, elle, survit au remplissage — et au
+ * `trim` de la relecture. Sans quoi un saut de ligne voulu se perdrait à la
+ * compilation — Pandoc ne lisant, dans un retour à la ligne nu, qu'une espace.
+ *
+ * Une barre en fin de cellule n'aurait rien à couper : elle s'en va.
+ */
+function breaks(markdown) {
+  let fence = null;
+
+  const lines = markdown.split('\n').map((line) => {
+    // Dans un bloc de code, deux espaces ne sont que deux espaces : la barre y
+    // paraîtrait telle quelle à la lecture.
+    if (fence) {
+      if (new RegExp(`^ {0,3}${fence}`).test(line)) fence = null;
+      return line.replace(/[ \t]+$/, '');
+    }
+    const opening = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (opening) {
+      fence = opening[1].slice(0, 3);
+      return line.replace(/[ \t]+$/, '');
+    }
+    const stop = /[ \t]{2,}$/.test(line);
+    return line.replace(/[ \t]+$/, '') + (stop ? '\\' : '');
+  });
+
+  return lines.join('\n').trim().replace(/\\$/, '');
+}
+
+/**
+ * Les lignes de texte d'une rangée, cellules mises à la même hauteur.
+ *
+ * Une ligne de cellule est une ligne de la grille, quelle que soit sa
+ * longueur : la source dit alors ce que « Modifier » montre, et une cellule
+ * d'une seule ligne se lit d'un seul tenant. C'est la colonne qui s'élargit,
+ * jamais le texte qui se coupe — les bords tombent ainsi toujours aux mêmes
+ * colonnes.
+ */
 function body(cells, size) {
-  const wrapped = cells.map((cell, i) =>
-    cell.split('\n').flatMap((line) => wrap(line, size[i] - 2)),
-  );
+  const wrapped = cells.map((cell) => cell.split('\n'));
   const height = Math.max(1, ...wrapped.map((lines) => lines.length));
 
   const out = [];
@@ -361,24 +402,6 @@ function body(cells, size) {
     );
   }
   return out;
-}
-
-/** Coupe une ligne à la largeur de sa colonne, sans couper les mots. */
-function wrap(line, width) {
-  if (line.length <= width) return [line];
-
-  const out = [];
-  let current = '';
-  for (const word of line.split(/[ \t]+/)) {
-    if (!current) current = word;
-    else if (current.length + 1 + word.length <= width) current += ` ${word}`;
-    else {
-      out.push(current);
-      current = word;
-    }
-  }
-  if (current) out.push(current);
-  return out.length ? out : [''];
 }
 
 /** Les pourcentages portés par le `<colgroup>`, s'il y en a un. */
@@ -396,20 +419,17 @@ function percentages(table, columns) {
 /**
  * La largeur en caractères de chaque colonne dans la source.
  *
- * Une colonne tient d'abord son contenu : un petit tableau reste étroit et se
- * lit tel quel dans le fichier. Au-delà, les pourcentages donnent la place
- * disponible et le texte s'y enroule — sans jamais couper un mot, quitte à
- * élargir la colonne. Ces largeurs ne sont que la mise en page de la source :
- * l'aperçu, lui, suit `tbl-colwidths`.
+ * Une colonne tient sa plus longue ligne, et rien d'autre : aucun budget ne
+ * vient la rogner, faute de quoi le texte devrait s'y enrouler et la source ne
+ * dirait plus ce que « Modifier » montre. Une grille peut donc être large —
+ * c'est le prix de cette correspondance. Ces largeurs ne sont que la mise en
+ * page de la source : l'aperçu, lui, suit `tbl-colwidths`.
  */
-function sizes(grid, widths, columns) {
-  const share = widths ?? Array.from({ length: columns }, () => 100 / columns);
-  return share.map((pct, i) => {
+function sizes(grid, columns) {
+  return Array.from({ length: columns }, (_, i) => {
     const texts = grid.map((row) => row[i]);
     const line = Math.max(0, ...texts.flatMap((t) => t.split('\n').map((l) => l.length)));
-    const word = Math.max(0, ...texts.flatMap((t) => t.split(/\s+/).map((w) => w.length)));
-    const room = Math.max(MIN, Math.round((pct * BUDGET) / 100), word + 2);
-    return Math.min(Math.max(MIN, line + 2), room);
+    return Math.max(MIN, line + 2);
   });
 }
 

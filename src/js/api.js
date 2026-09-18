@@ -187,6 +187,17 @@ export async function pickOpmlToSave() {
   return tauri.dialog.save({ defaultPath: 'veille.opml', filters: OPML_FILTER });
 }
 
+// --------------------------------------------------------------- l'application
+
+/**
+ * La version de l'application, telle que la distribution la porte.
+ *
+ * C'est `version` de `src-tauri/tauri.conf.json` que Tauri rend ici — la même
+ * que le paquet Windows et la release du tag : il n'y a donc rien à tenir à
+ * jour dans le frontend, et rien qui puisse mentir sur ce qu'on exécute.
+ */
+export const appVersion = () => tauri.app.getVersion();
+
 /** Ouvre un lien dans le navigateur du système, jamais dans la webview. */
 export async function openExternal(url) {
   if (!url) return;

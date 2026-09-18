@@ -10,6 +10,8 @@
 // l'aperçu ne part donc jamais dans le fichier : c'est `data-src` qui y va.
 
 import { el, icon, replace, wireHints, PATH } from './dom.js';
+// Le calage au pointeur est celui du cadre commun : un seul endroit sait le faire.
+import { place } from './menu.js';
 import * as store from '../store.js';
 import * as api from '../api.js';
 import { imageResolver } from './editor.js';
@@ -68,13 +70,7 @@ export function open(img, x, y) {
     ].filter(Boolean),
   );
 
-  menu.style.left = `${x}px`;
-  menu.style.top = `${y}px`;
-  document.body.append(menu);
-
-  const box = menu.getBoundingClientRect();
-  menu.style.left = `${Math.max(8, Math.min(x, window.innerWidth - box.width - 8))}px`;
-  menu.style.top = `${Math.max(8, Math.min(y, window.innerHeight - box.height - 8))}px`;
+  place(menu, x, y);
 }
 
 export function close() {
