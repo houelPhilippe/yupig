@@ -83,12 +83,19 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi | ForEach-Object FullName)
           "Paquets : $($files -join ', ')"
 
+          # Le nom de l'application est lu dans « productName », jamais écrit
+          # ici : c'est celui du paquet, et une release ne peut donc pas en
+          # porter un autre — la même règle que pour la version, prise dans le
+          # même fichier.
+          $nom = (Get-Content src-tauri/tauri.conf.json -Raw -Encoding utf8 |
+            ConvertFrom-Json).productName
+
           $tag = $env:GITHUB_REF_NAME
           gh release view $tag *> $null
           if ($LASTEXITCODE -eq 0) {
             gh release upload $tag $files --clobber
           } else {
-            gh release create $tag $files --title "Veille $tag" `
+            gh release create $tag $files --title "$nom $tag" `
               --notes "Paquets Windows compilés par GitHub Actions : installateur NSIS (.exe) et paquet MSI."
           }
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
