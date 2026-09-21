@@ -14,7 +14,7 @@ export const state = {
   stats: { total: 0, unread: 0, favorites: 0, feeds: 0, lastSync: null },
   settings: {
     refreshMinutes: 15, feedPaneOpen: false, showThumbnails: true, showReservedTile: true,
-    app: 'veille', projectRoot: null, filesWidth: 0, outlineWidth: 0, journalHeight: 0,
+    app: 'edition', projectRoot: null, filesWidth: 0, outlineWidth: 0, journalHeight: 0,
     editorFocus: false, editorZoom: 100,
   },
 
@@ -32,8 +32,8 @@ export const state = {
   notice: null,
 
   // Application affichée. Les deux coques vivent dans la même page et le même
-  // état : « Veille » lit des flux, « Édition » écrit des fichiers.
-  app: 'veille',
+  // état : « Édition » écrit des fichiers, « Veille » lit des flux.
+  app: 'edition',
 
   edition: {
     root: null,        // racine du projet, absolue ; null = aucun projet
@@ -62,10 +62,14 @@ export const state = {
     // l'on a touché : une clé absente veut dire « comme la feuille de style le
     // dit », et c'est `ui/project.js` qui connaît ces valeurs par défaut.
     project: {
-      align: 'gauche', lineHeight: 165, spacing: {},
+      align: 'gauche', lineHeight: 165, spacing: {}, modele: '',
       pandoc: { htmlDest: '', htmlCommand: '', htmlIndexCommand: '', pdfDest: '', pdfCommand: '', docxDest: '', docxCommand: '', bookDest: '', bookFile: '' },
     },
     dialogOpen: false,
+    // Les modèles de configuration du projet — les dossiers de `confModele/`.
+    // Lus sur le disque quand la boîte des paramètres s'ouvre, comme la liste
+    // des projets : un dossier ajouté à la main y paraît sans rien de plus.
+    modeles: [],
 
     // Barre de recherche : ouverte ou non, ce qu'on y cherche, et les trois
     // façons de chercher. Ce qu'elle trouve — le rang de l'occurrence visée et
@@ -149,7 +153,10 @@ export async function refresh() {
 export async function boot() {
   state.settings = await api.getSettings();
   state.panelOpen = state.settings.feedPaneOpen;
-  state.app = state.settings.app === 'edition' ? 'edition' : 'veille';
+  // On retrouve la coque qu'on a quittée ; tout ce qui n'est pas « Veille »
+  // — une base neuve, une valeur d'une version plus ancienne — ramène à
+  // « Édition », qui est l'application.
+  state.app = state.settings.app === 'veille' ? 'veille' : 'edition';
   state.edition.root = state.settings.projectRoot ?? null;
 
   // Le projet retrouvé au lancement peut avoir été déplacé entre-temps ; son
@@ -465,6 +472,35 @@ export async function openDocument(path) {
 export function toggleProjectDialog(open) {
   state.edition.dialogOpen = open ?? !state.edition.dialogOpen;
   emit();
+  // La liste des modèles se relit à chaque ouverture, et par où que la boîte
+  // s'ouvre — son bouton, le menu de l'application : le dossier a pu changer
+  // depuis la dernière fois. Elle ne retarde pas l'ouverture : la boîte est
+  // déjà à l'écran, le groupe se garnit quand la réponse arrive.
+  if (state.edition.dialogOpen && state.edition.root) loadModeles().catch(fail);
+}
+
+/** Les modèles du projet, relus sur le disque. */
+export async function loadModeles() {
+  state.edition.modeles = await api.listModeles();
+  emit();
+}
+
+/**
+ * Applique un modèle de configuration : ses fichiers recouvrent ceux de
+ * `conf/`, et son nom devient celui du projet.
+ *
+ * Les réglages sont relus plutôt que rapiécés : c'est Rust qui a écrit le nom
+ * retenu, et la boîte doit montrer ce que la base porte — non ce qu'on croit y
+ * avoir mis.
+ */
+export async function applyModele(name) {
+  const report = await api.applyModele(name);
+  state.edition.project = await api.getProjectSettings();
+  // `conf/` vient de changer sur le disque, et a pu naître : l'arbre le montre
+  // — sans quoi un dossier déplié garderait l'état d'avant.
+  state.edition.tree = await api.projectTree(state.edition.expanded);
+  emit();
+  return report;
 }
 
 export async function saveProjectSettings(patch) {

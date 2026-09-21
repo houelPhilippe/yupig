@@ -162,6 +162,30 @@ fn default_command(format: Format, file: &str) -> &'static str {
     }
 }
 
+/// Écrit dans les champs **vides** les modèles de commande par défaut.
+///
+/// Appelé à la création d'un projet, et là seulement : un champ vide vaudrait
+/// de toute façon ce modèle-là, mais écrit il se **voit** dans la boîte, et se
+/// modifie sans avoir à le retrouver ailleurs. C'est aussi ce qui fait que la
+/// commande qui partira se lit sans ouvrir l'aperçu.
+///
+/// Les champs déjà remplis ne sont pas touchés : la base garde les réglages
+/// d'un projet retiré de la liste, et un dossier recréé au même chemin ne doit
+/// pas perdre la commande qu'on y avait écrite. Les destinations, elles,
+/// restent vides : personne ne peut les deviner.
+pub fn fill_commands(p: &mut PandocSettings) {
+    for (field, default) in [
+        (&mut p.html_command, DEFAULT_HTML_COMMAND),
+        (&mut p.html_index_command, DEFAULT_HTML_INDEX_COMMAND),
+        (&mut p.pdf_command, DEFAULT_PDF_COMMAND),
+        (&mut p.docx_command, DEFAULT_DOCX_COMMAND),
+    ] {
+        if field.trim().is_empty() {
+            *field = default.to_string();
+        }
+    }
+}
+
 /// Le document est-il la page d'accueil — `index.md` à la racine du projet ?
 ///
 /// La racine seule : un `index.md` rangé dans un dossier est un chapitre comme
@@ -478,6 +502,24 @@ mod tests {
     const EXEMPLE: &str = "pandoc {fichier} -f markdown -t html5 --standalone --toc --toc-depth=6 \
         --lua-filter=conf/filtre.lua --template=conf/modele.template.html \
         --metadata-file=conf/bibliotheque.yaml -o {sortie}";
+
+    /// Un projet neuf part avec ses quatre modèles de commande écrits ; un champ
+    /// déjà rempli, lui, n'est pas remplacé.
+    #[test]
+    fn les_champs_vides_prennent_les_modeles_par_defaut() {
+        let mut p = PandocSettings {
+            pdf_command: "pandoc {fichier} -o {sortie}".into(),
+            ..PandocSettings::default()
+        };
+        fill_commands(&mut p);
+
+        assert_eq!(p.html_command, DEFAULT_HTML_COMMAND);
+        assert_eq!(p.html_index_command, DEFAULT_HTML_INDEX_COMMAND);
+        assert_eq!(p.docx_command, DEFAULT_DOCX_COMMAND);
+        assert_eq!(p.pdf_command, "pandoc {fichier} -o {sortie}");
+        // Les destinations ne se devinent pas : elles restent à régler.
+        assert!(p.html_dest.is_empty() && p.pdf_dest.is_empty() && p.docx_dest.is_empty());
+    }
 
     #[test]
     fn le_modele_du_projet_donne_la_commande_attendue() {

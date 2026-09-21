@@ -1,0 +1,1144 @@
+<!doctype html>
+<!--
+  modele-accueil.template.html — gabarit Pandoc de la page d'accueil
+  (« index.md », a la racine du projet seulement).
+
+  C'est le portail de la bibliotheque, et non un chapitre : on n'y lit pas,
+  on y choisit. Il n'a donc ni sommaire, ni barre de progression, ni mode
+  « Pages » — mais il porte la meme barre du haut, les memes jetons, les
+  memes reglages et la meme recherche que les pages de
+  conf/modele.template.html, dont il est le vestibule.
+
+  Deux vues, et une troisieme quand on filtre :
+    « lots »   la grille des lots (conf/bibliotheque.yaml) ;
+    « lot »    les documents d'un lot, ouverte par le fragment de l'URL
+               (index.html#lot-01-version-nominale) — un lien partageable,
+               et le bouton « Precedent » du navigateur qui marche ;
+    « search » ce que le filtre retient, tous lots confondus.
+
+  Comme pour les pages, les deux premieres feuilles de style sont reprises
+  telles quelles de « modele/ » : jetons et composants. Ne pas les retoucher
+  ici — les modifier dans « modele/ », puis les recopier.
+-->
+<html lang="$if(lang)$$lang$$else$fr$endif$">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="generator" content="pandoc">
+$if(description-meta)$
+  <meta name="description" content="$description-meta$">
+$endif$
+  <title>$if(collection)$$collection$$else$SDS - Documentation Fonctionnelle$endif$$if(version)$ ($version$)$endif$ — $if(title)$$title$$else$Accueil$endif$</title>
+
+  <!-- 1. Jetons du design system — copie de modele/sources/reader-tokens.css -->
+  <style>
+:root{--space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--radius-sm:2px;--radius-md:4px;--radius-lg:8px;--bar-h:48px;--sidebar-w:296px;--panel-w:340px;--font-sans:"IBM Plex Sans", system-ui, "Segoe UI", Helvetica, Arial, sans-serif;--font-serif:"Source Serif 4", Georgia, "Times New Roman", serif;--font-mono:"IBM Plex Mono", ui-monospace, Consolas, monospace;}
+:root{--chrome:#eef1f2;--page:#fbfcfc;--raised:#ffffff;--ink:#1b2528;--ink-muted:#4a5a5f;--rule:#d5dcde;--rule-strong:#77878c;--accent:#0b6466;--on-accent:#ffffff;--accent-ink:#0b6466;--accent-soft:#d5eaea;--mark:#ffe6a3;--mark-active:#ffb43b;--on-mark:#1b2528;--code-bg:#eef1f2;--focus:#0b6466;}:root{--shadow-popover:0 8px 24px rgba(20, 32, 36, 0.16)}
+[data-theme="light"]{--chrome:#eef1f2;--page:#fbfcfc;--raised:#ffffff;--ink:#1b2528;--ink-muted:#4a5a5f;--rule:#d5dcde;--rule-strong:#77878c;--accent:#0b6466;--on-accent:#ffffff;--accent-ink:#0b6466;--accent-soft:#d5eaea;--mark:#ffe6a3;--mark-active:#ffb43b;--on-mark:#1b2528;--code-bg:#eef1f2;--focus:#0b6466;}[data-theme="light"]{--shadow-popover:0 8px 24px rgba(20, 32, 36, 0.16)}
+[data-theme="sepia"]{--chrome:#e5dbc6;--page:#f4ecd9;--raised:#faf5e8;--ink:#3a3023;--ink-muted:#61553f;--rule:#d2c5a8;--rule-strong:#84714f;--accent:#1d5b4d;--on-accent:#fbf6e9;--accent-ink:#1d5b4d;--accent-soft:#d8e0c8;--mark:#f1d27a;--mark-active:#e9a93a;--on-mark:#2c2418;--code-bg:#ebe1cb;--focus:#1d5b4d;}[data-theme="sepia"]{--shadow-popover:0 8px 24px rgba(58, 48, 35, 0.2)}
+[data-theme="dark"]{--chrome:#12181a;--page:#182022;--raised:#212b2e;--ink:#dde5e7;--ink-muted:#9fafb4;--rule:#2e3a3e;--rule-strong:#6a7c82;--accent:#5cc2bd;--on-accent:#08191a;--accent-ink:#6fd0ca;--accent-soft:#1d3a3b;--mark:#d9b64a;--mark-active:#ffcf5c;--on-mark:#151a1c;--code-bg:#1f2a2d;--focus:#6fd0ca;}[data-theme="dark"]{--shadow-popover:0 8px 24px rgba(0, 0, 0, 0.5)}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]):not([data-liseuse="light"]):not([data-liseuse="sepia"]):not([data-liseuse="dark"]){--chrome:#12181a;--page:#182022;--raised:#212b2e;--ink:#dde5e7;--ink-muted:#9fafb4;--rule:#2e3a3e;--rule-strong:#6a7c82;--accent:#5cc2bd;--on-accent:#08191a;--accent-ink:#6fd0ca;--accent-soft:#1d3a3b;--mark:#d9b64a;--mark-active:#ffcf5c;--on-mark:#151a1c;--code-bg:#1f2a2d;--focus:#6fd0ca;}:root:not([data-theme="light"]):not([data-liseuse="light"]):not([data-liseuse="sepia"]):not([data-liseuse="dark"]){--shadow-popover:0 8px 24px rgba(0, 0, 0, 0.5)}}
+:root[data-liseuse="light"]{--chrome:#eef1f2;--page:#fbfcfc;--raised:#ffffff;--ink:#1b2528;--ink-muted:#4a5a5f;--rule:#d5dcde;--rule-strong:#77878c;--accent:#0b6466;--on-accent:#ffffff;--accent-ink:#0b6466;--accent-soft:#d5eaea;--mark:#ffe6a3;--mark-active:#ffb43b;--on-mark:#1b2528;--code-bg:#eef1f2;--focus:#0b6466;}:root[data-liseuse="light"]{--shadow-popover:0 8px 24px rgba(20, 32, 36, 0.16)}
+:root[data-liseuse="sepia"]{--chrome:#e5dbc6;--page:#f4ecd9;--raised:#faf5e8;--ink:#3a3023;--ink-muted:#61553f;--rule:#d2c5a8;--rule-strong:#84714f;--accent:#1d5b4d;--on-accent:#fbf6e9;--accent-ink:#1d5b4d;--accent-soft:#d8e0c8;--mark:#f1d27a;--mark-active:#e9a93a;--on-mark:#2c2418;--code-bg:#ebe1cb;--focus:#1d5b4d;}:root[data-liseuse="sepia"]{--shadow-popover:0 8px 24px rgba(58, 48, 35, 0.2)}
+:root[data-liseuse="dark"]{--chrome:#12181a;--page:#182022;--raised:#212b2e;--ink:#dde5e7;--ink-muted:#9fafb4;--rule:#2e3a3e;--rule-strong:#6a7c82;--accent:#5cc2bd;--on-accent:#08191a;--accent-ink:#6fd0ca;--accent-soft:#1d3a3b;--mark:#d9b64a;--mark-active:#ffcf5c;--on-mark:#151a1c;--code-bg:#1f2a2d;--focus:#6fd0ca;}:root[data-liseuse="dark"]{--shadow-popover:0 8px 24px rgba(0, 0, 0, 0.5)}
+  </style>
+
+  <!-- 2. Composants — copie de modele/design-system/components/bundle.css -->
+  <style>
+/* Liseuse — feuille de style des composants. Tout est lié aux tokens (tokens.css). */
+
+/* ---------- Focus, commun ---------- */
+.lsr-iconbtn:focus-visible,
+.lsr-seg button:focus-visible,
+.lsr-toc a:focus-visible,
+.lsr-progress:focus-visible,
+.lsr-swatch:focus-visible,
+.lsr-range input:focus-visible,
+.lsr-btn:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------- IconButton ---------- */
+.lsr-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 32px;
+  min-width: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--ink);
+  font: 500 13px/16px var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.lsr-iconbtn:hover { background: var(--accent-soft); }
+.lsr-iconbtn[aria-pressed="true"],
+.lsr-iconbtn[aria-expanded="true"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+.lsr-iconbtn:disabled { opacity: .45; cursor: default; background: transparent; }
+.lsr-iconbtn svg,
+.lsr-btn svg { width: 16px; height: 16px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+
+.lsr-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--page);
+  color: var(--ink);
+  font: 500 13px/16px var(--font-sans);
+  cursor: pointer;
+}
+.lsr-btn:hover { background: var(--accent-soft); }
+
+/* ---------- ReaderToolbar ---------- */
+.lsr-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: var(--bar-h);
+  padding: 0 var(--space-4);
+  background: var(--chrome);
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink);
+  font-family: var(--font-sans);
+}
+.lsr-toolbar__title {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 var(--space-2);
+}
+.lsr-toolbar__title strong {
+  font: 600 15px/20px var(--font-sans);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lsr-toolbar__title span {
+  font: 400 12px/16px var(--font-sans);
+  color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.lsr-toolbar__group { display: flex; align-items: center; gap: var(--space-1); flex: none; }
+.lsr-toolbar__sep { width: 1px; height: 20px; background: var(--rule); margin: 0 var(--space-1); }
+
+/* Barre de recherche (deuxième rangée) */
+.lsr-searchbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--chrome);
+  border-bottom: 1px solid var(--rule);
+}
+.lsr-search {
+  flex: 1 1 auto;
+  max-width: 420px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--page);
+  color: var(--ink);
+}
+.lsr-search svg { width: 16px; height: 16px; flex: none; fill: none; stroke: var(--ink-muted); stroke-width: 1.5; stroke-linecap: round; }
+.lsr-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: 400 13px/16px var(--font-sans);
+}
+.lsr-search input::placeholder { color: var(--ink-muted); }
+.lsr-search input:focus-visible { outline: none; }
+.lsr-search:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.lsr-searchbar__count { font: 400 12px/16px var(--font-sans); color: var(--ink-muted); min-width: 56px; font-variant-numeric: tabular-nums; }
+
+/* ---------- ContentsList (Sommaire) ---------- */
+.lsr-toc {
+  background: var(--chrome);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  padding: var(--space-4) var(--space-3);
+}
+.lsr-toc__head {
+  margin: 0 0 var(--space-2);
+  padding: 0 var(--space-2);
+  font: 600 11px/16px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.lsr-toc ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.lsr-toc a {
+  display: block;
+  padding: var(--space-1) var(--space-2);
+  padding-left: calc(var(--space-2) + var(--lvl, 0) * var(--space-4));
+  border-radius: var(--radius-md);
+  color: var(--ink);
+  font: 500 13px/18px var(--font-sans);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+.lsr-toc a[data-level="0"] { font-weight: 600; }
+.lsr-toc a[data-level="2"], .lsr-toc a[data-level="3"] { font-weight: 400; color: var(--ink-muted); }
+.lsr-toc a:hover { background: var(--accent-soft); color: var(--ink); }
+.lsr-toc a[aria-current="location"] {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.lsr-toc__empty { margin: 0; padding: var(--space-2); font: 400 13px/18px var(--font-sans); color: var(--ink-muted); }
+
+/* ---------- ProgressBar + barre d'état ---------- */
+.lsr-status {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-4) calc(var(--space-2) + env(safe-area-inset-bottom, 0px));
+  background: var(--chrome);
+  border-top: 1px solid var(--rule);
+  color: var(--ink-muted);
+  font: 400 12px/16px var(--font-sans);
+}
+.lsr-progress {
+  position: relative;
+  height: 12px;
+  cursor: pointer;
+  touch-action: none;
+}
+.lsr-progress::before {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--rule);
+}
+.lsr-progress__fill {
+  position: absolute;
+  left: 0; top: 4px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--accent);
+  width: var(--p, 0%);
+}
+.lsr-progress__tick {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 10px;
+  margin-left: -1px;
+  background: var(--ink-muted);
+  opacity: .7;
+}
+.lsr-progress__thumb {
+  position: absolute;
+  top: 0;
+  left: var(--p, 0%);
+  width: 12px; height: 12px;
+  margin-left: -6px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--chrome);
+  box-sizing: border-box;
+}
+.lsr-status__row { display: flex; justify-content: space-between; gap: var(--space-4); }
+.lsr-status__section { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.lsr-status__meta { flex: none; font-variant-numeric: tabular-nums; }
+
+/* ---------- SettingsPanel ---------- */
+.lsr-panel {
+  width: var(--panel-w);
+  max-width: 100%;
+  box-sizing: border-box;
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  background: var(--raised);
+  color: var(--ink);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-popover);
+  font-family: var(--font-sans);
+}
+.lsr-panel__head { display: flex; align-items: center; justify-content: space-between; }
+.lsr-panel__head h2 { margin: 0; font: 600 15px/20px var(--font-sans); }
+.lsr-field { display: grid; gap: var(--space-2); border: 0; margin: 0; padding: 0; min-width: 0; }
+.lsr-field > legend, .lsr-field > label, .lsr-field__label {
+  padding: 0;
+  font: 600 11px/16px var(--font-sans);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.lsr-field__row { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
+.lsr-field__value { font: 500 13px/16px var(--font-sans); font-variant-numeric: tabular-nums; color: var(--ink); }
+
+.lsr-seg {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--page);
+}
+.lsr-seg button {
+  height: 32px;
+  padding: 0 var(--space-2);
+  border: 0;
+  border-right: 1px solid var(--rule-strong);
+  background: transparent;
+  color: var(--ink);
+  font: 500 13px/16px var(--font-sans);
+  cursor: pointer;
+}
+.lsr-seg button:last-child { border-right: 0; }
+.lsr-seg button:hover { background: var(--accent-soft); }
+.lsr-seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.lsr-seg button:focus-visible { outline-offset: -3px; }
+
+.lsr-swatches { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-2); }
+.lsr-swatch {
+  display: grid;
+  gap: var(--space-1);
+  justify-items: center;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--page);
+  color: var(--ink);
+  font: 500 12px/16px var(--font-sans);
+  cursor: pointer;
+}
+.lsr-swatch b { font: 600 18px/22px var(--font-serif); }
+.lsr-swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+.lsr-range { display: grid; gap: var(--space-1); }
+.lsr-range input { width: 100%; accent-color: var(--accent); margin: 0; height: 24px; }
+
+/* ---------- ReaderShell : assemblage ---------- */
+.lsr-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  height: 100%;
+  min-height: 0;
+  background: var(--page);
+  color: var(--ink);
+}
+/* Le sommaire est à gauche par défaut ; data-toc-side="right" (sur .lsr-shell ou un parent) le place à droite.
+   --toc-w règle sa largeur (défaut : --sidebar-w). */
+.lsr-shell__body {
+  display: grid;
+  grid-template-columns: var(--toc-w, var(--sidebar-w)) minmax(0, 1fr);
+  grid-template-areas: "side main";
+  min-height: 0;
+  position: relative;
+}
+[data-toc-side="right"] .lsr-shell__body {
+  grid-template-columns: minmax(0, 1fr) var(--toc-w, var(--sidebar-w));
+  grid-template-areas: "main side";
+}
+.lsr-sidebar { grid-area: side; background: var(--chrome); border-right: 1px solid var(--rule); overflow-y: auto; min-height: 0; }
+[data-toc-side="right"] .lsr-sidebar { border-right: 0; border-left: 1px solid var(--rule); }
+.lsr-main { grid-area: main; position: relative; min-width: 0; min-height: 0; background: var(--page); }
+
+/* Poignée de redimensionnement du sommaire (role="separator") */
+.lsr-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(var(--toc-w, var(--sidebar-w)) - 6px);
+  width: 12px;
+  z-index: 6;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: col-resize;
+  touch-action: none;
+}
+[data-toc-side="right"] .lsr-resizer { left: auto; right: calc(var(--toc-w, var(--sidebar-w)) - 6px); }
+.lsr-resizer::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 32px;
+  margin: -16px 0 0 -2px;
+  border-radius: 2px;
+  background: var(--rule-strong);
+}
+.lsr-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0;
+  left: 50%;
+  width: 2px;
+  margin-left: -1px;
+  background: transparent;
+}
+.lsr-resizer:hover::after, .lsr-resizer[data-drag]::after { background: var(--accent); }
+.lsr-resizer:hover::before, .lsr-resizer[data-drag]::before { background: var(--accent); }
+.lsr-resizer:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+
+/* @doc-css:start */
+/* ---------- ReadingPage : typographie du document ---------- */
+.lsr-doc {
+  color: var(--ink);
+  font-family: var(--read-font, var(--font-sans));
+  font-size: var(--read-size, 17px);
+  line-height: var(--read-leading, 1.65);
+  hyphens: auto;
+  overflow-wrap: break-word;
+  text-align: left;
+}
+.lsr-doc > :first-child { margin-top: 0; }
+.lsr-doc h1, .lsr-doc h2, .lsr-doc h3, .lsr-doc h4, .lsr-doc h5, .lsr-doc h6 {
+  font-family: var(--font-sans);
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--ink);
+  text-wrap: balance;
+  margin: 1.9em 0 .55em;
+  break-after: avoid;
+}
+.lsr-doc h1 { font-size: 1.9em; margin-top: 0; letter-spacing: -.01em; }
+.lsr-doc h2 { font-size: 1.45em; padding-bottom: .25em; border-bottom: 1px solid var(--rule); }
+.lsr-doc h3 { font-size: 1.17em; }
+.lsr-doc h4 { font-size: 1em; }
+.lsr-doc h5, .lsr-doc h6 { font-size: .85em; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-muted); }
+.lsr-doc p, .lsr-doc ul, .lsr-doc ol, .lsr-doc dl, .lsr-doc pre, .lsr-doc blockquote, .lsr-doc table, .lsr-doc figure { margin: 0 0 1em; }
+.lsr-doc ul, .lsr-doc ol { padding-left: 1.5em; }
+.lsr-doc li { margin-bottom: .3em; }
+.lsr-doc li > ul, .lsr-doc li > ol { margin: .3em 0 0; }
+.lsr-doc a { color: var(--accent-ink); text-underline-offset: .18em; text-decoration-thickness: 1px; }
+.lsr-doc a:hover { text-decoration-thickness: 2px; }
+.lsr-doc strong, .lsr-doc b { font-weight: 600; }
+.lsr-doc small { color: var(--ink-muted); font-size: .88em; }
+.lsr-doc code, .lsr-doc kbd, .lsr-doc samp {
+  font-family: var(--font-mono);
+  font-size: .86em;
+  background: var(--code-bg);
+  padding: .1em .35em;
+  border-radius: var(--radius-sm);
+  hyphens: none;
+}
+.lsr-doc kbd { border: 1px solid var(--rule-strong); border-bottom-width: 2px; background: var(--page); }
+.lsr-doc pre {
+  background: var(--code-bg);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  overflow-x: auto;
+  font: 400 .84em/1.55 var(--font-mono);
+  hyphens: none;
+  break-inside: avoid;
+}
+.lsr-doc pre code { background: none; padding: 0; font: inherit; border-radius: 0; }
+.lsr-doc blockquote {
+  background: var(--code-bg);
+  border-radius: var(--radius-md);
+  padding: .7em 1.1em;
+  color: var(--ink);
+  break-inside: avoid;
+}
+.lsr-doc blockquote > :last-child { margin-bottom: 0; }
+.lsr-doc aside, .lsr-doc .note {
+  background: var(--accent-soft);
+  color: var(--ink);
+  border-radius: var(--radius-md);
+  padding: .8em 1.1em;
+  margin: 0 0 1em;
+  break-inside: avoid;
+}
+.lsr-doc aside > :last-child, .lsr-doc .note > :last-child { margin-bottom: 0; }
+.lsr-doc table {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-size: .94em;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.lsr-doc th, .lsr-doc td { border: 1px solid var(--rule); padding: .45em .8em; text-align: left; vertical-align: top; }
+.lsr-doc th { background: var(--code-bg); font-weight: 600; }
+.lsr-doc caption { caption-side: top; text-align: left; color: var(--ink-muted); font-size: .9em; padding-bottom: .4em; }
+.lsr-doc hr { border: 0; border-top: 1px solid var(--rule); margin: 2em 0; }
+.lsr-doc img, .lsr-doc svg, .lsr-doc video, .lsr-doc canvas { max-width: 100%; height: auto; }
+.lsr-doc figure { break-inside: avoid; }
+.lsr-doc figcaption { color: var(--ink-muted); font-size: .88em; margin-top: .4em; }
+.lsr-doc dt { font-weight: 600; }
+.lsr-doc dd { margin: 0 0 .6em 1.5em; }
+.lsr-doc mark { background: var(--mark); color: var(--on-mark); border-radius: var(--radius-sm); }
+.lsr-doc mark.lsr-hit[data-current] { background: var(--mark-active); outline: 2px solid var(--ink); outline-offset: 0; }
+/* @doc-css:end */
+  </style>
+
+  <!-- 3. Le portail — la coque du haut est celle des pages ; dessous, le
+       vestibule : une banniere, puis des vignettes. Pas de volet, pas de
+       barre d'etat : il n'y a pas de lecture a suivre. -->
+  <style>
+[hidden] { display: none !important; }
+
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+.lsr-app { position: relative; display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--page); }
+.lsr-toolbar .lsr-label { display: inline; }
+.lsr-toolbar a.lsr-iconbtn { text-decoration: none; }
+
+/* La zone qui defile — tout le portail y tient. */
+.pt-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.pt-main:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
+.pt-wrap { max-width: 1180px; margin: 0 auto; padding: var(--space-6) clamp(16px, 4vw, 40px) var(--space-8); }
+
+/* ---- Banniere ---- */
+.pt-hero { text-align: center; padding: var(--space-5) 0 var(--space-6); border-bottom: 1px solid var(--rule); margin-bottom: var(--space-6); }
+.pt-hero h1 { margin: 0 0 var(--space-3); font: 600 clamp(28px, 4vw, 42px)/1.15 var(--font-sans); letter-spacing: -.01em; color: var(--ink); text-wrap: balance; }
+.pt-hero__badge { display: inline-block; margin: 0 0 var(--space-3); padding: .2em .7em; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-ink); font: 600 12px/18px var(--font-sans); letter-spacing: .04em; text-transform: uppercase; }
+.pt-hero__lead { max-width: 60ch; margin: 0 auto; font: 400 17px/1.6 var(--font-sans); color: var(--ink-muted); }
+.pt-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--space-2); margin-top: var(--space-5); }
+.pt-actions .lsr-search { flex: 1 1 320px; max-width: 420px; height: 40px; }
+.pt-select {
+  flex: 0 1 260px;
+  height: 40px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--radius-md);
+  background: var(--page);
+  color: var(--ink);
+  font: 500 13px/16px var(--font-sans);
+  cursor: pointer;
+}
+.pt-select:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Le texte de « index.md », quand il y en a : c'est un document, il suit
+   donc les reglages de lecture comme n'importe quelle page. */
+.pt-intro { max-width: var(--read-width, 38em); margin: 0 auto var(--space-6); text-align: var(--read-align, left); }
+
+/* Dans un lot, ou sous un filtre, la banniere s'efface : on ne vient plus
+   d'arriver, on cherche quelque chose. Le champ de filtre, lui, reste. */
+[data-view="lot"] .pt-intro, [data-view="search"] .pt-intro,
+[data-view="lot"] .pt-hero__lead, [data-view="search"] .pt-hero__lead,
+[data-view="lot"] .pt-hero__badge, [data-view="search"] .pt-hero__badge { display: none; }
+[data-view="lot"] .pt-hero, [data-view="search"] .pt-hero { padding: var(--space-2) 0 var(--space-4); margin-bottom: var(--space-5); }
+[data-view="lot"] .pt-hero h1, [data-view="search"] .pt-hero h1 { font-size: clamp(20px, 2.4vw, 26px); margin-bottom: 0; }
+[data-view="lot"] .pt-hero .pt-actions, [data-view="search"] .pt-hero .pt-actions { margin-top: var(--space-4); }
+/* Le bandeau de retour nomme deja le lot : son titre de section ferait
+   double emploi. Sous un filtre, au contraire, il range les resultats. */
+[data-view="lot"] .pt-lot__head { display: none; }
+
+/* ---- Vignettes ---- */
+.pt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--space-4); }
+.pt-card {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  background: var(--raised);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.pt-card:hover { border-color: var(--accent); }
+.pt-card:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.pt-card__img { display: block; width: 100%; height: 140px; object-fit: cover; object-position: top; background: var(--code-bg); }
+.pt-card__body { display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3); }
+.pt-card__count { align-self: flex-start; padding: .15em .5em; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-ink); font: 600 11px/16px var(--font-sans); }
+.pt-card__title { margin: 0; font: 600 15px/20px var(--font-sans); }
+/* Toute la vignette est cliquable : le lien s'etend par-dessus, et rien ne
+   se dessine en double — c'est le cadre qui reagit. */
+.pt-card__title a { color: var(--ink); text-decoration: none; }
+.pt-card__title a::after { content: ""; position: absolute; inset: 0; }
+.pt-card { position: relative; }
+.pt-card:hover .pt-card__title a { color: var(--accent-ink); }
+.pt-card__title a:focus-visible { outline: none; }
+.pt-card__desc { margin: 0; font: 400 13px/18px var(--font-sans); color: var(--ink-muted); }
+
+/* ---- Sous-page d'un lot ---- */
+.pt-lot { margin-bottom: var(--space-7); }
+.pt-lot__head { display: flex; align-items: baseline; gap: var(--space-2); margin: 0 0 var(--space-4); padding-bottom: var(--space-2); border-bottom: 2px solid var(--accent); font: 600 20px/26px var(--font-sans); color: var(--ink); }
+.pt-bar { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-bottom: var(--space-5); }
+.pt-bar h2 { margin: 0; font: 600 20px/26px var(--font-sans); }
+.pt-count { flex: none; padding: .15em .5em; border-radius: var(--radius-sm); background: var(--accent-soft); color: var(--accent-ink); font: 600 11px/16px var(--font-sans); }
+.pt-empty { margin: 0; padding: var(--space-4); border: 1px dashed var(--rule-strong); border-radius: var(--radius-md); color: var(--ink-muted); font: 400 14px/20px var(--font-sans); }
+
+/* ---- Reglages et recherche : les memes que sur les pages ---- */
+.lsr-panel-wrap { position: absolute; z-index: 20; top: calc(var(--bar-h) + var(--space-2)); right: var(--space-3); max-height: calc(100% - var(--bar-h) - var(--space-4)); overflow: auto; border-radius: var(--radius-lg); max-width: calc(100% - var(--space-6)); box-shadow: var(--shadow-popover); }
+.lsr-panel-wrap .lsr-panel { width: var(--panel-w); box-shadow: none; }
+.lsr-field__hint { font: 400 12px/16px var(--font-sans); color: var(--ink-muted); margin: 0; }
+.lsr-panel__foot { display: flex; justify-content: flex-end; }
+.lsr-modal { position: fixed; inset: 0; z-index: 60; display: grid; align-items: start; justify-items: center; padding: clamp(16px, 8vh, 96px) var(--space-4) var(--space-4); background: rgba(0, 0, 0, .35); }
+.lsr-modal__box { width: min(720px, 100%); max-height: 100%; display: flex; flex-direction: column; background: var(--raised); border: 1px solid var(--rule-strong); border-radius: var(--radius-lg); box-shadow: var(--shadow-popover); overflow: hidden; }
+.lsr-modal__box .lsr-searchbar { background: var(--raised); }
+.lsr-modal__results { flex: 1 1 auto; overflow-y: auto; padding: var(--space-2) var(--space-3) var(--space-3); }
+.lsr-modal__msg { margin: var(--space-2); font: 400 13px/18px var(--font-sans); color: var(--ink-muted); }
+.lsr-hitlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; }
+.lsr-hitlist a { display: block; padding: var(--space-2); border-radius: var(--radius-md); color: var(--ink); text-decoration: none; }
+.lsr-hitlist a:hover, .lsr-hitlist a:focus-visible { background: var(--accent-soft); }
+.lsr-hitlist strong { display: block; font: 600 13px/18px var(--font-sans); color: var(--accent-ink); }
+.lsr-hitlist span { display: block; font: 400 12px/17px var(--font-sans); color: var(--ink-muted); }
+.lsr-hitlist mark { background: var(--mark); color: var(--on-mark); }
+.lsr-toast { position: absolute; z-index: 50; left: 50%; bottom: var(--space-5); transform: translateX(-50%); max-width: min(560px, calc(100% - var(--space-6))); padding: var(--space-3) var(--space-4); background: var(--ink); color: var(--page); border-radius: var(--radius-md); font: 500 13px/18px var(--font-sans); }
+
+@media (max-width: 699px) {
+  .lsr-toolbar { padding: 0 var(--space-3); }
+  .lsr-toolbar .lsr-label { display: none; }
+  .lsr-toolbar__title span { display: none; }
+}
+@media print {
+  html, body { height: auto; overflow: visible; background: #fff; }
+  .lsr-toolbar, .lsr-panel-wrap, .lsr-modal, .lsr-toast, .pt-actions { display: none !important; }
+  .pt-main { overflow: visible; }
+}
+  </style>
+$if(highlighting-css)$
+  <style>
+$highlighting-css$
+  </style>
+$endif$
+$for(css)$
+  <link rel="stylesheet" href="$css$">
+$endfor$
+
+  <!-- Les reglages de lecture, poses avant la premiere peinture : ce sont
+       ceux des pages, sous la meme cle — le portail s'ouvre dans le theme
+       ou l'on a quitte le dernier chapitre. -->
+  <script>
+    (function () {
+      try {
+        var s = JSON.parse(localStorage.getItem('liseuse:v1:settings') || '{}');
+        var r = document.documentElement;
+        var themes = { auto: 1, light: 1, sepia: 1, dark: 1 };
+        var t = themes[s.theme] ? s.theme : 'auto';
+        r.setAttribute('data-liseuse', t);
+        r.style.colorScheme = t === 'dark' ? 'dark' : (t === 'auto' ? 'light dark' : 'light');
+        var w = { narrow: 30, medium: 38, wide: 48, full: 0 };
+        var f = { sans: 'var(--font-sans)', serif: 'var(--font-serif)', mono: 'var(--font-mono)' };
+        var em = w[s.width] === undefined ? 38 : w[s.width];
+        r.style.setProperty('--read-size', (Math.min(28, Math.max(14, +s.size || 17))) + 'px');
+        r.style.setProperty('--read-leading', String(Math.min(2, Math.max(1.3, +s.leading || 1.65))));
+        r.style.setProperty('--read-font', f[s.font] || f.sans);
+        r.style.setProperty('--read-width', em ? em + 'em' : 'none');
+        r.style.setProperty('--read-align', s.justify === true ? 'justify' : 'left');
+      } catch (e) {}
+    })();
+  </script>
+$for(header-includes)$
+  $header-includes$
+$endfor$
+</head>
+
+<body>
+<div class="lsr-app" id="app">
+
+  <header class="lsr-toolbar">
+    <div class="lsr-toolbar__title">
+      <strong>$if(collection)$$collection$$else$SDS - Documentation Fonctionnelle$endif$$if(version)$ ($version$)$endif$</strong>
+      <span id="doc-meta">Accueil</span>
+    </div>
+    <div class="lsr-toolbar__group">
+      <button class="lsr-iconbtn" id="btn-lib" aria-label="Rechercher dans la bibliothèque" title="Rechercher dans la bibliothèque (Ctrl + K)"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/></svg><span class="lsr-label">Rechercher</span></button>
+      <span class="lsr-toolbar__sep"></span>
+      <button class="lsr-iconbtn" id="btn-settings" aria-label="Réglages de lecture" aria-expanded="false" aria-controls="settings" title="Réglages (R)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3 5h10M3 11h10"/><circle cx="6" cy="5" r="1.6"/><circle cx="10.5" cy="11" r="1.6"/></svg><span class="lsr-label">Réglages</span></button>
+    </div>
+  </header>
+
+  <main class="pt-main" id="viewport" tabindex="-1">
+    <div class="pt-wrap">
+
+      <section class="pt-hero">
+$if(subtitle)$
+        <p class="pt-hero__badge">$subtitle$</p>
+$endif$
+        <h1>$if(title)$$title$$else$Documentation Fonctionnelle SDS$endif$</h1>
+$if(abstract)$
+        <p class="pt-hero__lead">$abstract$</p>
+$endif$
+        <div class="pt-actions">
+          <label class="lsr-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/></svg><input id="home-search" type="search" placeholder="Filtrer les documents de la bibliothèque" aria-label="Filtrer les documents de la bibliothèque" autocomplete="off"></label>
+$if(library)$
+          <select class="pt-select" id="home-jump" aria-label="Ouvrir un document">
+            <option value="">Ouvrir un document…</option>
+$for(library)$
+            <optgroup label="$library.label$">
+$for(library.items)$
+              <option value="$library.items.href$">$library.items.title$</option>
+$endfor$
+            </optgroup>
+$endfor$
+          </select>
+$endif$
+$if(messages)$
+          <select class="pt-select" id="home-msg" aria-label="Dictionnaire des messages">
+            <option value="">Dictionnaire des messages…</option>
+$for(messages)$
+            <optgroup label="$messages.label$">
+$for(messages.items)$
+              <option value="$messages-href$#$messages.items.anchor$">$messages.items.code$ — $messages.items.title$</option>
+$endfor$
+            </optgroup>
+$endfor$
+          </select>
+$endif$
+        </div>
+      </section>
+
+$if(body)$
+      <article class="lsr-doc pt-intro">
+$body$
+      </article>
+$endif$
+
+      <!-- Vue « lots » : une vignette par lot. -->
+      <div id="lot-grid">
+$if(library)$
+        <div class="pt-grid">
+$for(library)$
+          <div class="pt-card lot-card" data-label="$library.label$">
+            <img class="pt-card__img lot-card-img" alt="" hidden$if(library.photo)$ data-src="$library.photo$"$endif$>
+            <div class="pt-card__body">
+              <p class="pt-card__count lot-count"></p>
+              <h2 class="pt-card__title"><a href="#" class="lot-link">$library.label$</a></h2>
+              <p class="pt-card__desc">$if(library.description)$$library.description$$else$<span class="lot-desc-auto"></span>$endif$</p>
+            </div>
+          </div>
+$endfor$
+        </div>
+$else$
+        <p class="pt-empty">Bibliothèque vide : aucun document déclaré dans <code>conf/bibliotheque.yaml</code>.</p>
+$endif$
+      </div>
+
+      <!-- Vue « lot » et vue « search » : les documents, par lot. -->
+      <div class="pt-bar" id="lot-detail-bar" hidden>
+        <button class="lsr-btn" id="back-to-lots" type="button"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5"/></svg>Retour aux lots</button>
+        <h2 id="lot-detail-title"></h2>
+        <span class="pt-count" id="lot-detail-count"></span>
+      </div>
+
+      <div id="lib-grid" hidden>
+$if(library)$
+$for(library)$
+        <section class="pt-lot lot-section" data-label="$library.label$">
+          <h2 class="pt-lot__head">$library.label$ <span class="pt-count count-badge"></span></h2>
+          <div class="pt-grid">
+$for(library.items)$
+            <div class="pt-card card-wrapper" data-title="$library.items.title$">
+$if(library.items.photo)$
+              <img class="pt-card__img" src="$library.items.photo$" alt="">
+$endif$
+              <div class="pt-card__body">
+                <h3 class="pt-card__title"><a class="lib-item" href="$library.items.href$" data-href="$library.items.href$">$library.items.title$</a></h3>
+                <p class="pt-card__desc">$if(library.items.abstarct)$$library.items.abstarct$$else$$if(library.items.abstract)$$library.items.abstract$$else$Spécification fonctionnelle$endif$$endif$</p>
+              </div>
+            </div>
+$endfor$
+          </div>
+        </section>
+$endfor$
+$endif$
+        <p class="pt-empty" id="no-result" hidden>Aucun document ne correspond à ce filtre.</p>
+      </div>
+
+    </div>
+  </main>
+
+  <div class="lsr-panel-wrap" id="settings" hidden>
+    <section class="lsr-panel" aria-label="Réglages de lecture">
+      <div class="lsr-panel__head"><h2>Réglages de lecture</h2><button class="lsr-iconbtn" id="set-close" aria-label="Fermer les réglages"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>
+      <fieldset class="lsr-field"><legend>Thème</legend>
+        <div class="lsr-swatches">
+          <button class="lsr-swatch" data-set="theme" data-val="auto" aria-pressed="false">Auto</button>
+          <button class="lsr-swatch" data-set="theme" data-val="light" data-liseuse="light" aria-pressed="false" style="background:var(--page);color:var(--ink)"><b>Aa</b>Clair</button>
+          <button class="lsr-swatch" data-set="theme" data-val="sepia" data-liseuse="sepia" aria-pressed="false" style="background:var(--page);color:var(--ink)"><b>Aa</b>Sépia</button>
+          <button class="lsr-swatch" data-set="theme" data-val="dark" data-liseuse="dark" aria-pressed="false" style="background:var(--page);color:var(--ink)"><b>Aa</b>Sombre</button>
+        </div></fieldset>
+      <fieldset class="lsr-field"><legend>Police</legend>
+        <div class="lsr-seg"><button data-set="font" data-val="sans" aria-pressed="false">Sans</button><button data-set="font" data-val="serif" aria-pressed="false">Serif</button><button data-set="font" data-val="mono" aria-pressed="false">Mono</button></div></fieldset>
+      <div class="lsr-field lsr-range"><div class="lsr-field__row"><label class="lsr-field__label" for="r-size">Taille du texte</label><span class="lsr-field__value" id="v-size"></span></div><input id="r-size" type="range" min="14" max="28" step="1"></div>
+      <p class="lsr-field__hint">Ces réglages valent pour toutes les pages du projet, et pour la liseuse. Les autres — largeur, interligne, pages — se règlent depuis un document.</p>
+      <div class="lsr-panel__foot"><button class="lsr-btn" id="set-reset">Réinitialiser</button></div>
+    </section>
+  </div>
+
+  <div class="lsr-modal" id="libsearch" hidden>
+    <div class="lsr-modal__box" role="dialog" aria-modal="true" aria-label="Rechercher dans la bibliothèque">
+      <div class="lsr-searchbar">
+        <label class="lsr-search"><svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4"/><path d="M10 10l3.5 3.5"/></svg><input id="lq" type="search" placeholder="Rechercher dans toute la bibliothèque" aria-label="Rechercher dans la bibliothèque" autocomplete="off" spellcheck="false"></label>
+        <span class="lsr-searchbar__count" id="lqcount" role="status" aria-live="polite"></span>
+        <button class="lsr-iconbtn" id="lq-close" aria-label="Fermer" title="Fermer (Échap)"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </div>
+      <div class="lsr-modal__results" id="lq-results"><p class="lsr-modal__msg">Saisissez au moins deux caractères.</p></div>
+    </div>
+  </div>
+
+  <div class="lsr-toast" id="toast" role="status" hidden></div>
+</div>
+
+<script>
+/*
+  Le portail. Les reglages et la recherche sont ceux des pages
+  (conf/modele.template.html), a la meme cle et au meme geste ; le reste est
+  propre a l'accueil : trois vues, et le fragment de l'URL pour dire laquelle.
+*/
+(function () {
+  'use strict';
+
+  var KEY = 'liseuse:v1';
+  var FONTS = { sans: 'var(--font-sans)', serif: 'var(--font-serif)', mono: 'var(--font-mono)' };
+  var THEMES = ['auto', 'light', 'sepia', 'dark'];
+  var DEFAULTS = { theme: 'auto', font: 'sans', size: 17 };
+
+  function q1(s, r) { return (r || document).querySelector(s); }
+  function qa(s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
+
+  /* ---------- Reglages ----------
+     Le portail n'en montre que trois ; les autres appartiennent a la lecture
+     d'un document. Ils sont relus et reecrits entiers, sans quoi une visite
+     a l'accueil effacerait la largeur ou le mode de lecture. */
+  var S = {};
+  try { S = JSON.parse(store(KEY + ':settings') || '{}') || {}; } catch (e) { S = {}; }
+  if (THEMES.indexOf(S.theme) === -1) S.theme = DEFAULTS.theme;
+  if (!FONTS[S.font]) S.font = DEFAULTS.font;
+  S.size = Math.min(28, Math.max(14, +S.size || DEFAULTS.size));
+  function saveSettings() { store(KEY + ':settings', JSON.stringify(S)); }
+
+  var root = document.documentElement;
+
+  function applyTheme() {
+    root.setAttribute('data-liseuse', S.theme);
+    root.style.colorScheme = S.theme === 'dark' ? 'dark' : (S.theme === 'auto' ? 'light dark' : 'light');
+  }
+  function applyReadVars() {
+    root.style.setProperty('--read-size', S.size + 'px');
+    root.style.setProperty('--read-font', FONTS[S.font]);
+  }
+  function syncPanel() {
+    qa('[data-set]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(String(S[b.dataset.set]) === b.dataset.val));
+    });
+    q1('#r-size').value = S.size;
+    q1('#v-size').textContent = S.size + ' px';
+  }
+  function change(key, val) {
+    S[key] = val; saveSettings(); syncPanel();
+    if (key === 'theme') applyTheme(); else applyReadVars();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-set]'); if (!b) return;
+    change(b.dataset.set, b.dataset.val);
+  });
+  q1('#r-size').addEventListener('input', function () { change('size', +this.value); });
+  q1('#set-reset').addEventListener('click', function () {
+    S.theme = DEFAULTS.theme; S.font = DEFAULTS.font; S.size = DEFAULTS.size;
+    saveSettings(); syncPanel(); applyTheme(); applyReadVars();
+  });
+  function setSettings(open) {
+    q1('#settings').hidden = !open;
+    q1('#btn-settings').setAttribute('aria-expanded', String(open));
+    if (open) { var b = q1('#settings [aria-pressed="true"]') || q1('#set-close'); b.focus(); }
+  }
+  q1('#btn-settings').addEventListener('click', function () { setSettings(q1('#settings').hidden); });
+  q1('#set-close').addEventListener('click', function () { setSettings(false); q1('#btn-settings').focus(); });
+  document.addEventListener('pointerdown', function (e) {
+    if (q1('#settings').hidden) return;
+    if (!e.target.closest('#settings') && !e.target.closest('#btn-settings')) setSettings(false);
+  });
+
+  function showMsg(text, ms) {
+    var t = q1('#toast'); t.textContent = text; t.hidden = false;
+    clearTimeout(showMsg.t); showMsg.t = setTimeout(function () { t.hidden = true; }, ms || 4000);
+  }
+
+  /* ---------- Les trois vues ----------
+     « lots » la grille des lots ; « lot » les documents d'un lot, designe par
+     le fragment de l'URL ; « search » ce que le filtre retient, tous lots
+     confondus. Tout passe par render() : une seule facon de peindre. */
+  function slugify(s) {
+    var t = (s || '').toLowerCase();
+    if (t.normalize) t = t.normalize('NFD').replace(/[̀-ͯ]/g, '');
+    t = t.replace(/[^a-z0-9]+/g, '-');
+    while (t.charAt(0) === '-') t = t.slice(1);
+    while (t.length && t.charAt(t.length - 1) === '-') t = t.slice(0, -1);
+    return t;
+  }
+  function norm(s) {
+    return s.replace(/[^\u0000-\u007f]/g, function (c) { return c.normalize('NFD').charAt(0); }).toLowerCase();
+  }
+
+  /* Une image qui ne repond pas laisse un cadre gris a la place du dessin :
+     mieux vaut alors pas d'image du tout. */
+  qa('.pt-card__img').forEach(function (img) {
+    img.addEventListener('error', function () { img.hidden = true; });
+  });
+
+  var lotGrid = q1('#lot-grid'), libGrid = q1('#lib-grid');
+  var detailBar = q1('#lot-detail-bar'), detailTitle = q1('#lot-detail-title'), detailCount = q1('#lot-detail-count');
+  var noResult = q1('#no-result'), search = q1('#home-search');
+  var sections = qa('.lot-section'), lotCards = qa('.lot-card'), cards = qa('.card-wrapper');
+  var slugs = [], labels = {}, currentLot = null;
+
+  sections.forEach(function (sec) {
+    var label = sec.getAttribute('data-label') || '', slug = slugify(label);
+    sec.setAttribute('data-lot', slug);
+    slugs.push(slug);
+    labels[slug] = label;
+  });
+
+  /* La vignette d'un lot dit ce qu'il contient : son compte, ses premiers
+     documents a defaut de description, et son image — celle du lot, sinon
+     celle de son premier document ; sans image, pas de cadre vide. */
+  lotCards.forEach(function (w) {
+    var slug = slugify(w.getAttribute('data-label') || '');
+    w.setAttribute('data-lot', slug);
+    var sec = null;
+    for (var k = 0; k < sections.length; k++) {
+      if (sections[k].getAttribute('data-lot') === slug) { sec = sections[k]; break; }
+    }
+    var docs = sec ? qa('.card-wrapper', sec) : [];
+    var count = q1('.lot-count', w);
+    if (count) count.textContent = docs.length + (docs.length > 1 ? ' documents' : ' document');
+    var auto = q1('.lot-desc-auto', w);
+    if (auto) {
+      auto.textContent = docs.slice(0, 3).map(function (c) { return c.getAttribute('data-title') || ''; }).join(' · ')
+        + (docs.length > 3 ? '…' : '');
+    }
+    var img = q1('.lot-card-img', w);
+    if (img) {
+      var src = img.getAttribute('data-src');
+      if (!src && sec) {
+        var first = q1('.card-wrapper img', sec);
+        if (first) src = first.getAttribute('src');
+      }
+      if (src) { img.src = src; img.hidden = false; }
+    }
+    var link = q1('.lot-link', w);
+    if (link) {
+      link.setAttribute('href', '#' + slug);
+      link.addEventListener('click', function (e) { e.preventDefault(); openLot(slug); });
+    }
+  });
+
+  function openLot(slug) {
+    if (search) search.value = '';
+    if (('#' + slug) === location.hash) { currentLot = slug; render(); }
+    else location.hash = slug;
+    q1('.pt-main').scrollTop = 0;
+  }
+  function backToLots() {
+    if (search) search.value = '';
+    currentLot = null;
+    try { history.replaceState(null, '', location.pathname + location.search); }
+    catch (err) { location.hash = ''; }
+    render();
+    q1('.pt-main').scrollTop = 0;
+  }
+  function render() {
+    var v = search ? norm(search.value.trim()) : '';
+    var mode = v ? 'search' : (currentLot ? 'lot' : 'lots');
+    var any = false;
+    cards.forEach(function (c) {
+      var show = !v || norm(c.getAttribute('data-title') || '').indexOf(v) !== -1;
+      c.hidden = !show;
+      if (show) any = true;
+    });
+    sections.forEach(function (sec) {
+      var vis = qa('.card-wrapper', sec).filter(function (c) { return !c.hidden; }).length;
+      var badge = q1('.count-badge', sec);
+      if (badge) badge.textContent = vis + (vis > 1 ? ' documents' : ' document');
+      sec.hidden = (mode === 'search') ? vis === 0 : !(mode === 'lot' && sec.getAttribute('data-lot') === currentLot);
+    });
+    q1('#app').dataset.view = mode;
+    if (lotGrid) lotGrid.hidden = mode !== 'lots';
+    if (libGrid) libGrid.hidden = mode === 'lots';
+    if (detailBar) detailBar.hidden = mode === 'lots';
+    if (detailTitle) detailTitle.textContent = (mode === 'search') ? 'Résultats pour « ' + search.value.trim() + ' »' : (labels[currentLot] || '');
+    if (detailCount) {
+      var n = cards.filter(function (c) {
+        if (c.hidden) return false;
+        var sec = c.closest('.lot-section');
+        return !sec || !sec.hidden;
+      }).length;
+      detailCount.textContent = n + (n > 1 ? ' documents' : ' document');
+    }
+    if (noResult) noResult.hidden = !(mode === 'search' && !any);
+  }
+  function syncFromHash() {
+    var raw = (location.hash || '').replace(/^#/, ''), h = raw;
+    try { h = decodeURIComponent(raw); } catch (err) { h = raw; }
+    currentLot = (slugs.indexOf(h) !== -1) ? h : null;
+    render();
+  }
+  q1('#back-to-lots').addEventListener('click', backToLots);
+  if (search) search.addEventListener('input', render);
+  window.addEventListener('hashchange', syncFromHash);
+
+  /* Les deux listes deroulantes ouvrent directement ce qu'on y choisit — un
+     document, ou la page des messages a l'ancre du message. */
+  qa('#home-jump, #home-msg').forEach(function (sel) {
+    sel.addEventListener('change', function () { if (this.value) location.href = this.value; });
+  });
+
+  /* ---------- Recherche dans toute la bibliotheque ----------
+     La meme que sur les pages : chaque document est lu une fois, puis garde
+     en memoire le temps de la visite ; le resultat emporte le mot cherche en
+     « sq », que la page d'arrivee surligne d'elle-meme. */
+  var libItems = qa('.lib-item');
+  var libCache = null, libBusy = null;
+  function buildLibCache() {
+    if (libCache) return Promise.resolve(libCache);
+    if (libBusy) return libBusy;
+    libBusy = Promise.all(libItems.map(function (item) {
+      var url = item.getAttribute('data-href'), title = (item.textContent || '').replace(/\s+/g, ' ').trim();
+      if (!url) return null;
+      return fetch(url).then(function (r) { return r.text(); }).then(function (html) {
+        var doc = new DOMParser().parseFromString(html, 'text/html');
+        var sel = '.lsr-doc h1, .lsr-doc h2, .lsr-doc h3, .lsr-doc h4, .lsr-doc h5, .lsr-doc h6, .lsr-doc p, .lsr-doc li';
+        return {
+          url: url, title: title,
+          els: qa(sel, doc).map(function (el) {
+            var idEl = el.closest('[id]') || el;
+            return { text: el.textContent.replace(/\s+/g, ' ').trim(), id: idEl.id || '' };
+          }).filter(function (e) { return e.text.length > 0; })
+        };
+      }).catch(function () { return null; });
+    })).then(function (list) { libCache = list.filter(Boolean); libBusy = null; return libCache; });
+    return libBusy;
+  }
+  function excerptNode(text, at, len) {
+    var start = Math.max(0, at - 40), end = Math.min(text.length, at + len + 40);
+    var frag = document.createDocumentFragment();
+    frag.appendChild(document.createTextNode((start > 0 ? '…' : '') + text.slice(start, at)));
+    var m = document.createElement('mark');
+    m.textContent = text.slice(at, at + len);
+    frag.appendChild(m);
+    frag.appendChild(document.createTextNode(text.slice(at + len, end) + (end < text.length ? '…' : '')));
+    return frag;
+  }
+  function renderLibResults(qs) {
+    var box = q1('#lq-results');
+    qs = qs.trim();
+    box.textContent = '';
+    q1('#lqcount').textContent = '';
+    if (qs.length < 2) {
+      var p0 = document.createElement('p'); p0.className = 'lsr-modal__msg';
+      p0.textContent = 'Saisissez au moins deux caractères.';
+      box.appendChild(p0); return;
+    }
+    var p = document.createElement('p'); p.className = 'lsr-modal__msg';
+    p.textContent = 'Recherche en cours…';
+    box.appendChild(p);
+    var nq = norm(qs);
+    buildLibCache().then(function (cache) {
+      if (q1('#lq').value.trim() !== qs) return;
+      var results = [];
+      for (var i = 0; i < cache.length && results.length < 50; i++) {
+        for (var j = 0; j < cache[i].els.length && results.length < 50; j++) {
+          var el = cache[i].els[j], at = norm(el.text).indexOf(nq);
+          if (at !== -1) results.push({ url: cache[i].url, title: cache[i].title, text: el.text, at: at, id: el.id });
+        }
+      }
+      box.textContent = '';
+      q1('#lqcount').textContent = results.length ? results.length + (results.length >= 50 ? '+' : '') : '';
+      if (!results.length) {
+        var pv = document.createElement('p'); pv.className = 'lsr-modal__msg';
+        pv.textContent = 'Aucun résultat dans la bibliothèque.';
+        box.appendChild(pv); return;
+      }
+      var ul = document.createElement('ul');
+      ul.className = 'lsr-hitlist';
+      results.forEach(function (r) {
+        var li = document.createElement('li'), a = document.createElement('a');
+        a.href = r.url + '?sq=' + encodeURIComponent(qs) + (r.id ? '#' + encodeURIComponent(r.id) : '');
+        var strong = document.createElement('strong');
+        strong.textContent = r.title;
+        var span = document.createElement('span');
+        span.appendChild(excerptNode(r.text, r.at, qs.length));
+        a.appendChild(strong); a.appendChild(span);
+        li.appendChild(a); ul.appendChild(li);
+      });
+      box.appendChild(ul);
+    });
+  }
+  var lqT;
+  function setLibSearch(open) {
+    q1('#libsearch').hidden = !open;
+    if (open) { q1('#lq').focus(); q1('#lq').select(); buildLibCache(); }
+  }
+  q1('#btn-lib').addEventListener('click', function () { setLibSearch(q1('#libsearch').hidden); });
+  q1('#lq-close').addEventListener('click', function () { setLibSearch(false); q1('#btn-lib').focus(); });
+  q1('#libsearch').addEventListener('pointerdown', function (e) {
+    if (!e.target.closest('.lsr-modal__box')) setLibSearch(false);
+  });
+  q1('#lq').addEventListener('input', function () {
+    clearTimeout(lqT); var v = this.value;
+    lqT = setTimeout(function () { renderLibResults(v); }, 200);
+  });
+  q1('#lq').addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { e.stopPropagation(); setLibSearch(false); q1('#btn-lib').focus(); }
+    else if (e.key === 'Enter') { var a = q1('#lq-results a'); if (a) a.click(); }
+  });
+
+  /* ---------- Clavier ---------- */
+  var THEME_LABEL = { auto: 'Auto', light: 'Clair', sepia: 'Sépia', dark: 'Sombre' };
+  document.addEventListener('keydown', function (e) {
+    var t = e.target, typing = t && (/^(INPUT|TEXTAREA|SELECT)/.test(t.tagName) || t.isContentEditable);
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); setLibSearch(true); return; }
+    if (e.key === 'Escape') {
+      if (!q1('#libsearch').hidden) { setLibSearch(false); q1('#btn-lib').focus(); }
+      else if (!q1('#settings').hidden) { setSettings(false); q1('#btn-settings').focus(); }
+      else if (search && search.value) { search.value = ''; render(); }
+      else if (currentLot) backToLots();
+      return;
+    }
+    if (typing || e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === '/') { e.preventDefault(); if (search) { search.focus(); search.select(); } }
+    else if (e.key === 'r' || e.key === 'R') { e.preventDefault(); setSettings(q1('#settings').hidden); }
+    else if (e.key === 't' || e.key === 'T') {
+      e.preventDefault();
+      var n = THEMES[(THEMES.indexOf(S.theme) + 1) % THEMES.length];
+      change('theme', n);
+      showMsg('Thème : ' + THEME_LABEL[n], 1800);
+    }
+  });
+
+  /* ---------- Demarrage ---------- */
+  applyTheme(); applyReadVars(); syncPanel();
+  q1('#doc-meta').textContent = 'Accueil · ' + cards.length + (cards.length > 1 ? ' documents' : ' document')
+    + ' · ' + sections.length + (sections.length > 1 ? ' lots' : ' lot');
+  syncFromHash();
+})();
+</script>
+$if(math)$
+$math$
+$endif$
+</body>
+</html>

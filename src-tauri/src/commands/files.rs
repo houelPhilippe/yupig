@@ -3,17 +3,19 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use tauri::path::BaseDirectory;
 use tauri::{Emitter, Manager, State};
 
 use crate::db::Db;
 use crate::error::{Error, Result};
 use crate::files;
+use crate::liseuse::Liseuse;
 use crate::models::{
-    Compiled, Document, Heading, ImageData, LogLevel, LogLine, Node, PandocSettings, Project,
-    ProjectDocuments, ProjectSettings, ResourcesReport,
+    Compiled, Document, Heading, ImageData, LogLevel, LogLine, ModeleReport, Node, PandocSettings,
+    Project, ProjectDocuments, ProjectSettings, ResourcesReport,
 };
 use crate::pandoc::{self, Format};
-use crate::{library, resources};
+use crate::{library, modeles, resources};
 
 /// Racine du projet enregistrée dans les réglages.
 ///
@@ -57,6 +59,23 @@ pub async fn list_projects(db: State<'_, Arc<Db>>) -> Result<Vec<Project>> {
         .collect())
 }
 
+/// Le nom du projet que porte un dossier — `None` si ce n'en est pas un.
+///
+/// La boîte s'en sert avant de créer : un dossier qui porte déjà un témoin
+/// n'est pas à créer une seconde fois, c'est le même projet — retiré de la
+/// liste, ou venu d'ailleurs. Elle propose alors de l'ouvrir, ce qui le remet
+/// dans la liste avec son nom et sa date d'origine, plutôt que de refuser sans
+/// autre issue.
+///
+/// La question se pose ici et non sur le message d'erreur de `write_marker` :
+/// une interface qui lirait le texte d'une erreur pour décider de sa conduite
+/// se romprait à la première reformulation.
+#[tauri::command]
+pub async fn project_name_at(path: String) -> Result<Option<String>> {
+    let dir = canonical_dir(&path)?;
+    Ok(files::read_marker(&dir).map(|m| m.name))
+}
+
 /// Crée un projet sur un dossier existant et l'ouvre.
 ///
 /// Le dossier n'est pas créé : l'application pose un projet sur ce qui est
@@ -71,7 +90,36 @@ pub async fn create_project(
 ) -> Result<Vec<Node>> {
     let canonical = canonical_dir(&path)?;
     files::write_marker(&canonical, &name, &crate::db::now())?;
-    enter(&app, &db, canonical)
+
+    // Les modèles livrés avec l'application sont posés dans le projet : un
+    // projet neuf a ainsi de quoi compiler et de quoi changer d'habillage sans
+    // rien aller chercher, fût-il le premier de la machine. Ce que le dossier
+    // portait déjà sous ce nom n'est pas touché.
+    //
+    // Puis le modèle par défaut garnit `conf/` : le projet compile sans qu'on
+    // ait rien à régler. Le tout avant `enter`, qui rend l'arborescence — des
+    // dossiers créés après elle n'y paraîtraient pas. Rien de tout cela ne peut
+    // faire échouer la création : une ressource absente ou un `conf/` déjà
+    // garni s'effacent, le projet se crée.
+    if let Ok(livres) = app.path().resolve(modeles::MODELES_DIR, BaseDirectory::Resource) {
+        modeles::install(&livres, &canonical);
+    }
+    let modele = modeles::adopt_default(&canonical);
+    let tree = enter(&app, &db, canonical.clone())?;
+
+    // Les réglages du projet neuf : le modèle appliqué, et les modèles de
+    // commande de Pandoc écrits dans leurs champs. Ils valaient déjà par défaut,
+    // mais écrits ils se voient dans la boîte et se modifient sans avoir à les
+    // retrouver — ce qui part se lit sans ouvrir l'aperçu.
+    let root = canonical.to_string_lossy();
+    if let Ok(mut settings) = db.project_settings(&root) {
+        if let Some(modele) = modele {
+            settings.modele = modele;
+        }
+        pandoc::fill_commands(&mut settings.pandoc);
+        let _ = db.save_project_settings(&root, &settings);
+    }
+    Ok(tree)
 }
 
 /// Ouvre un projet déjà constitué et rend son arborescence.
@@ -112,11 +160,15 @@ pub async fn forget_project(db: State<'_, Arc<Db>>, path: String) -> Result<Vec<
 }
 
 /// Referme le projet ouvert, sans rien retirer de la liste.
+///
+/// La liseuse s'arrête avec lui : elle servait les pages compilées de *ce*
+/// projet, et rien ne dirait plus lesquelles une fois le projet refermé.
 #[tauri::command]
-pub async fn close_project(db: State<'_, Arc<Db>>) -> Result<()> {
+pub async fn close_project(db: State<'_, Arc<Db>>, liseuse: State<'_, Arc<Liseuse>>) -> Result<()> {
     let mut settings = db.settings()?;
     settings.project_root = None;
     db.save_settings(&settings)?;
+    liseuse.stop();
     Ok(())
 }
 
@@ -135,8 +187,15 @@ fn canonical_dir(path: &str) -> Result<PathBuf> {
 }
 
 /// Fait d'un dossier le projet ouvert : liste, réglages, portée des images.
+///
+/// Et arrête la liseuse : le serveur servait les pages d'un autre projet, et
+/// l'entrée du menu parlerait de celui-ci.
 fn enter(app: &tauri::AppHandle, db: &Db, root: PathBuf) -> Result<Vec<Node>> {
     let root_str = root.to_string_lossy().into_owned();
+
+    if let Some(liseuse) = app.try_state::<Arc<Liseuse>>() {
+        liseuse.stop();
+    }
 
     db.remember_project(&root_str)?;
     let mut settings = db.settings()?;
@@ -273,6 +332,44 @@ pub async fn save_project_settings(
     let root = root.to_string_lossy();
     db.save_project_settings(&root, &settings)?;
     db.project_settings(&root)
+}
+
+/// Les modèles de configuration du projet : les dossiers de `confModele/`.
+///
+/// La liste se lit sur le disque à chaque fois, et non en base : c'est le
+/// dossier qui décide, et un modèle ajouté à la main doit paraître dans la
+/// boîte sans que rien n'ait à être tenu à jour.
+#[tauri::command]
+pub async fn list_modeles(db: State<'_, Arc<Db>>) -> Result<Vec<String>> {
+    Ok(modeles::list(&root(&db)?))
+}
+
+/// Applique un modèle : ses fichiers recouvrent ceux de `conf/`, et son nom est
+/// retenu dans les réglages du projet.
+///
+/// Le nom seul vient du frontend — jamais un chemin : `modeles::apply` le
+/// refuse, puis `files::resolve` refuserait de toute façon ce qui sortirait du
+/// projet.
+#[tauri::command]
+pub async fn apply_modele(db: State<'_, Arc<Db>>, name: String) -> Result<ModeleReport> {
+    let root = root(&db)?;
+    let done = modeles::apply(&root, &name)?;
+
+    let key = root.to_string_lossy();
+    let settings = db.project_settings(&key)?;
+    db.save_project_settings(
+        &key,
+        &ProjectSettings {
+            modele: name.clone(),
+            ..settings
+        },
+    )?;
+
+    Ok(ModeleReport {
+        name,
+        copied: done.copied,
+        warnings: done.warnings,
+    })
 }
 
 /// La commande de compilation qui partirait pour `path`, dans le format
@@ -481,11 +578,42 @@ pub async fn markdown_in_project(db: State<'_, Arc<Db>>) -> Result<ProjectDocume
     })
 }
 
+/// Ouvre la **liseuse** : un serveur local sur les pages compilées du projet,
+/// et le navigateur sur la page d'accueil. Rend l'adresse où l'on lit.
+///
+/// L'interface ne désigne rien : le script est celui du projet, le répertoire
+/// servi celui de la compilation HTML, lu en base. Déjà ouverte, la liseuse ne
+/// repart pas — on rend la même adresse.
+#[tauri::command]
+pub async fn open_liseuse(
+    db: State<'_, Arc<Db>>,
+    liseuse: State<'_, Arc<Liseuse>>,
+) -> Result<String> {
+    let root = root(&db)?;
+    let dest = db.project_settings(&root.to_string_lossy())?.pandoc.html_dest;
+    liseuse.start(&root, &dest)
+}
+
+/// Arrête la liseuse. `false` s'il n'y avait rien à arrêter.
+#[tauri::command]
+pub async fn stop_liseuse(liseuse: State<'_, Arc<Liseuse>>) -> Result<bool> {
+    Ok(liseuse.stop())
+}
+
+/// La liseuse tourne-t-elle encore ? Le menu le demande à chaque ouverture :
+/// son entrée dit ce que le prochain clic fera, et un serveur peut s'être
+/// arrêté de lui-même — port déjà pris, Python absent.
+#[tauri::command]
+pub async fn liseuse_running(liseuse: State<'_, Arc<Liseuse>>) -> Result<bool> {
+    Ok(liseuse.running())
+}
+
 /// Quitte l'application.
 ///
 /// Par Rust et non par la fermeture de la fenêtre : c'est l'application qu'on
 /// quitte, et la question des documents non enregistrés a déjà été posée par
-/// le frontend.
+/// le frontend. La liseuse, elle, est arrêtée par `RunEvent::Exit` — quelle
+/// que soit la façon dont on s'en va.
 #[tauri::command]
 pub fn quit_app(app: tauri::AppHandle) {
     app.exit(0);

@@ -21,9 +21,13 @@ const alignSeg = document.getElementById('align-seg');
 const leadingSeg = document.getElementById('leading-seg');
 const ringSeg = document.getElementById('ring-seg');
 const wrapSeg = document.getElementById('wrap-seg');
+const scrollbarsSeg = document.getElementById('scrollbars-seg');
 const spacingGrid = document.getElementById('spacing-grid');
 const spacingReset = document.getElementById('spacing-reset');
 const legend = document.getElementById('pandoc-legend');
+const modeleList = document.getElementById('modele-list');
+const modeleApply = document.getElementById('modele-apply');
+const modeleCurrent = document.getElementById('modele-current');
 
 /**
  * Les groupes de Pandoc — HTML, PDF et Word —, bâtis sur le même modèle : une
@@ -137,7 +141,8 @@ export function render(state) {
   // valeur du modèle, elle vaut zéro. Cela ne coûte rien devant « Veille » :
   // le calcul de style ne reprend que si une valeur a bougé.
   const sig = JSON.stringify([
-    project.align, project.lineHeight, project.showOutline, project.wrapSource, spacing,
+    project.align, project.lineHeight, project.showOutline, project.wrapSource,
+    project.showScrollbars, spacing,
   ]);
   if (sig !== applied) {
     applied = sig;
@@ -152,6 +157,17 @@ export function render(state) {
     // de la recherche : une seule variable, lue par la règle qui les tient
     // ensemble.
     css.setProperty('--source-wrap', project.wrapSource === false ? 'pre' : 'pre-wrap');
+
+    // Les ascenseurs passent par un attribut et non par une variable : il faut
+    // deux déclarations dans deux syntaxes pour couvrir les deux moteurs, et
+    // une valeur ne saurait servir les deux (voir `app.css`). L'attribut porte
+    // sa valeur plutôt que d'être nu : « hidden » se lit des deux côtés, là où
+    // un `data-scrollbars` seul laisserait croire le contraire de ce qu'il dit.
+    const html = document.documentElement;
+    if (project.showScrollbars === false) html.setAttribute('data-scrollbars', 'hidden');
+    // `removeAttribute` et non un `delete` sur `dataset` : celui-ci lève en
+    // mode strict quand l'objet le refuse, et emporterait le reste du rendu.
+    else html.removeAttribute('data-scrollbars');
 
     // Les espacements sont posés tous ensemble, réglés ou non : la feuille de
     // style n'en déclare aucun, c'est cette table qui porte les valeurs par
@@ -181,8 +197,84 @@ export function render(state) {
   check(leadingSeg, 'leading', String(project.lineHeight));
   check(ringSeg, 'ring', project.showOutline === false ? '0' : '1');
   check(wrapSeg, 'wrap', project.wrapSource === false ? '0' : '1');
+  check(scrollbarsSeg, 'scrollbars', project.showScrollbars === false ? '0' : '1');
   fillSpacing(spacing);
   fillPandoc(project.pandoc ?? {});
+  fillModeles(root, state.edition.modeles, project.modele ?? '');
+}
+
+/**
+ * Le groupe des modèles : celui qui est en vigueur, et la liste de ceux que le
+ * projet porte.
+ *
+ * La liste ne se rebâtit que lorsqu'elle a changé : la refaire à chaque rendu
+ * — un espacement réglé, une commande tapée — replacerait le choix de
+ * l'utilisateur sur le modèle en vigueur alors qu'il vient d'en désigner un
+ * autre.
+ */
+let listed = null;
+
+function fillModeles(root, names, current) {
+  modeleCurrent.textContent = current || 'Aucun modèle appliqué';
+  modeleCurrent.classList.toggle('modeles__current--none', !current);
+
+  // Le projet entre dans la signature avec la liste : deux projets peuvent
+  // porter les mêmes modèles, et la liste doit alors se reposer quand même
+  // pour montrer le modèle en vigueur de celui qu'on ouvre.
+  const sig = JSON.stringify([root, names]);
+  if (sig !== listed) {
+    listed = sig;
+    replace(
+      modeleList,
+      names.length
+        ? names.map((name) => el('option', { value: name }, name))
+        // Un projet sans `confModele/` n'en porte aucun : le dire dans la
+        // liste elle-même vaut mieux qu'une liste vide, qui ne dirait rien.
+        : [el('option', { value: '' }, 'Aucun modèle dans confModele/')],
+    );
+    // Le modèle en vigueur est celui que la liste montre en s'ouvrant : c'est
+    // celui qu'on réapplique le plus souvent.
+    modeleList.value = names.includes(current) ? current : (names[0] ?? '');
+  }
+
+  modeleList.disabled = !names.length;
+  modeleApply.disabled = !names.length;
+}
+
+/**
+ * Applique le modèle choisi, après confirmation.
+ *
+ * La question passe par `api.ask` et non par `window.confirm` : cette webview
+ * ne montre pas les boîtes du navigateur. Et elle se pose — ce qui recouvre des
+ * fichiers du disque ne se lance pas sur un clic qu'on n'aurait pas voulu.
+ */
+async function applyModele() {
+  const name = modeleList.value;
+  if (!name) return;
+
+  const ok = await api.ask(
+    `Copier les fichiers du modèle « ${name} » dans conf/ ?\n\n`
+      + 'Les fichiers de même nom y seront remplacés ; les autres restent en place.',
+    { title: 'Appliquer un modèle', okLabel: 'Appliquer' },
+  );
+  if (!ok) return;
+
+  try {
+    const report = await store.applyModele(name);
+    const copied = `${report.copied} fichier${report.copied > 1 ? 's' : ''} copié${report.copied > 1 ? 's' : ''}`;
+    // Un fichier qui n'a pas pu être copié n'arrête pas les autres : le modèle
+    // est posé, et le message dit ce qui lui manque.
+    if (report.warnings.length) {
+      store.notify(
+        `Modèle « ${report.name} » : ${copied}, ${report.warnings.length} en échec — ${report.warnings[0]}`,
+        'error',
+      );
+    } else {
+      store.notify(`Modèle « ${report.name} » appliqué : ${copied} dans conf/.`);
+    }
+  } catch (err) {
+    store.fail(err);
+  }
 }
 
 /**
@@ -387,6 +479,13 @@ export function wire() {
   wrapSeg.addEventListener('change', (ev) => {
     if (ev.target.name !== 'wrap') return;
     store.saveProjectSettings({ wrapSource: ev.target.value === '1' }).catch(store.fail);
+  });
+
+  modeleApply.addEventListener('click', applyModele);
+
+  scrollbarsSeg.addEventListener('change', (ev) => {
+    if (ev.target.name !== 'scrollbars') return;
+    store.saveProjectSettings({ showScrollbars: ev.target.value === '1' }).catch(store.fail);
   });
 
   // `change` et non `input` : un nombre se tape chiffre par chiffre, et écrire

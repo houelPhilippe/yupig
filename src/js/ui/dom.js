@@ -124,6 +124,11 @@ export const PATH = {
   search: 'M11 18a7 7 0 1 0 0-14 7 7 0 0 0 0 14M20 20l-4-4',
   minus: 'M5 12h14',
   plus: 'M12 5v14M5 12h14',
+  // La liseuse : l'écran où se lisent les pages compilées. Ni le livre — pris
+  // par le book — ni l'œil, qui dit déjà le mode « Voir ».
+  liseuse: 'M3 5h18v11H3zM8 20h8M12 16v4',
+  // L'arrêter : le carré plein de tous les lecteurs.
+  stop: 'M6 6h12v12H6z',
 };
 
 export function replace(container, nodes) {

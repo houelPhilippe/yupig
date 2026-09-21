@@ -19,6 +19,9 @@ const SCHEMA_VERSION: i64 = 4;
 /// Pas de `_` dans ce préfixe : c'est un joker de `LIKE`, et la suppression des
 /// anciennes lignes s'en servirait alors pour effacer plus large.
 const SPACING_PREFIX: &str = "space.";
+/// Le modèle de configuration appliqué à `conf/` — le nom d'un dossier de
+/// `confModele/`. Une clé nue, non préfixée : c'est un réglage, non une table.
+const MODELE: &str = "modele";
 /// Les réglages de la compilation par Pandoc : destination et modèle de
 /// commande, pour HTML puis pour PDF.
 const PANDOC_HTML_DEST: &str = "pandoc.htmlDest";
@@ -605,6 +608,8 @@ impl Db {
                 "lineHeight" => s.line_height = v.parse().unwrap_or(s.line_height),
                 "showOutline" => s.show_outline = v == "1",
                 "wrapSource" => s.wrap_source = v == "1",
+                "showScrollbars" => s.show_scrollbars = v == "1",
+                MODELE => s.modele = v,
                 PANDOC_HTML_DEST => s.pandoc.html_dest = v,
                 PANDOC_HTML_COMMAND => s.pandoc.html_command = v,
                 PANDOC_HTML_INDEX_COMMAND => s.pandoc.html_index_command = v,
@@ -647,6 +652,12 @@ impl Db {
                 "DELETE FROM project_settings WHERE root = ?1 AND key LIKE ?2",
                 params![root, format!("{PANDOC_PREFIX}%")],
             )?;
+            // Et pour le modèle : sans modèle appliqué, pas de ligne — la base
+            // ne dit pas qu'un projet en suit un quand il n'en suit aucun.
+            tx.execute(
+                "DELETE FROM project_settings WHERE root = ?1 AND key = ?2",
+                params![root, MODELE],
+            )?;
 
             let mut stmt = tx.prepare(
                 "INSERT INTO project_settings (root, key, value) VALUES (?1, ?2, ?3)
@@ -664,6 +675,11 @@ impl Db {
                 "wrapSource",
                 if s.wrap_source { "1" } else { "0" }
             ])?;
+            stmt.execute(params![
+                root,
+                "showScrollbars",
+                if s.show_scrollbars { "1" } else { "0" }
+            ])?;
 
             for (name, px) in &s.spacing {
                 // Un nom qui ne tiendrait pas dans une variable CSS n'a rien à
@@ -677,6 +693,14 @@ impl Db {
                     format!("{SPACING_PREFIX}{name}"),
                     (*px).clamp(0, SPACING_MAX).to_string()
                 ])?;
+            }
+
+            // Le nom d'un dossier de `confModele/`, et rien d'autre : un
+            // chemin qui s'y glisserait ferait un réglage qui s'enregistre et
+            // ne désigne aucun modèle.
+            let modele = s.modele.trim();
+            if crate::modeles::name_ok(modele) {
+                stmt.execute(params![root, MODELE, modele])?;
             }
 
             for (key, value) in [
@@ -840,6 +864,7 @@ mod tests {
         assert_eq!(d.line_height, 165);
         assert!(d.show_outline);
         assert!(d.wrap_source);
+        assert!(d.show_scrollbars);
 
         assert!(d.spacing.is_empty());
 
@@ -850,6 +875,7 @@ mod tests {
                 line_height: 200,
                 show_outline: false,
                 wrap_source: false,
+                show_scrollbars: false,
                 spacing: BTreeMap::from([("h1Before".into(), 40), ("pAfter".into(), 12)]),
                 ..Default::default()
             },
@@ -861,11 +887,13 @@ mod tests {
         assert_eq!(a.line_height, 200);
         assert!(!a.show_outline);
         assert!(!a.wrap_source);
+        assert!(!a.show_scrollbars);
         assert_eq!(a.spacing.get("h1Before"), Some(&40));
         assert_eq!(a.spacing.get("pAfter"), Some(&12));
 
         // Un autre dossier garde les siens : c'est tout l'intérêt de la table.
         let b = db.project_settings("/b").unwrap();
+        assert!(b.show_scrollbars);
         assert_eq!(b.align, "gauche");
         assert_eq!(b.line_height, 165);
         assert!(b.show_outline);
@@ -899,6 +927,34 @@ mod tests {
         // Et les autres réglages ne partent pas avec : le ménage ne vaut que
         // pour les lignes d'espacement.
         assert_eq!(back.line_height, 165);
+    }
+
+    /// Le modèle appliqué se retient, et un modèle retiré quitte la base —
+    /// même règle que pour un espacement rendu à sa valeur par défaut.
+    #[test]
+    fn le_modele_applique_se_retient_et_se_retire() {
+        let db = Db::open_memory().unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().modele, "");
+
+        let mut s = ProjectSettings {
+            modele: "liseuse".into(),
+            ..ProjectSettings::default()
+        };
+        db.save_project_settings("/a", &s).unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().modele, "liseuse");
+
+        // Un chemin n'est pas un nom de modèle : la ligne n'est pas écrite.
+        s.modele = "../ailleurs".into();
+        db.save_project_settings("/a", &s).unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().modele, "");
+
+        s.modele = "DSFR-Douanes".into();
+        db.save_project_settings("/a", &s).unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().modele, "DSFR-Douanes");
+
+        s.modele = String::new();
+        db.save_project_settings("/a", &s).unwrap();
+        assert_eq!(db.project_settings("/a").unwrap().modele, "");
     }
 
     /// Ce qui ne tiendrait pas dans une variable CSS n'entre pas en base, et

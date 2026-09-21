@@ -1,0 +1,25 @@
+{
+ "v": 3,
+ "layout": "files",
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-09-21T09:20:29Z"
+ },
+ "title": "Liseuse",
+ "namespace": "Liseuse",
+ "libraries": [],
+ "sections": {},
+ "groups": [],
+ "assetGroups": {},
+ "blobs": {},
+ "docs": {
+  "readme": "project/README.md",
+  "sections": []
+ },
+ "lastChange": {
+  "by": "Philippe",
+  "at": "2026-09-21T09:58:06Z",
+  "via": "Claude (Cowork)",
+  "note": "Sommaire à gauche ou à droite, largeur réglable (poignée lsr-resizer)"
+ }
+}

@@ -193,7 +193,16 @@ async function browse() {
     // plutôt que de laisser un champ vide, et il reste modifiable.
     if (!nameField.value.trim()) nameField.value = baseName(path);
     createBtn.disabled = false;
-    say(`Le projet sera créé sur « ${path} ».`);
+
+    // Dire tout de suite ce que « Créer » fera de ce dossier-là : un dossier
+    // qui porte déjà un témoin s'ouvrira au lieu de se créer, et le savoir
+    // avant de presser vaut mieux que de l'apprendre par une question.
+    const already = await api.projectNameAt(path);
+    say(
+      !already
+        ? `Le projet sera créé sur « ${path} ».`
+        : `« ${path} » est déjà le projet « ${already} » : « Créer » proposera de l’ouvrir.`,
+    );
   } catch (err) {
     store.fail(err);
   }
@@ -204,6 +213,31 @@ async function create() {
   const name = nameField.value.trim() || baseName(pending);
   createBtn.disabled = true;
   try {
+    // Un dossier qui porte déjà un témoin n'est pas à créer une seconde fois :
+    // c'est le même projet, qu'on l'ait retiré de la liste ou qu'il vienne
+    // d'ailleurs. On propose donc de l'ouvrir — ce qui le remet dans la liste
+    // avec son nom et sa date d'origine — plutôt que de refuser sans issue.
+    // Le témoin, lui, n'est pas réécrit : c'est ce qui fait qu'un projet
+    // partagé reste le même projet partout.
+    const already = await api.projectNameAt(pending);
+    if (already) {
+      const ok = await api.ask(
+        `Ce dossier est déjà le projet « ${already} ».\n\n`
+          + 'L’ouvrir ? Il retrouve sa place dans la liste, avec son nom et sa date de création.',
+        { title: 'Dossier déjà projet', okLabel: 'Ouvrir' },
+      );
+      if (!ok) {
+        createBtn.disabled = false;
+        return;
+      }
+      await store.chooseProject(pending);
+      pending = null;
+      pathField.value = '';
+      nameField.value = '';
+      store.notify(`Projet « ${already} » ouvert.`);
+      return;
+    }
+
     await store.createProject(pending, name);
     pending = null;
     pathField.value = '';

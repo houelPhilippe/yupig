@@ -2,8 +2,8 @@
 //
 // Un menu traditionnel, commun aux deux coques, pour ce qui porte sur le projet
 // ou l'application entière plutôt que sur un document : compiler les documents
-// de la bibliothèque du projet en HTML, en PDF ou en Word, régler le projet,
-// quitter.
+// de la bibliothèque du projet en HTML, en PDF ou en Word, ouvrir la liseuse
+// sur les pages compilées, régler le projet, quitter.
 //
 // Il reprend le cadre de `ui/menu.js` — celui des menus contextuels — posé sous
 // le bouton plutôt qu'au pointeur : mêmes entrées, même fermeture au clic à
@@ -24,11 +24,20 @@ import { labelOf } from '../keys.js';
 
 const button = document.getElementById('app-menu');
 
-/** Ouvre le menu sous le bouton, calé sur son bord gauche. */
-function openMenu() {
+/**
+ * Ouvre le menu sous le bouton, calé sur son bord gauche.
+ *
+ * L'attente, avant de le poser : l'entrée de la liseuse dit ce que le prochain
+ * clic fera — ouvrir ou arrêter —, et cela ne se devine pas. Un serveur peut
+ * s'être arrêté tout seul, le port étant déjà pris ou Python absent : seul Rust,
+ * qui tient le processus, le sait. Un aller-retour par l'IPC, le temps d'un
+ * clic ; sans projet, la question ne se pose pas.
+ */
+async function openMenu() {
   const noProject = !store.state.edition.root;
   // Une compilation à la fois : les entrées s'éteignent tant qu'une autre tourne.
   const off = noProject || journal.busy();
+  const reading = noProject ? false : await api.liseuseRunning().catch(() => false);
   const box = button.getBoundingClientRect();
   button.setAttribute('aria-expanded', 'true');
 
@@ -41,6 +50,16 @@ function openMenu() {
     // Le book : un seul PDF, assemblé par le script du projet.
     menu.item('Compiler un book (PDF)', PATH.book, () => fileops.compileBook(flush), off),
     menu.separator(),
+    // La liseuse : une seule entrée, qui bascule. Elle ne s'éteint pas pendant
+    // une compilation — lire les pages d'hier pendant qu'on écrit celles de
+    // demain n'a rien de contradictoire.
+    menu.item(
+      reading ? 'Arrêter la liseuse' : 'Ouvrir la liseuse',
+      reading ? PATH.stop : PATH.liseuse,
+      () => liseuse(reading).catch(store.fail),
+      noProject,
+    ),
+    menu.separator(),
     menu.item(
       'Paramètres du projet',
       PATH.sliders,
@@ -52,6 +71,26 @@ function openMenu() {
     menu.title('Application'),
     menu.item('Quitter', PATH.power, () => quit().catch(store.fail), false, labelOf('app.quit')),
   ]);
+}
+
+/**
+ * Ouvre la liseuse, ou l'arrête.
+ *
+ * Elle sert les pages compilées en HTML — le répertoire de destination réglé
+ * pour le projet — et ouvre le navigateur dessus. Rien de tout cela ne se
+ * décide ici : Rust lit le réglage et lance le script du projet
+ * (`Ouvrir-la-liseuse.bat` sous Windows, `ouvrir-la-liseuse.sh` ailleurs).
+ * L'adresse est dite au passage — c'est là qu'on lit, et l'on peut vouloir la
+ * rouvrir à la main.
+ */
+async function liseuse(running) {
+  if (running) {
+    await api.stopLiseuse();
+    store.notify('Liseuse arrêtée');
+    return;
+  }
+  const url = await api.openLiseuse();
+  store.notify(`Liseuse ouverte : ${url}`);
 }
 
 /**
@@ -98,7 +137,7 @@ export function wire() {
       button.setAttribute('aria-expanded', 'false');
       return;
     }
-    openMenu();
+    openMenu().catch(store.fail);
   });
 
   // Refermé par ailleurs — un clic à côté, Échap, une entrée choisie : le

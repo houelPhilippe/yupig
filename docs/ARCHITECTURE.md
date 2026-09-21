@@ -68,9 +68,13 @@ project_settings (root, key, value, PRIMARY KEY (root, key))
   ne disparaisse pas de la liste ; son témoin, lui, est posé au démarrage par
   `commands::files::adopt_legacy_root` — écrire sur le disque de
   l'utilisateur n'est pas l'affaire d'une migration de schéma.
-- `project_settings` (schéma v3) garde la mise en page de chaque projet. Elle
-  survit au retrait d'un projet de la liste : la retrouver intacte vaut mieux
-  que la ressaisir si le projet revient.
+- `project_settings` (schéma v3) garde la mise en page de chaque projet, les
+  réglages de Pandoc (`pandoc.%`) et le modèle de configuration appliqué
+  (`modele`). Elle survit au retrait d'un projet de la liste : la retrouver
+  intacte vaut mieux que la ressaisir si le projet revient. Un réglage rendu à
+  son défaut — un espacement vidé, un champ Pandoc effacé, un modèle retiré —
+  **quitte** la table : une ligne restée là continuerait de couvrir la valeur
+  par défaut.
 
 `user_version` porte la version du schéma ; toute évolution ajoute un bloc
 dans `Db::migrate`, jamais une modification du bloc existant.
@@ -97,11 +101,56 @@ ouverture d'un projet
 
 `create_project` ne diffère que par son premier temps : il **pose** le témoin
 au lieu de l'exiger, et refuse un dossier qui en a déjà un — le réécrire
-perdrait la date de création sans rien demander. Aucune des deux commandes ne
+perdrait la date de création sans rien demander. La boîte n'attend pas ce
+refus : elle demande d'abord `project_name_at`, dit dès le choix du dossier
+qu'il est déjà un projet, et propose alors de l'**ouvrir** — ce qui le remet
+dans la liste dont on l'avait retiré. Une interface qui lirait le texte d'une
+erreur pour décider de sa conduite se romprait à la première reformulation. Aucune des deux commandes ne
 crée de dossier : un projet se pose sur ce qui est déjà là.
 
 `.veille` commence par un point : `files::walk` l'écarte de l'arborescence avec
 tous les fichiers cachés, sans avoir à le nommer.
+
+### Modèles de configuration
+
+La compilation lit `conf/` ; un **modèle** est un jeu complet de ces fichiers,
+rangé dans `confModele/<nom>/` — dans le projet, donc emporté avec lui.
+
+```
+application d'un modèle (modeles::apply)
+  ┌─ name_ok(name)            un nom de dossier, jamais un chemin
+  ├─ files::resolve(root, …)  confModele/<nom>, et rien qui sorte du projet
+  └─ copie récursive → conf/  recouvre ; les liens symboliques ne sont pas suivis
+```
+
+Trois règles :
+
+- **Recouvrement, jamais effacement.** Les fichiers du modèle sont copiés au
+  même chemin ; ce que `conf/` porte en plus y reste. Un modèle se réapplique
+  donc sans perdre ce qu'on y avait ajouté.
+- **Copie inconditionnelle**, là où `resources.rs` saute un fichier déjà à
+  jour : appliquer un modèle, c'est demander que `conf/` redevienne ce que le
+  modèle dit, y compris sur un fichier modifié depuis.
+- **Le nom seul est retenu** (`modele`, dans `project_settings`), pas les
+  fichiers. La liste, elle, se relit sur le disque à chaque ouverture de la
+  boîte des paramètres : c'est le dossier qui décide.
+
+`create_project` fait les deux temps, **avant** `enter` (des dossiers créés
+après l'arborescence n'y paraîtraient pas) :
+
+1. `modeles::install` copie le `confModele/` **livré avec l'application**
+   (ressource du paquet, `BaseDirectory::Resource`) dans le projet — un modèle
+   dont le dossier existe déjà n'est pas recouvert ;
+2. `modeles::adopt_default` applique `liseuse` à `conf/`, **sauf** si `conf/`
+   porte déjà quelque chose : le dossier adopté peut être un projet réglé de
+   longue date.
+
+Ni l'un ni l'autre n'arrête une création : ressources absentes ou `conf/`
+garni, le projet se crée.
+
+Les réglages du projet neuf suivent : le modèle appliqué, et les quatre modèles
+de commande de Pandoc écrits dans leurs champs vides (`pandoc::fill_commands`)
+— ce qui vaudrait par défaut, mais visible et modifiable dans la boîte.
 
 ### Renommer, dupliquer, effacer
 
@@ -184,6 +233,14 @@ progression lisible dans l'en-tête.
   entre dans la zone d'édition est donc toujours passé par l'assainisseur.
 - Les liens s'ouvrent dans le navigateur du système via `tauri-plugin-opener`,
   jamais dans la webview.
+- Deux commandes lancent un programme : la compilation (`pandoc.rs`) et la
+  liseuse (`liseuse.rs`). Ni l'une ni l'autre ne reçoit du frontend ce qu'elle
+  lance. Pandoc : le modèle est lu en base, son premier mot doit nommer
+  `pandoc`, et il est découpé en arguments avant que les variables ne soient
+  remplacées. La liseuse : le programme est `cmd` ou `bash`, le script celui du
+  projet (`Ouvrir-la-liseuse.bat`, `ouvrir-la-liseuse.sh`) passé par
+  `files::resolve`, et le répertoire servi vient des réglages du projet. Aucune
+  des deux ne passe par un shell : un nom de fichier ne s'y interprète pas.
 - Les capacités déclarées se limitent à `core:default`, `opener:allow-open-url`
   et les deux permissions de dialogue nécessaires à l'OPML.
 

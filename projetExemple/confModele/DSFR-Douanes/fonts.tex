@@ -1,0 +1,33 @@
+% fonts.tex — polices du PDF, choisies selon la machine.
+%
+% Les polices voulues sont celles de Microsoft : Calibri, Arial, Courier New.
+% Elles ne sont pas installées partout — sous Linux, elles manquent le plus
+% souvent —, et LuaLaTeX s'arrête sur une police introuvable plutôt que d'en
+% prendre une autre. Chaque police est donc cherchée dans l'ordre, et la
+% première présente est retenue :
+%
+%   texte     Calibri      -> Carlito          -> Liberation Sans
+%   sans      Arial        -> Liberation Sans  -> DejaVu Sans
+%   chasse    Courier New  -> Liberation Mono  -> DejaVu Sans Mono
+%
+% Carlito et les Liberation ont les mêmes dimensions que les polices qu'elles
+% remplacent : la mise en page — coupures de lignes, de pages — ne change pas
+% d'une machine à l'autre. Paquets Debian/Ubuntu : fonts-crosextra-carlito,
+% fonts-liberation.
+%
+% Ces trois choix remplacent mainfont, sansfont et monofont des fichiers
+% defaults-*.yaml : ils ne doivent pas y revenir, sans quoi Pandoc exigerait de
+% nouveau la police nommée, présente ou non.
+%
+% Inclus par defaults-single.yaml et defaults-book.yaml (include-in-header),
+% donc après le chargement de fontspec par le modèle LaTeX de Pandoc.
+
+\IfFontExistsTF{Calibri}{\setmainfont{Calibri}}{%
+  \IfFontExistsTF{Carlito}{\setmainfont{Carlito}}{\setmainfont{Liberation Sans}}}
+
+\IfFontExistsTF{Arial}{\setsansfont{Arial}}{%
+  \IfFontExistsTF{Liberation Sans}{\setsansfont{Liberation Sans}}{\setsansfont{DejaVu Sans}}}
+
+\IfFontExistsTF{Courier New}{\setmonofont[Scale=0.9]{Courier New}}{%
+  \IfFontExistsTF{Liberation Mono}{\setmonofont[Scale=0.9]{Liberation Mono}}{%
+    \setmonofont[Scale=0.9]{DejaVu Sans Mono}}}

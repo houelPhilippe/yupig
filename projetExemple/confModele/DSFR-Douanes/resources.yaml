@@ -1,0 +1,38 @@
+# Fichier de définition des ressources complémentaires à copier lors de la compilation HTML
+# Par défaut, les dossiers (img, conf, css, images, media, assets) sont déjà copiés automatiquement.
+# Vous pouvez spécifier ici des fichiers ou dossiers supplémentaires.
+
+resources:
+  - "resources/img/*.*"
+  - "resources/pdf/*.*"
+  - "resources/pdf/filesANN/*.*"
+  - "resources/pdf/filesLOT01/*.*"
+  - "resources/pdf/filesLOT02/*.*"
+  - "resources/pdf/filesLOT03/*.*"
+  - "resources/pdf/filesLOT04/*.*"
+  - "resources/pdf/filesLOT07/*.*"
+  - "resources/docx/*.*"
+  - "resources/docx/filesANN/*.*"
+  - "resources/docx/filesLOT01/*.*"
+  - "resources/docx/filesLOT02/*.*"
+  - "resources/docx/filesLOT03/*.*"
+  - "resources/docx/filesLOT04/*.*"
+  - "resources/docx/filesLOT07/*.*"
+  - "filesANN/img"
+  - "filesANN/puml"
+  - "filesANN/mmd"
+  - "filesANN/bpmn"
+  - "filesANN/msgSource"
+  - "filesLOT01/img"
+  - "filesLOT01/mmd"
+  - "filesLOT01/puml"
+  - "filesLOT02/img"
+  - "filesLOT02/mmd"
+  - "filesLOT02/puml"
+  - "filesLOT03/mmd"
+  - "filesLOT04/mmd"
+  - "filesLOT04/puml"
+  - "filesLOT04/img"
+  - "filesLOT07/img"
+  - "filesLOT07/puml"
+

@@ -1,9 +1,17 @@
-# Tableau de bord Veille — contexte projet
+# Éditeur Markdown — contexte projet
 
-Application de bureau **Rust + Tauri 2** qui reprend le modèle de maquette
-`modele/Tableau de bord Veille (autonome).html` : un agrégateur de flux
-RSS/Atom, autonome et hors ligne, à l'aspect « Modernist » (aplats, angles
-vifs, accent rouge `#ec3013`, police Archivo).
+Application de bureau **Rust + Tauri 2**, autonome et hors ligne, à l'aspect
+« Modernist » repris de la maquette
+`modele/Tableau de bord Veille (autonome).html` (aplats, angles vifs, accent
+rouge `#ec3013`, police Archivo).
+
+Elle s'appelle **« Éditeur Markdown »** : c'est l'écriture des documents d'un
+projet qui en est le sujet. L'agrégateur de flux RSS/Atom, qui fut le point de
+départ, y reste — en **option**, une seconde fenêtre sur le même projet. Le
+nom vit dans `productName` de `tauri.conf.json` pour le paquet, et dans `TITLE`
+de `ui/shell.js` pour le bandeau et la fenêtre ; l'`identifier`, lui, ne bouge
+pas (`fr.phl.veille`) — c'est de lui que dépend `app_data_dir`, donc la base et
+tout ce qu'elle retient.
 
 ## Décisions structurantes
 
@@ -25,11 +33,24 @@ src-tauri/  cœur Rust
 docs/       ARCHITECTURE.md — flux de données et conventions
 ```
 
-L'application abrite désormais **deux coques** que le lanceur de l'en-tête
-permute : « Veille » (le lecteur de flux) et « Édition » (rédaction des
-documents d'un projet — arbre des fichiers à gauche, onglets et zone de saisie
-au centre, sommaire ou bloc YAML à droite). Les deux vivent dans la même page et le même
+L'application abrite **deux coques** que le lanceur de l'en-tête permute :
+« Édition » (rédaction des documents d'un projet — arbre des fichiers à
+gauche, onglets et zone de saisie au centre, sommaire ou bloc YAML à droite) et
+« Veille » (le lecteur de flux). Les deux vivent dans la même page et le même
 `state` ; `ui/shell.js` masque celle qui n'est pas à l'écran.
+
+« Édition » vient **en tête**, et c'est là qu'on arrive : l'ordre de la table
+`APPS` est celui du menu, et son premier terme sert de recours quand l'état
+nomme une coque inconnue — une base neuve comme une valeur d'une version plus
+ancienne. La coque qu'on a quittée est retrouvée au lancement suivant
+(`settings.app`) : seule celle qu'on n'a jamais choisie est « Édition ».
+
+Le **bandeau** de la barre du haut porte le nom de l'application et non celui
+de la coque : il n'y en a qu'une, et « Veille » n'en est qu'une fenêtre. Ce
+qu'on regarde se voit assez — l'entrée cochée du lanceur, les outils de la
+barre, la page elle-même. Le titre de la **fenêtre**, lui, nomme la coque quand
+ce n'est pas celle d'où l'on écrit : « Veille — Éditeur Markdown », contre
+« Éditeur Markdown » tout court.
 
 Un dossier ne s'ouvre plus directement : **c'est un projet que l'on ouvre**.
 Un projet est un dossier qui porte un témoin — `.veille/projet.json`, où vivent
@@ -48,7 +69,13 @@ l'on désigne un dossier venu d'ailleurs. L'application **ne crée pas de
 dossier** : elle pose un projet sur ce qui est déjà là. Un dossier sans témoin
 est refusé à l'ouverture plutôt qu'adopté en silence — on a pu simplement
 désigner le mauvais. Un projet retiré de la liste ne perd ni son dossier, ni son
-témoin, ni sa mise en page : le retirer n'est pas le détruire.
+témoin, ni sa mise en page : le retirer n'est pas le détruire — et comme le
+témoin reste, **le désigner de nouveau l'ouvre au lieu de le créer** : la boîte
+le dit dès qu'on a choisi le dossier, puis le propose, et le projet retrouve sa
+place dans la liste avec son nom et sa date d'origine. Réécrire le témoin lui
+ferait perdre l'un et l'autre, et un projet partagé ne serait plus le même
+partout. C'est `project_name_at` qui le dit à l'interface, laquelle ne lit
+jamais le texte d'une erreur pour décider de sa conduite.
 
 L'éditeur porte trois regards sur un même document — « Modifier » (texte mis
 en forme), « Voir » (rendu en lecture seule), « Code Markdown » (la source).
@@ -567,9 +594,15 @@ dossier de la page et `resources.rs` copie les ressources. Le frontend n'y envoi
 projet, et `files::resolve` refuse tout ce qui en sortirait — composant `..`
 comme lien symbolique. Ne pas contourner cette fonction.
 
-La boîte des **paramètres du projet** tient sur **trois colonnes**, trois
+La boîte des **paramètres du projet** tient sur **trois colonnes**, quatre
 sujets — **01 Affichage** (justification, interligne, contour), **02 Mise en
-page** (les espacements), **03 Pandoc** (la compilation) —, à la manière des
+page** (les espacements), **03 Pandoc** (la compilation), et **04 Gestion des
+modèles** (d'où `conf/` tient ses fichiers), rangé **sous « 02 »** : une
+quatrième colonne resserrait tout, à commencer par Pandoc et ses lignes de
+commande. Les deux groupes de la colonne du milieu sont une **pile**
+(`.settings__stack`) et non deux cases de la grille — les rangées d'une grille
+s'alignent sur la plus haute, et « 04 » décollerait de « 02 » dès qu'une autre
+colonne serait plus longue qu'elle. Le tout à la manière des
 sections d'une revue : un filet épais au-dessus, un numéro à l'accent, un titre
 et une phrase qui dit de quoi il s'agit, puis les champs. Pas de cartes : le
 modèle est fait d'aplats et de traits. « Affichage » porte aussi le **retour à la
@@ -578,7 +611,22 @@ ligne longue défile à l'horizontale. Il passe par `--source-wrap`, lue par la
 règle qui tient ensemble la zone de saisie et le calque de la recherche — le
 repli est de ce qui doit se déclarer une seule fois pour les deux —, et le
 calque reprend alors aussi la hauteur utile de la zone, que la barre
-horizontale réduit. Sous 1100 px, Pandoc passe sous les deux
+horizontale réduit.
+
+Elle porte enfin les **ascenseurs** (`showScrollbars`, affichés par défaut) —
+ceux des deux volets et des deux surfaces d'édition, qui se retirent ensemble.
+Le contenu défile toujours, molette, clavier et sélection compris : seul le
+rail cesse de se dessiner, et la place qu'il prenait revient au texte. C'est le
+seul réglage du projet qui passe par un **attribut** de la racine
+(`data-scrollbars="hidden"`, comme `data-theme` et `data-focus`) et non par une
+variable CSS : il faut deux déclarations dans deux syntaxes — `scrollbar-width`,
+la propriété standard que WebKitGTK n'a apprise que tard, et
+`::-webkit-scrollbar`, qui couvre la webview de Linux comme celle de Windows —,
+et une même valeur ne saurait servir les deux. Les volets y sont désignés sous
+`#body-edition` : la même classe porte le volet des fils de « Veille », qui ne
+se règle pas par projet.
+
+Sous 1100 px, Pandoc passe sous les deux
 autres, sur toute la largeur ; sous 720 px, tout s'empile — mieux vaut défiler
 que serrer les champs à l'illisible. Les réglages s'enregistrent d'eux-mêmes :
 le pied de la boîte le dit, et son bouton ne fait que fermer. Sous le titre, le
@@ -614,6 +662,40 @@ compile donc complètement sans qu'on ait rien réglé, là où un Pandoc nu ren
 une page sans gabarit ni table des matières. Un projet bâti autrement écrit ses
 propres commandes ; c'est à quoi les champs servent.
 
+Ces fichiers de `conf/` — filtre, gabarits, préambules, bibliothèque,
+configurations — viennent d'un **modèle**, et le groupe « 04 Gestion des
+modèles » dit lequel. Un modèle est un dossier de `confModele/`, à la racine du
+projet : `confModele/liseuse`, `confModele/DSFR-Douanes`… Les modèles vivent
+**dans le projet** et non dans l'application, comme les fichiers qu'ils
+portent — un projet copié sur une autre machine emporte ainsi les siens, la
+même raison qui fait vivre le nom d'un projet dans son témoin. L'appliquer,
+c'est **recouvrir** `conf/` : les fichiers du modèle y sont copiés au même
+chemin, par-dessus ceux de même nom, et ce que `conf/` porte en plus y reste —
+rien n'est effacé, et un modèle se réapplique donc sans perdre ce qu'on y avait
+ajouté. Un fichier déjà identique est recopié **quand même**, à la différence
+des ressources d'une compilation : appliquer un modèle, c'est demander que
+`conf/` redevienne ce que le modèle dit, y compris sur un fichier modifié
+depuis. La base ne retient que le **nom** du modèle (`modele`, dans
+`project_settings`, une clé nue comme `align`), non ses fichiers : de quoi dire
+lequel est en vigueur et le réappliquer, et la ligne s'en va quand il n'y en a
+pas. À la **création d'un projet**, l'application pose d'abord dans le dossier les
+modèles qu'elle **porte elle-même** — `confModele/` est une ressource du paquet
+(`bundle.resources` de `tauri.conf.json`, prise dans `projetExemple/confModele`)
+—, puis applique `liseuse` à `conf/`. Un projet neuf a ainsi de quoi compiler et
+de quoi changer d'habillage sans rien aller chercher, fût-il le premier de la
+machine. Deux garde-fous, parce qu'un projet se pose sur un dossier qui existe
+déjà : un modèle dont le dossier est **déjà là** n'est pas recouvert — les
+modèles du projet sont à lui —, et un `conf/` qui porte **déjà quelque chose**
+est laissé intact : le dossier adopté peut être un projet réglé de longue date,
+et poser le modèle par défaut dessus remplacerait son filtre et ses gabarits
+sans rien demander. Le modèle s'applique alors à la main, depuis la boîte, qui
+prévient. Rien de tout cela ne peut faire échouer une création : ressources
+absentes ou `conf/` garni, le projet se crée. Côté Rust, `src-tauri/src/modeles.rs` ; l'interface ne
+désigne qu'un **nom**, jamais un chemin, et `files::resolve` garde la règle
+comme partout ailleurs. La liste des modèles se relit sur le disque à chaque
+ouverture de la boîte, et non en base : c'est le dossier qui décide, et un
+modèle posé à la main doit y paraître sans que rien ait à être tenu à jour.
+
 Le choix du modèle se fait en un seul endroit, `pandoc::template_for`, que
 l'aperçu emprunte comme la compilation — il reçoit pour cela tous les champs à
 l'écran. Côté Rust c'est `ProjectSettings.pandoc`,
@@ -621,7 +703,13 @@ les lignes `pandoc.htmlDest`, `pandoc.htmlCommand`, `pandoc.htmlIndexCommand`,
 `pandoc.pdfDest`, `pandoc.pdfCommand`, `pandoc.docxDest` et `pandoc.docxCommand`
 de `project_settings` — toutes sous le préfixe `pandoc.`, retirées ensemble
 avant d'être réécrites —, rangées sur une seule ligne et
-retirées de la base quand on les vide. Les champs
+retirées de la base quand on les vide. À la **création d'un projet**, les quatre modèles de
+commande — HTML, accueil, PDF, Word — sont **écrits** dans leurs champs
+(`pandoc::fill_commands`). Ils valaient déjà par défaut ; écrits, ils se voient
+dans la boîte et se modifient sans avoir à les retrouver, et ce qui partira se
+lit sans ouvrir l'aperçu. Un champ déjà rempli n'est pas remplacé — la base
+garde les réglages d'un projet retiré de la liste —, et les destinations
+restent vides : personne ne peut les deviner. Les champs
 s'enregistrent **peu après la frappe** et à la fermeture de la boîte, non au
 seul `change` : fermer la boîte par sa croix ou Échap pendant qu'on tape ne le
 déclenche pas, et la commande saisie se perdait — la compilation prenait alors
@@ -691,6 +779,35 @@ script-là, et rien d'autre ; script et structure passent par `files::resolve`.
 Côté Rust, `pandoc::plan_book` et la commande `compile_book`, qui rendent tous
 deux au journal ce que le script et Pandoc écrivent. « Quitter » pose une seule question
 pour les documents modifiés, puis passe par Rust (`quit_app`).
+
+Le même menu ouvre la **liseuse** — un serveur local sur les pages compilées du
+projet, et le navigateur dessus. Pourquoi un serveur : ouvertes en `file://`,
+les pages sont autant d'origines distinctes pour le navigateur, qui **oublie**
+d'une page à l'autre les réglages du lecteur — thème, taille du texte ; servies
+en `http://127.0.0.1`, elles n'en font qu'une, et ces réglages tiennent. Ce
+n'est pas l'application qui sert : c'est un **script du projet**, à sa racine —
+`Ouvrir-la-liseuse.bat` sous Windows, `ouvrir-la-liseuse.sh` ailleurs, l'un le
+pendant de l'autre. Le script se double-clique aussi hors de l'application,
+c'est sa raison d'être ; l'application ne fait que le lancer, en lui passant
+**ce qu'il doit servir** : le répertoire de la compilation HTML
+(`pandoc.htmlDest`) et le port, en arguments — le script n'a donc rien à
+deviner, et la liseuse montre exactement ce que la compilation vient d'écrire.
+Les règles sont celles du book : programme fixe (`cmd` ou `bash`, ce script-là
+et rien d'autre), chemin passé par `files::resolve`, aucun shell.
+
+L'application **tient ce serveur** : l'entrée du menu bascule — « Ouvrir la
+liseuse », « Arrêter la liseuse » —, changer de projet l'arrête, et quitter
+aussi, par `RunEvent::Exit` plutôt que par `quit_app` : la croix de la fenêtre
+ne passe pas par « Quitter ». C'est pourquoi le script Unix **remplace** son
+shell par le serveur (`exec`) : le processus tenu *est* le serveur, et
+l'arrêter l'arrête vraiment — sans quoi Python resterait derrière, le port
+pris. Sous Windows, où `exec` n'existe pas, `cmd` reste le parent de Python :
+c'est l'arbre entier qu'on arrête (`taskkill /T`). L'entrée dit ce que le
+prochain clic fera, et cela ne se devine pas — un serveur a pu s'arrêter tout
+seul, le port étant pris ou Python absent : `ui/appmenu.js` le demande à Rust
+avant de poser le menu, seul lui tenant le processus. Ce que le serveur écrit —
+une ligne par requête — ne va nulle part : le journal est celui des
+compilations.
 
 Un **dossier** de l'arbre a aussi son menu — en HTML, en PDF ou en Word —, qui compile **un par un** les
 documents Markdown qu'il contient — lui seul, sans ses sous-dossiers : ce qu'on
@@ -918,7 +1035,10 @@ supprimer —, barre d'état en pied de fenêtre, thème clair/sombre/gris.
 
 Compilation d'un document en HTML ou en PDF par Pandoc, depuis le menu de
 l'onglet ou de l'arbre, d'après la destination et le modèle de commande réglés
-pour chaque format dans les paramètres du projet.
+pour chaque format dans les paramètres du projet. Liseuse ouverte sur les pages
+compilées depuis le menu de l'application, par le script du projet. Gestion des
+modèles de configuration : `conf/` garni d'un dossier de `confModele/`, et
+`liseuse` posé à la création d'un projet.
 
 À faire : écran de réglages détaillés, purge automatique. Pour « Édition » :
 compilation vers d'autres formats que HTML et PDF ;

@@ -1,0 +1,9 @@
+index: ./index.md
+
+chapters:
+
+  # --- Partie 1 : Version Nominale (LOT01) ---
+  - part: '**VERSION NOMINALE**'
+    files:
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC03_NotificationArrivee.md

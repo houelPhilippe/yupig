@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tableau de bord Veille</title>
+  <title>Éditeur Markdown</title>
   <link rel="stylesheet" href="./styles/tokens.css">
   <link rel="stylesheet" href="./styles/app.css">
 </head>
@@ -526,7 +526,25 @@
           <p class="settings__note">Sans retour automatique, une ligne longue défile à
             l'horizontale, telle que le fichier l'écrit. Le fichier n'en est pas changé.</p>
         </div>
+
+        <div class="settings__field">
+          <div class="settings__label" id="scrollbars-label">Ascenseurs</div>
+          <div class="seg settings__seg" id="scrollbars-seg" role="radiogroup" aria-labelledby="scrollbars-label">
+            <label class="seg-opt"><input type="radio" name="scrollbars" value="1" checked>Affichés</label>
+            <label class="seg-opt"><input type="radio" name="scrollbars" value="0">Masqués</label>
+          </div>
+          <p class="settings__note">Ceux des deux volets et de la zone d'édition. Masqués, le
+            contenu défile toujours — molette, clavier, sélection — : seul le rail cesse de se
+            dessiner, et la place qu'il prenait revient au texte.</p>
+        </div>
       </section>
+
+      <!-- La colonne du milieu porte deux groupes l'un sous l'autre — la mise
+           en page, puis les modèles. Une pile et non deux cases de la grille :
+           les rangées d'une grille s'alignent sur la plus haute, et « 04 »
+           décollerait de « 02 » dès que la première colonne serait plus longue
+           qu'elle. -->
+      <div class="settings__stack">
 
       <!-- 02 — Mise en page. Les lignes de la grille ne sont pas écrites ici :
            `ui/project.js` les bâtit d'après sa table `SPACING`, seul endroit qui
@@ -547,6 +565,38 @@
         <p class="settings__note">Entre deux blocs, les deux mesures s'ajoutent. Mesures à
           100 % de zoom ; un champ vide reprend la valeur grisée.</p>
       </section>
+
+      <!-- 04 — Gestion des modèles. La liste n'est pas écrite ici : c'est le
+           dossier `confModele/` du projet qui la donne, relue à chaque
+           ouverture de la boîte par `ui/project.js`. -->
+      <section class="settings__col" aria-labelledby="settings-modeles">
+        <header class="settings__col-head">
+          <span class="settings__num">04</span>
+          <div>
+            <h3 class="settings__col-title" id="settings-modeles">Gestion des modèles</h3>
+            <p class="settings__col-lede">D'où <code>conf/</code> tient les fichiers de la compilation.</p>
+          </div>
+        </header>
+
+        <div class="settings__field">
+          <div class="settings__label">Modèle en vigueur</div>
+          <p class="modeles__current" id="modele-current"></p>
+        </div>
+
+        <div class="settings__field">
+          <label class="settings__label" for="modele-list">Modèles du projet</label>
+          <div class="meta__row">
+            <select class="input" id="modele-list"></select>
+            <button class="btn btn-secondary" id="modele-apply" type="button">Appliquer</button>
+          </div>
+          <p class="settings__note">Les fichiers de <code>confModele/&lt;modèle&gt;</code> sont copiés
+            dans <code>conf/</code>, au même chemin, par-dessus ceux de même nom. Ce que
+            <code>conf/</code> porte en plus y reste : rien n'est effacé. Un projet neuf prend
+            <code>liseuse</code>, quand son dossier le porte.</p>
+        </div>
+      </section>
+
+      </div>
 
       <!-- 03 — Pandoc. La légende des variables n'est pas écrite ici :
            `ui/project.js` la tire de `VARIABLES`, dans `pandoc.js`. -->

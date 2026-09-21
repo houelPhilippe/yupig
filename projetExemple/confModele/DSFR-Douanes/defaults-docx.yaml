@@ -1,0 +1,45 @@
+# defaults-docx.yaml — compilation Markdown -> Word (.docx)
+#
+#   pandoc "filesLOT01/<doc>.md" --defaults=conf/defaults-docx.yaml \
+#          --resource-path=filesLOT01 -o "resources/docx/filesLOT01/<doc>.docx"
+#
+# A lancer depuis la racine du projet (les chemins ci-dessous en dependent).
+
+from: markdown
+to: docx
+
+# --- Chemins de ressources (images embarquees dans le .docx) ---
+# Les images relatives au .md (mmd/…, puml/…, img/…) exigent en plus
+# --resource-path=<dossier du .md> sur la ligne de commande.
+resource-path: [".", "_projet", "filesANN", "filesLOT01", "filesLOT02", "filesLOT03", "filesLOT04", "filesLOT05", "filesLOT06", "filesLOT07", "filesPRES", "FormationSAU"]
+
+# --- Filtre Lua (callouts, when-format, tableaux…) ---
+filters: ["conf/filtre.lua"]
+
+# --------------------------------------------------------
+# TABLE DES MATIERES ET NUMEROTATION
+# --------------------------------------------------------
+# En .docx, --toc insere un vrai champ TOC : Word propose de le mettre a jour
+# a l'ouverture (ou Ctrl+A puis F9).
+toc: true
+toc-depth: 3
+number-sections: false
+
+# --------------------------------------------------------
+# MISE EN FORME
+# --------------------------------------------------------
+# Modele de styles Word (polices, marges, entete/pied, styles Titre 1..6).
+# A generer une fois puis a personnaliser dans Word :
+#   pandoc -o conf/reference.docx --print-default-data-file reference.docx
+reference-doc: conf/reference.docx
+
+highlight-style: pygments
+
+# Largeur par defaut des images sans attribut width= (en pouces).
+# dpi: 144
+
+metadata:
+  lang: 'fr'
+
+variables:
+  toc-title: "Table des Matières"

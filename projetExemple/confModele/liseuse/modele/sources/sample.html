@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Guide de la liseuse</title>
+<style>
+  .etiquette { background: #fde68a; color: #000; padding: 0 .35em; border-radius: 3px; font-size: .9em; }
+</style>
+</head>
+<body>
+<h1 id="debut">Guide de la liseuse</h1>
+<p>Cette liseuse affiche un document HTML dans une mise en page pensée pour la lecture longue : une largeur de ligne maîtrisée, un sommaire construit à partir des titres, une recherche, trois thèmes et deux modes d'affichage. Ce document d'exemple sert aussi d'aide : il décrit ce que vous pouvez faire, et vous pouvez tout essayer dessus.</p>
+<aside class="note">
+  <p><strong>Pour commencer.</strong> Ouvrez votre propre fichier avec le bouton « Ouvrir » de la barre d'outils, ou déposez-le n'importe où sur la page. Le document ne quitte jamais votre navigateur.</p>
+</aside>
+
+<h2>Ouvrir un document</h2>
+<h3>Depuis un fichier</h3>
+<p>Le bouton « Ouvrir » accepte les fichiers <code>.html</code>, <code>.htm</code> et <code>.xhtml</code>. L'encodage UTF-8 est lu en priorité ; si le fichier n'est pas de l'UTF-8 valide, la liseuse bascule sur Windows-1252, ce qui couvre les documents français plus anciens en ISO-8859-1.</p>
+<p>Le titre affiché dans la barre d'outils vient de la balise <code>&lt;title&gt;</code> du document, à défaut de son premier titre de niveau 1, à défaut de son nom de fichier. Le temps de lecture est estimé à 230 mots par minute.</p>
+
+<h3>Par glisser-déposer</h3>
+<p>Faites glisser un fichier depuis votre explorateur vers la fenêtre : un cadre apparaît pour confirmer la zone de dépôt. Si vous déposez plusieurs fichiers, seul le premier est ouvert.</p>
+
+<h3>Ce qui est conservé et ce qui est retiré</h3>
+<p>La liseuse lit le contenu du corps du document. Par sécurité, tout ce qui pourrait exécuter du code ou charger du contenu extérieur est retiré avant l'affichage.</p>
+<table>
+  <caption>Traitement des éléments d'un document</caption>
+  <thead>
+    <tr><th>Élément</th><th>Traitement</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Titres, paragraphes, listes, tableaux, citations, code</td><td>Conservés et restylés selon vos réglages</td></tr>
+    <tr><td>Images intégrées (<code>data:</code>)</td><td>Conservées, réduites à la largeur de la colonne</td></tr>
+    <tr><td>Images et feuilles de style par chemin relatif</td><td>Non chargées : la liseuse ne lit qu'un seul fichier</td></tr>
+    <tr><td>Scripts, cadres, objets, formulaires actifs</td><td>Retirés</td></tr>
+    <tr><td>Liens vers un site extérieur</td><td>Ouverts dans un nouvel onglet</td></tr>
+    <tr><td>Liens internes (<code>#ancre</code>)</td><td>Suivis dans le document, y compris en mode pages</td></tr>
+  </tbody>
+</table>
+
+<h2>Se déplacer</h2>
+<h3>Sommaire</h3>
+<p>Le sommaire liste les titres de niveaux 1 à 4. L'entrée de la section en cours est mise en évidence et reste visible dans la liste pendant que vous lisez. Un document sans titres n'a pas de sommaire : la liseuse l'indique et vous laisse la recherche et la barre de progression pour vous repérer.</p>
+<p>Sur un écran étroit, le sommaire s'ouvre en tiroir par-dessus le texte et se referme après chaque choix.</p>
+
+<h3>Recherche dans le document</h3>
+<p>La recherche ignore la casse et les accents : « colonne » trouve aussi « Colonne », et « ecran » trouve « écran ». Elle demande au moins deux caractères. Toutes les occurrences sont surlignées ; l'occurrence courante porte en plus un contour. Le compteur indique la position dans la liste, par exemple « 2 / 5 ».</p>
+<p>Appuyez sur <kbd>Entrée</kbd> pour aller à l'occurrence suivante, sur <kbd>Maj</kbd> + <kbd>Entrée</kbd> pour revenir à la précédente, et sur <kbd>Échap</kbd> pour fermer la recherche et retirer le surlignage.</p>
+
+<h3>Raccourcis clavier</h3>
+<p>Les raccourcis fonctionnent tant que le curseur n'est pas dans un champ de saisie.</p>
+<table>
+  <thead>
+    <tr><th>Touche</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><kbd>S</kbd></td><td>Ouvrir ou fermer le sommaire</td></tr>
+    <tr><td><kbd>/</kbd></td><td>Rechercher dans le document</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Ouvrir ou fermer les réglages</td></tr>
+    <tr><td><kbd>O</kbd></td><td>Ouvrir un fichier</td></tr>
+    <tr><td><kbd>T</kbd></td><td>Changer de thème</td></tr>
+    <tr><td><kbd>P</kbd></td><td>Passer du défilement aux pages</td></tr>
+    <tr><td><kbd>+</kbd> et <kbd>-</kbd></td><td>Agrandir ou réduire le texte</td></tr>
+    <tr><td><kbd>←</kbd> <kbd>→</kbd>, <kbd>Espace</kbd></td><td>Tourner les pages (mode pages)</td></tr>
+    <tr><td><kbd>Début</kbd> et <kbd>Fin</kbd></td><td>Aller au début ou à la fin</td></tr>
+  </tbody>
+</table>
+
+<h2>Régler la lecture</h2>
+<p>Tous les réglages se trouvent dans le panneau « Réglages de lecture ». Ils s'appliquent immédiatement et sont mémorisés dans ce navigateur, avec votre position dans chaque document ouvert.</p>
+
+<h3>Thèmes</h3>
+<p>Le thème <strong>Clair</strong> est un fond presque blanc pour les pièces lumineuses. Le thème <strong>Sépia</strong> réchauffe le fond et adoucit le contraste pour les longues séances. Le thème <strong>Sombre</strong> convient à la lecture le soir. Le choix <strong>Auto</strong> suit le thème de votre système ou de votre navigateur.</p>
+<p>Les trois thèmes respectent un contraste d'au moins 4,5 : 1 entre le texte et son fond, aussi bien pour le document que pour l'interface.</p>
+
+<h3>Typographie</h3>
+<p>Trois polices sont proposées : <strong>Sans</strong>, sobre et nette, adaptée à la documentation technique ; <strong>Serif</strong>, plus classique pour la prose ; <strong>Mono</strong>, pour les documents qui sont surtout du code. La taille varie de 14 à 28 px et l'interligne de 1,3 à 2. La largeur du texte est étroite, moyenne ou large ; elle se règle en unités <code>em</code> pour garder entre 60 et 75 caractères par ligne quelle que soit la taille choisie.</p>
+<p>Quand un document contient déjà sa propre mise en forme (couleurs, polices, fonds), l'option « Styles du document » permet de choisir entre la mise en page de la liseuse (<em>Ignorés</em>, par défaut) et celle du document (<em>Conservés</em>). Ce mot en <span class="etiquette">surbrillance jaune</span> n'est coloré que si les styles du document sont conservés.</p>
+
+<h3>Défilement ou pages</h3>
+<p>En mode <strong>Défilement</strong>, le texte est une longue colonne que l'on parcourt à la molette, au doigt ou au clavier. En mode <strong>Pages</strong>, le texte est découpé en pages de la hauteur de la zone de lecture : on tourne les pages avec les flèches, un balayage horizontal, la molette ou les boutons sur les côtés. Le nombre de pages dépend de la taille du texte, de l'interligne et de la taille de la fenêtre ; il est recalculé à chaque changement, et votre position dans le document est conservée.</p>
+
+<h2>Limites connues</h2>
+<ul>
+  <li>Les documents qui dépendent de scripts pour afficher leur contenu (sommaires dynamiques, graphiques) n'affichent que leur contenu statique.</li>
+  <li>Les images référencées par un chemin relatif ne se chargent pas : enregistrez le document avec ses images intégrées.</li>
+  <li>Les mises en page très structurées (colonnes, éléments positionnés) sont linéarisées dans la mise en page de la liseuse.</li>
+  <li>En mode pages, un tableau plus large que la colonne défile horizontalement dans la page.</li>
+</ul>
+<p>Voici le squelette minimal d'un document qui se lit bien ici :</p>
+<pre><code>&lt;!doctype html&gt;
+&lt;html lang="fr"&gt;
+&lt;head&gt;
+  &lt;meta charset="utf-8"&gt;
+  &lt;title&gt;Mon document&lt;/title&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;Mon document&lt;/h1&gt;
+  &lt;h2 id="contexte"&gt;Contexte&lt;/h2&gt;
+  &lt;p&gt;Un paragraphe, et un &lt;a href="#contexte"&gt;lien interne&lt;/a&gt;.&lt;/p&gt;
+&lt;/body&gt;
+&lt;/html&gt;</code></pre>
+
+<h2>Bon à savoir</h2>
+<blockquote>
+  <p>Un document lisible se reconnaît à ses titres : ils alimentent le sommaire, les repères de la barre de progression et la position affichée dans la barre d'état.</p>
+</blockquote>
+<p>Retournez au <a href="#debut">début du guide</a> avec la touche <kbd>Début</kbd>, ou consultez le <a href="https://developer.mozilla.org/fr/docs/Web/HTML" rel="noopener">guide HTML de MDN</a> pour structurer vos propres documents.</p>
+</body>
+</html>

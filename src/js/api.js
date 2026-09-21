@@ -9,7 +9,7 @@ if (!tauri) {
   // une page vide.
   document.body.innerHTML =
     '<p style="padding:2rem;font:14px system-ui">Cette page doit être ouverte ' +
-    'depuis l’application Veille (<code>cargo tauri dev</code>).</p>';
+    'depuis l’Éditeur Markdown (<code>cargo tauri dev</code>).</p>';
   throw new Error('API Tauri absente');
 }
 
@@ -48,6 +48,13 @@ export const saveSettings = (settings) => invoke('save_settings', { settings });
 // ----------------------------------------------------------------- projet
 
 export const listProjects = () => invoke('list_projects');
+/**
+ * Le nom du projet que porte un dossier ; `null` si ce n'en est pas un.
+ *
+ * La boîte le demande avant de créer : un dossier qui porte déjà un témoin
+ * s'ouvre — il est le même projet —, il ne se crée pas une seconde fois.
+ */
+export const projectNameAt = (path) => invoke('project_name_at', { path });
 export const createProject = (path, name) => invoke('create_project', { path, name });
 export const openProject = (path) => invoke('open_project', { path });
 export const forgetProject = (path) => invoke('forget_project', { path });
@@ -77,6 +84,19 @@ export const markdownInDir = (path) => invoke('markdown_in_dir', { path });
 export const markdownInProject = () => invoke('markdown_in_project');
 /** Compile le book : un seul PDF pour tout le projet, par son script. */
 export const compileBook = () => invoke('compile_book');
+/**
+ * La liseuse : un serveur local sur les pages compilées du projet, et le
+ * navigateur sur la page d'accueil. Rend l'adresse où l'on lit.
+ *
+ * L'interface ne désigne rien : Rust lit en base le répertoire de la
+ * compilation HTML et lance le script du projet — `Ouvrir-la-liseuse.bat` sous
+ * Windows, `ouvrir-la-liseuse.sh` ailleurs.
+ */
+export const openLiseuse = () => invoke('open_liseuse');
+/** Arrête la liseuse ; `false` s'il n'y avait rien à arrêter. */
+export const stopLiseuse = () => invoke('stop_liseuse');
+/** La liseuse tourne-t-elle encore ? Le menu le demande avant de s'ouvrir. */
+export const liseuseRunning = () => invoke('liseuse_running');
 /** Quitte l'application ; la question des documents modifiés est déjà posée. */
 export const quitApp = () => invoke('quit_app');
 /** La commande qui partirait, d'après les champs à l'écran ; rien n'est lancé. */
@@ -88,6 +108,19 @@ export const deleteFile = (path) => invoke('delete_file', { path });
 export const documentOutline = (content) => invoke('document_outline', { content });
 export const getProjectSettings = () => invoke('get_project_settings');
 export const saveProjectSettings = (settings) => invoke('save_project_settings', { settings });
+
+/**
+ * Les modèles de configuration du projet : les dossiers de `confModele/`.
+ *
+ * Lus sur le disque à chaque appel — un modèle posé à la main doit paraître
+ * dans la boîte sans rien avoir à tenir à jour.
+ */
+export const listModeles = () => invoke('list_modeles');
+/**
+ * Applique un modèle : ses fichiers recouvrent ceux de `conf/`, et son nom est
+ * retenu dans les réglages du projet. Rend ce qui a été copié.
+ */
+export const applyModele = (name) => invoke('apply_modele', { name });
 export const fileLink = (doc, file) => invoke('file_link', { doc, file });
 export const readImage = (path) => invoke('read_image', { path });
 

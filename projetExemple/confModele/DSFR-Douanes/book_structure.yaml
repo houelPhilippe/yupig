@@ -1,0 +1,23 @@
+index: ./index.md
+
+chapters:
+
+  # --- Partie 1 : Version Nominale (LOT01) ---
+  - part: '**VERSION NOMINALE**'
+    files:
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC03_NotificationArrivee.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC04_01_AnalyseDeRisques.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC04_03_AnalyseDeRisques.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC05_MainLevee.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC06_GestionDesEcarts.md
+    - ./filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC07_TraitementAnnonceSortie.md
+
+  # --- Partie 2 : Procédure de Recherche (LOT01) ---
+  - part: '**VERSION NOMINALE**'
+    files:
+    - ./filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-Introduction.md
+    - ./filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC10-RechercheDetournement.md
+    - ./filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC11-detournementRefuse.md
+    - ./filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC12-detournementAccepte.md
+  

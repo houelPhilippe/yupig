@@ -1,0 +1,344 @@
+# =====================================================================
+#  Bibliotheque de documents affichee dans la colonne de gauche.
+#
+#  Passe a Pandoc via  --metadata-file=conf/bibliotheque.yaml
+#  Fichier partage par TOUS les documents ; le document courant est
+#  surligne automatiquement (comparaison du nom de fichier HTML).
+#
+#  ARBORESCENCE cible :
+#     index.html                      (racine)
+#     filesLOT01/ *.html
+#     filesLOT02/ *.html
+#     ...
+#
+#  Chaque page de document se trouve donc UN niveau sous la racine.
+#  library-basedir = "../"  remonte du dossier du LOT vers la racine,
+#  et chaque "href" porte son propre dossier de LOT. Un lien devient
+#  ainsi "../filesLOT01/xxx.html", valide depuis n'importe quelle page.
+#
+#  Pour ajouter un document : ajouter { title, href } dans le bon groupe,
+#  href = "filesLOTxx/NOM_DU_FICHIER.html".
+# =====================================================================
+
+# ---------------------------------------------------------------------
+#  Version de la documentation, affichee entre parentheses apres le
+#  titre « SDS - Documentation Fonctionnelle » dans l'en-tete de toutes
+#  les pages (documents + portail d'accueil).
+#  Laisser vide ou supprimer la ligne pour ne rien afficher.
+# ---------------------------------------------------------------------
+version: "4.1.0"
+
+library-basedir: "../"
+
+# ---------------------------------------------------------------------
+#  La page d'accueil (index.html) affiche d'abord UNE vignette par lot ;
+#  un clic ouvre la sous-page du lot avec les vignettes de ses documents.
+#  Deux cles OPTIONNELLES personnalisent la vignette d'un lot, a poser a
+#  cote de « label » :
+#     photo:       image de la vignette du lot
+#                  (par defaut : la photo du 1er document du lot)
+#     description: texte de la vignette du lot
+#                  (par defaut : les titres des 3 premiers documents)
+# ---------------------------------------------------------------------
+library:
+  - label: "LOT 01 — Version Nominale"
+    description: "Processus de suivi de Sortie, version nominale, au bureau de sortie. Processus de Sortie des marchandises sans stockage au BS déclaré (avec un BE différent) et certification de la sortie des marchandises du TDU."
+    photo: "resources/img/SDF-CID-SDS-index-UC07.jpg" 
+    items:
+      - title: "UC01 - Réception de l'AER (IE501)"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC01_ReceptionAER.html"
+        abstarct: "Lorsqu’un bureau de douane de sortie reçoit un message AER ( IE501) de la part du bureau de douane d’exportation, cela initie le processus d’exportation. Cela définit l’état du mouvement comme ” AER créé”"
+        photo: "resources/img/SDF-CID-SDS-index-UC01.jpg"
+      - title: "UC03 - Notification d'Arrivée à la sortie"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC03_NotificationArrivee.html"
+        abstarct: "À l'arrivée de l'envoi au bureau de douane de sortie, l'opérateur commercial à la sortie envoie une notification d'arrivée via un message « Arrivée à la sortie » E_ARR_EXT (IE507) au bureau de douane de sortie et demande que les marchandises soient autorisées à quitter immédiatement le territoire douanier de l'Union européenne."
+        photo: "resources/img/SFD-CID-SDS-index-UC03.png"
+      - title: "UC04.01 - Analyse de risque de l’AER après l’arrivée au BS"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC04_01_AnalyseDeRisques.html"
+        abstarct: "Analyse de risque de l’AER après l’arrivée au BS, suite au ciblage après l’analyse de risques l’agent décide le contrôle d’un mouvement de sortie après l’arrivée au BS. Après un contrôle ou pas de contrôle le mouvement est libéré."
+        photo: "resources/img/SDF-CID-SDS-index-UC04.01.jpg"
+      - title: "UC04.02 - Analyse de risque de l’AER après l’arrivée au BS"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC04_02_AnalyseDeRisques.html"
+        abstarct: "Analyse de risque de l’AER après l’arrivée au BS, suite au ciblage après l’analyse de risques l’agent décide le contrôle d’un mouvement de sortie après l’arrivée au BS. Après un contrôle ou pas de contrôle le mouvement est libéré."
+        photo: "resources/img/SDF-CID-SDS-index-UC04.01.jpg"
+      - title: "UC04.03 - Libération automatique d'un mouvement..."
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC04_03_AnalyseDeRisques.html"
+        abstarct: "Analyse de risque de l’AER après l’arrivée au BS, suite au ciblage après l’analyse de risques l’agent décide le contrôle d’un mouvement de sortie après l’arrivée au BS. Après un contrôle ou pas de contrôle le mouvement est libéré. Libération automatique d'un mouvement orienté en circuit vert ou jaune."
+        photo: "resources/img/SDF-CID-SDS-index-UC04.01.jpg"
+      - title: "UC05 - mainlevée à la sortie"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC05_MainLevee.html"
+        abstarct: "Voici un résumé en deux phrases : L'octroi de la mainlevée à la sortie est la décision par laquelle le bureau de douane de sortie autorise les marchandises à quitter le territoire douanier de l'Union, après avoir effectué l'analyse des risques et les éventuels contrôles nécessaires,. Cette autorisation est communiquée électroniquement à l'opérateur commercial à la sortie via l'envoi du message **IE525** (« Notification de mainlevée de sortie »),.."
+        photo: "resources/img/SDF-CID-SDS-index-UC05.jpg"
+      - title: "UC06 - Traitement des écarts"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC06_GestionDesEcarts.html"
+        abstarct: "Traitement des écarts entre AER (IE501) est les éventuelles modifications de la notification d'arrivée (IE507) et de la notification de sortie (IE590) afin de remplir le message IE518 en retour au Bureau d'Export."
+        photo: "resources/img/SDF-CID-SDS-index-UC06.png"
+      - title: "UC07 - Traitement de l’annonce de sortie après sortie du TDU"
+        href: "filesLOT01/SFD-CID-SDS-VN-BS-bLOT01-UC07_TraitementAnnonceSortie.html"
+        abstarct: "Dépôt, traitement de l’annonce de sortie, et transmission des résultats au BE"
+        photo: "resources/img/SDF-CID-SDS-index-UC07.jpg"
+  - label: "LOT 02 — Gestion du détournement"
+    description: "Les détournements se produisent lorsque les marchandises sont présentées à un bureau de douane de sortie différent de celui « déclaré »."
+    photo: "resources/img/SFD-CID-SDS-index-UC70.jpg" 
+    items:
+      - title: "Introduction aux processus de détournement"
+        href: "filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-Introduction.html"
+        abstarct: "Les détournements se produisent lorsque les marchandises sont présentées à un bureau de douane de sortie différent de celui « déclaré »."
+        photo: "resources/img/SDF-CID-SDS-index-LOT2-Introduction.jpg"
+      - title: "UC10 - Recherche d’un détournement"
+        href: "filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC10-RechercheDetournement.html"
+        abstarct: "Processus du traitement pour initialiser le détournement, vérifier si nous sommes dans le cas d’un détournement d’un le bureau actif ou un autre bureau."
+        photo: "resources/img/SFD-CID-SDS-index-UC70.jpg"
+      - title: "UC11 - Détournement refusé"
+        href: "filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC11-detournementRefuse.html"
+        abstarct: "Processus du traitement pour initialiser le détournement, vérifier si nous sommes dans le cas d’un détournement d’un le bureau actif ou un autre bureau."
+        photo: "resources/img/SFD-CID-SDS-index-UC11.jpg"
+      - title: "UC12 - Détournement Accepté"
+        href: "filesLOT02/SFD-CID-SDS-DET-BS-bLOT02-UC12-detournementAccepte.html"
+        abstarct: "Un détournement (ou diversion) se produit lorsque les marchandises d'exportation sont présentées  physiquement à un bureau de douane de sortie réel différent de celui qui avait été initialement déclaré."
+        photo: "resources/img/SFD-CID-SDS-index-UC12.JPG"
+  - label: "LOT 03 — Procédure de recherche"
+    description: "Dans n’importe quel bureau de douane et à tout moment, un agent des douanes désigné qui a besoin de connaître les informations sur la base d’un MRN disponible"
+    photo: "resources/img/SFD-CID-SDS-bLOT03.jpg" 
+    items:
+      - title: "UC20 - Procédure de Recherche - Introduction"
+        href: "filesLOT03/SFD-CID-SDS-IR-BS-bLOT03-UC20-ProcedureRecherche-Intro.html"
+        abstarct: "Dans n’importe quel bureau de douane et à tout moment, un agent des douanes désigné qui a besoin de connaître les informations sur la base d’un MRN disponible"
+        photo: "resources/img/SFD-CID-SDS-bLOT03.jpg"
+      - title: "UC21 - Procédure de Recherche - Introduction"
+        href: "filesLOT03/SFD-CID-SDS-IR-BS-bLOT03-UC21-ProcedureRecherche.html"
+        abstarct: "UC20 - Procédure de Recherche - Introduction"
+        photo: "resources/img/SFD-CID-SDS-bLOT03.jpg"
+  - label: "LOT 04 — Sortie des marchandises avec Stockage"
+    description: "Dans un bureau de sortie, une sortie après stockage se produit lorsqu’un opérateur économique souhaite stocker des marchandises dans un entrepôt avant leur sortie effective du territoire douanier de l’Union européenne."
+    photo: "resources/img/SFD-CID-SDS-index-UC40.jpg" 
+    items:
+      - title: "UC40 - Introduction au Stockage et Stockage partiel"
+        href: "filesLOT04/SFD-CID-SDS-STOCK-BS-bLOT04-Chap01Introduction.html"
+        abstarct: "Le processus métier du stockage des marchandises au bureau de douane de sortie intervient lorsque des marchandises présentées à la frontière ne quittent pas immédiatement le territoire douanier de l'Union européenne (TDU) et sont retenues temporairement dans une installation de stockage autorisée."
+        photo: "resources/img/SFD-CID-SDS-index-UC40.jpg"
+      - title: "UC42 - Traitement de la Sortie AVEC Stockage"
+        href: "filesLOT04/SFD-CID-SDS-STOCK-BS-bLOT04-UC42-TraitementSortieETStockage.html"
+        abstarct: "Une sortie avec stockage dans un bureau de douane de sortie se produit lorsqu'un opérateur économique souhaite stocker des marchandises avant leur sortie effective du territoire douanier de l'Union européenne.et Stockage partiel."
+        photo: "resources/img/SFD-CID-SDS-index-UC40.jpg"
+  - label: "LOT 05 — Processus d’invalidation et Sortie par preuve alternative"
+    description: "Sortie par preuves alternatives pour passer l’état de la marchandises à « Exited » (état final).Demande d’invalidation pour annuler une déclaration en douane déjà acceptée."
+    photo: "resources/img/SFD-CID-SDS-index-LOT05.jpg" 
+    items:
+      - title: "UC50 - Sortie par preuves alternatives"
+        href: "filesLOT05/SFD-CID-SDS-INV-PR-ALT-BS-bLOT05-UC50-sortiePreuveAlternative.html"
+        abstarct: "La sortie par preuves alternatives se fait à l’initiative du BE qui envoie un IE588 au BS afin que le statut de la marchandise au BS passe à « Exited » (état final)."
+        photo: "resources/img/SFD-CID-SDS-index-LOT05.jpg"
+      - title: "UC51 - Gestion du processus d’invalidation"
+        href: "filesLOT05/SFD-CID-SDS-INV-PR-ALT-BS-bLOT05-UC50-sortiePreuveAlternative.html"
+        abstarct: "Une demande d'invalidation est une requête formelle envoyée au bureau de douane de sortie pour annuler une déclaration en douane déjà acceptée. Cette demande est généralement initiée par le déclarant, également appelé l'opérateur à la sortie."
+        photo: "resources/img/SFD-CID-SDS-INV-PR-ALT-BS-bLOT05-img02.JPG"
+  - label: "LOT 07 — Gestion du Transit"
+    items:
+      - title: "Introduction au TRANSIT"
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-IntroductionAUTransit.html"
+        abstarct: "Il existe des cas où une exportation est suivie d’une procédure de transit. Dans ce cas, AES doit s’interfacer avec NCTS pour avoir les informations nécessaires au suivi de la sortie des marchandises du TDU."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-introduction.jpg"
+      - title: "UC70 - Coreflow / Flux principal de l’exportation suivie de transit"
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-UC70-TransitionNominale.html"
+        abstarct: "Dans le cadre d'une opération de dédouanement suivie d'un régime de transit (Exportation suivie de Transit - EFBT), le bureau de sortie (côté exportation/AES) joue souvent le rôle de bureau de départ (côté transit/NSTI)."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-UC70.png"
+      - title: "UC72 - Invalidation de la déclaration de transit"
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-UC72-invalidation.html"
+        abstarct: "En résumé, l'invalidation de la déclaration de transit via le message IE040 a pour effet de délier les mouvements d'exportation du transit en cours."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-UC70.png"
+      - title: "UC74 - Rectification de la déclaration de transit"
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-UC74-Rectification.html"
+        abstarct: "La procédure de rectification d’un mouvement de transit s’applique lorsque des déclarations d’exportation sont liées à un transit en cours."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-UC70.png"
+      - title: "UC76 - Génération du résultat de sortie"
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-UC76-ResultatDeSortie.html"
+        abstarct: "Dans le cas d’un mouvement d’export suivi d’un transit, la génération du résultat de sortie (IE042) et son traitement par le bureau de sortie."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-UC70.png"
+      - title: "UC78 - Procédure de recouvrement "
+        href: "filesLOT07/SFD-CID-SDS-TRANSIT-bLOT07-UC78-Recouvrement.html"
+        abstarct: "La procédure de recouvrement est initiée lorsque le bureau de sortie reçoit du bureau de départ du transit le message IE048, notifiant officiellement l'échec de l'apuration du mouvement de transit lié à l'exportation. En réponse, le bureau de sortie génère automatiquement un message IE518 avec un résultat de contrôle insatisfaisant (code B1) pour chaque MRN d'exportation concerné, ce qui entraîne le refus de sortie des marchandises et l'arrêt des délais au bureau d'exportation."
+        photo: "resources/img/SFD-CID-SDS-index-TRANSIT-UC70.png"
+  - label: "Annexes"
+    items:
+      - title: "Liste des Scénarii - TAXUD"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-US-liste.html"
+        abstarct: "Ce document décrit les scénarii de référence côté TAXUD"
+        photo: "resources/img/SDF-CID-SDS-index-ihm.jpeg"
+      - title: "Notes de version des DF"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-notesDeploiement.html"
+        abstarct: "Ce document décrit l'ensemble des évolutions de la documentation fonctionnelle"
+        photo: "resources/img/SFD-CID-SDS-index-ficheDeploiement.png"
+      - title: "Liste des livraisons SDS"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-FV-Livraison-liste.html"
+        abstarct: "Ce document liste l'ensemble des livraisons SDS"
+        photo: "resources/img/SFD-CID-SDS-index-ficheDeploiement.png"
+      - title: "Liste des messages"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-messages.html"
+        abstarct: "Ce document décrit l'ensembles des données / balises ces messages SDS"
+        photo: "resources/img/SFD-CID-SDS-index-listeMsg.png"
+      - title: "Création du message IE191"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE191.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE191"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE502"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE502.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE502"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE518"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE518.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE518"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE521"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE521.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE521"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE522"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE522.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE522"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE525"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE525.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE525"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE548"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE548.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE548"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE557"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE557.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE557"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE561"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE561.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE561"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE595"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE595.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE595"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE917"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE917.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE917"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Création du message IE906"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-CreationMsg-IE906.html"
+        abstarct: "Ce document décrit les règles pour créer le msgIE906"
+        photo: "resources/img/SDF-CID-SDS-index-creationMsg.jpg"
+      - title: "Liste des Règles et Conditions"
+        href: "filesANN/SFD-CID-SDS-VN-BS-bANN-RetC.html"
+        abstarct: "Ce document décrit les règles et conditions pour l'ensemble de la création des messages.."
+        photo: "resources/img/SFD-CID-SDS-index-RG.jpg"
+
+# =====================================================================
+#  DICTIONNAIRE DES MESSAGES
+#
+#  Alimente la liste deroulante « Dictionnaire des messages » du portail
+#  d'accueil (conf/modele-accueil.template.html), placee a droite de la
+#  liste « Ouvrir un document ».
+#
+#  messages-href   = page cible (chemin depuis la RACINE du projet, comme
+#                    les "href" de la bibliotheque ci-dessus).
+#  messages        = groupes (optgroup) -> items.
+#  Chaque item :
+#     code    : identifiant du message affiche en tete de ligne (ex. IE501)
+#     title   : libelle du message
+#     anchor  : ancre {#...} du titre correspondant dans
+#               filesANN/SFD-CID-SDS-VN-BS-bANN-messages.md
+#
+#  Le lien construit est :  <messages-href>#<anchor>
+#  Exemple : IE501 -> filesANN/SFD-CID-SDS-VN-BS-bANN-messages.html#501
+#
+#  Pour ajouter un message : ajouter le titre + son ancre {#xxx} dans le
+#  .md des messages, puis un item { code, title, anchor } dans le bon
+#  groupe ci-dessous.
+# =====================================================================
+messages-href: "filesANN/SFD-CID-SDS-VN-BS-bANN-messages.html"
+messages:
+  - label: "LOT 01 — Version nominale"
+    items:
+      - code: "IE501"
+        title: "Avis Anticipé d’Exportation"
+        anchor: "501"
+      - code: "IE507"
+        title: "Notification d'arrivée à la sortie"
+        anchor: "507"
+      - code: "IE518"
+        title: "Résultats de sortie"
+        anchor: "518"
+      - code: "IE522"
+        title: "Refus d'octroi de la mainlevée à la sortie"
+        anchor: "522"
+      - code: "IE525"
+        title: "Notification d'octroi de la mainlevée à la sortie"
+        anchor: "525"
+      - code: "IE557"
+        title: "Rejet du bureau de sortie"
+        anchor: "557"
+      - code: "IE561"
+        title: "Notification de mise sous contrôle à la sortie"
+        anchor: "561"
+      - code: "IE590"
+        title: "Annonce de sortie"
+        anchor: "590"
+  - label: "LOT 02 — Détournement"
+    items:
+      - code: "IE502"
+        title: "Demande de déclaration d'exportation"
+        anchor: "502"
+      - code: "IE503"
+        title: "Réponse à l'avis anticipé d'exportation"
+        anchor: "503"
+      - code: "IE521"
+        title: "Notification de rejet du détournement"
+        anchor: "521"
+      - code: "IE524"
+        title: "Notification de rejet du détournement"
+        anchor: "524"
+  - label: "LOT 04 — Stockage des marchandises"
+    items:
+      - code: "IE547"
+        title: "Présentation du manifeste"
+        anchor: "547"
+      - code: "IE548"
+        title: "Validation du manifeste"
+        anchor: "548"
+  - label: "LOT 05 — Invalidation et preuve alternative"
+    items:
+      - code: "IE510"
+        title: "Notification d'invalidation d'exportation"
+        anchor: "510"
+      - code: "IE588"
+        title: "Certification de sortie sur notification de preuves alternatives"
+        anchor: "588"
+      - code: "IE591"
+        title: "Accusé de réception d’invalidation"
+        anchor: "591"
+      - code: "IE594"
+        title: "Demande de statut"
+        anchor: "594"
+      - code: "IE595"
+        title: "Certification de sortie sur notification de preuves alternatives"
+        anchor: "IE595"
+  - label: "LOT 07 — Gestion du TRANSIT"
+    items:
+      - code: "IE040"
+        title: "Notification d'invalidation du transit à l'attention"
+        anchor: "040"
+      - code: "IE042"
+        title: "Résultats du contrôle de destination"
+        anchor: "042"
+      - code: "IE048"
+        title: "Com. relative à un recouvrement"
+        anchor: "048"
+      - code: "IE190"
+        title: "Notification de présentation en transit"
+        anchor: "190"
+      - code: "IE191"
+        title: "Réponse à la notification de présentation en transit"
+        anchor: "191"
+  - label: "Messages transverses"
+    items:
+      - code: "IE906"
+        title: "Message d'erreur fonctionnel"
+        anchor: "906"

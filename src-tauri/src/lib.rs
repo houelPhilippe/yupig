@@ -1,4 +1,4 @@
-//! Tableau de bord Veille — cœur applicatif.
+//! Éditeur Markdown — cœur applicatif.
 //!
 //! Découpage : `db` possède l'état (SQLite), `fetch` parle au réseau,
 //! `commands` expose la surface appelée par le frontend. Le frontend est du
@@ -9,7 +9,9 @@ mod db;
 mod error;
 mod fetch;
 mod files;
+mod liseuse;
 mod models;
+mod modeles;
 mod library;
 mod pandoc;
 mod resources;
@@ -67,6 +69,9 @@ pub fn run() {
                 }
             }
             app.manage(database.clone());
+            // La liseuse : un serveur local, que l'application tient d'un bout
+            // à l'autre — ouvert par le menu, arrêté par lui ou en partant.
+            app.manage(Arc::new(liseuse::Liseuse::default()));
 
             spawn_auto_refresh(app.handle().clone(), database);
             Ok(())
@@ -89,6 +94,7 @@ pub fn run() {
             commands::sync_all,
             commands::prune_articles,
             commands::list_projects,
+            commands::project_name_at,
             commands::create_project,
             commands::open_project,
             commands::forget_project,
@@ -104,19 +110,35 @@ pub fn run() {
             commands::document_outline,
             commands::get_project_settings,
             commands::save_project_settings,
+            commands::list_modeles,
+            commands::apply_modele,
             commands::pandoc_preview,
             commands::compile_document,
             commands::markdown_in_dir,
             commands::markdown_in_project,
             commands::compile_book,
+            commands::open_liseuse,
+            commands::stop_liseuse,
+            commands::liseuse_running,
             commands::quit_app,
             commands::file_link,
             commands::read_image,
             commands::import_opml,
             commands::export_opml,
         ])
-        .run(tauri::generate_context!())
-        .expect("démarrage de l'application");
+        .build(tauri::generate_context!())
+        .expect("démarrage de l'application")
+        // Rien ne survit à l'application : le serveur de la liseuse s'arrête
+        // en même temps qu'elle, qu'on soit passé par « Quitter » ou par la
+        // croix de la fenêtre. D'où `build` puis `run` avec un écouteur, là où
+        // `run` seul suffisait.
+        .run(|app, event| {
+            if let tauri::RunEvent::Exit = event {
+                if let Some(reader) = app.try_state::<Arc<liseuse::Liseuse>>() {
+                    reader.stop();
+                }
+            }
+        });
 }
 
 /// Ne s'applique qu'à une base neuve : un utilisateur ayant tout supprimé ne

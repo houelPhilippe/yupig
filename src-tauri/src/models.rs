@@ -171,6 +171,11 @@ pub struct ProjectSettings {
     /// seulement : le fichier n'en porte aucune trace.
     #[serde(default = "default_wrap_source")]
     pub wrap_source: bool,
+    /// Ascenseurs des deux volets et de la zone d'édition. Affichés par
+    /// défaut ; masqués, le contenu défile toujours — molette, clavier,
+    /// sélection —, seul le rail cesse de se dessiner.
+    #[serde(default = "default_scrollbars")]
+    pub show_scrollbars: bool,
     /// Espacements de la mise en page : ce qui s'aère au-dessus et au-dessous
     /// de chaque sorte de bloc — titres, paragraphes, listes, shortcodes,
     /// images, tableaux. En pixels à 100 % de zoom ; le zoom du document les
@@ -190,6 +195,18 @@ pub struct ProjectSettings {
     /// Compilation du document par Pandoc.
     #[serde(default)]
     pub pandoc: PandocSettings,
+    /// Le modèle de configuration appliqué à `conf/` : un dossier de
+    /// `confModele/`, désigné par son seul nom.
+    ///
+    /// Le nom, et non les fichiers : ceux-ci vivent dans le projet, et c'est
+    /// `conf/` qui les porte une fois le modèle appliqué. Ce réglage ne dit
+    /// donc que d'où ils viennent — de quoi montrer dans la boîte le modèle en
+    /// vigueur, et le retrouver pour le réappliquer.
+    ///
+    /// Vide veut dire « aucun modèle appliqué » : un projet peut avoir réglé
+    /// sa compilation à la main, ou avoir été créé avant cette table.
+    #[serde(default)]
+    pub modele: String,
 }
 
 /// Réglages de la compilation par Pandoc, propres à un projet.
@@ -296,6 +313,19 @@ pub struct ResourcesReport {
     pub warnings: Vec<String>,
 }
 
+/// Ce que l'application d'un modèle de configuration a fait.
+///
+/// `copied` compte les fichiers posés dans `conf/` ; `warnings` porte une ligne
+/// par fichier qui n'a pas pu l'être — un de moins n'arrête pas les autres.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModeleReport {
+    /// Le modèle appliqué, tel qu'il se nomme dans `confModele/`.
+    pub name: String,
+    pub copied: usize,
+    pub warnings: Vec<String>,
+}
+
 /// Longueur au-delà de laquelle un réglage de Pandoc n'est plus un chemin ni
 /// une commande, mais une erreur de saisie.
 pub const PANDOC_FIELD_MAX: usize = 4096;
@@ -327,6 +357,9 @@ fn default_outline() -> bool {
 fn default_wrap_source() -> bool {
     true
 }
+fn default_scrollbars() -> bool {
+    true
+}
 
 impl Default for ProjectSettings {
     fn default() -> Self {
@@ -335,10 +368,14 @@ impl Default for ProjectSettings {
             line_height: default_line_height(),
             show_outline: default_outline(),
             wrap_source: default_wrap_source(),
+            show_scrollbars: default_scrollbars(),
             // Vide : la feuille de style porte les valeurs par défaut, et rien
             // ne s'écrit en base tant qu'on n'y a pas touché.
             spacing: BTreeMap::new(),
             pandoc: PandocSettings::default(),
+            // Aucun modèle tant qu'on n'en a pas appliqué : c'est la création
+            // du projet qui pose « liseuse », quand le dossier le porte.
+            modele: String::new(),
         }
     }
 }
@@ -352,7 +389,9 @@ pub struct Settings {
     pub feed_pane_open: bool,
     pub show_thumbnails: bool,
     pub show_reserved_tile: bool,
-    /// Application affichée au lancement : `veille` ou `edition`.
+    /// Application affichée au lancement : `edition` ou `veille`. On retrouve
+    /// celle qu'on a quittée ; à défaut, c'est « Édition » — l'application,
+    /// « Veille » n'en étant qu'une seconde fenêtre.
     #[serde(default = "default_app")]
     pub app: String,
     /// Racine du projet de l'éditeur, absolue. `None` tant qu'aucun dossier
@@ -386,7 +425,7 @@ pub struct Settings {
 }
 
 fn default_app() -> String {
-    "veille".into()
+    "edition".into()
 }
 
 fn default_theme() -> String {
@@ -404,7 +443,7 @@ impl Default for Settings {
             feed_pane_open: false,
             show_thumbnails: true,
             show_reserved_tile: true,
-            app: "veille".into(),
+            app: default_app(),
             project_root: None,
             files_width: 0,
             outline_width: 0,

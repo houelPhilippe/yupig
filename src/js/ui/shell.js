@@ -1,26 +1,35 @@
 // Coque commune aux deux applications : le lanceur, et le basculement entre
-// « Veille » et « Édition ».
+// « Édition » et « Veille ».
 //
 // Les deux corps vivent dans la même page ; on masque celui qui n'est pas à
 // l'écran plutôt que de reconstruire le DOM à chaque changement.
+//
+// « Édition » vient en tête : c'est l'application, celle où l'on écrit, et
+// celle où l'on arrive tant qu'on n'a pas quitté la fois précédente ailleurs.
+// « Veille » est une seconde fenêtre sur le même projet, qu'on ouvre quand on
+// la veut. L'ordre de la table est celui du menu, et son premier terme sert de
+// recours quand l'état nomme une coque inconnue.
 
 import { el, icon, PATH } from './dom.js';
 import * as store from '../store.js';
 
 const APPS = [
   {
-    id: 'veille',
-    name: 'Veille',
-    desc: 'Agrégateur de flux RSS/Atom',
-    path: PATH.book,
-  },
-  {
     id: 'edition',
     name: 'Édition',
     desc: 'Rédaction des documents du projet',
     path: PATH.pencil,
   },
+  {
+    id: 'veille',
+    name: 'Veille',
+    desc: 'Agrégateur de flux RSS/Atom',
+    path: PATH.book,
+  },
 ];
+
+/** Le nom de l'application, celui de la fenêtre et du bandeau. */
+const TITLE = 'Éditeur Markdown';
 
 const button = document.getElementById('launcher-open');
 const menu = document.getElementById('launcher-menu');
@@ -49,8 +58,14 @@ export function render(state) {
   // Porté sur la racine : la feuille de style s'en sert pour caler la tête de
   // la barre sur la largeur du volet propre à chaque application.
   document.documentElement.dataset.app = app.id;
-  brand.textContent = app.name.toUpperCase();
-  document.title = `${app.name} — Tableau de bord`;
+  // Le bandeau porte le nom de l'application, non celui de la coque : il n'y
+  // en a qu'une, et « Veille » n'en est qu'une fenêtre. Ce qu'on regarde se
+  // voit assez — l'entrée cochée du lanceur, les outils de la barre, et la
+  // page elle-même.
+  brand.textContent = TITLE.toUpperCase();
+  // La fenêtre nomme la coque quand ce n'est pas celle d'où l'on écrit :
+  // « Édition — Éditeur Markdown » ne dirait rien de plus que le titre seul.
+  document.title = app.id === 'edition' ? TITLE : `${app.name} — ${TITLE}`;
 }
 
 export function wire() {

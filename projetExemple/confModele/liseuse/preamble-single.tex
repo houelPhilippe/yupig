@@ -1,0 +1,155 @@
+% preamble-single.tex
+
+\usepackage{float}
+\usepackage{pdflscape}
+\usepackage{multicol}
+\usepackage{xcolor}
+\usepackage{svg}
+\usepackage{graphicx}
+
+% --- Fallback pour Pandoc ---
+% Évite l'erreur \pandocbounded undefined si toutes les images sont dans
+% des tableaux (le filtre Lua convertit le tableau en RawBlock LaTeX, 
+% cachant les images à Pandoc qui "oublie" d'insérer cette macro).
+\makeatletter
+\providecommand{\pandocbounded}[1]{%
+  {\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}%
+   \setkeys{Gin}{width=\maxwidth,keepaspectratio}%
+   #1}%
+}
+\makeatother
+
+% --- Résumé (page de garde) ---------------------------------------------
+% Adaptation pour éviter le conflit avec la classe scrbook[cite: 2].
+\let\abstract\relax
+\let\endabstract\relax
+\providecommand{\abstractname}{Résumé}
+\newenvironment{abstract}{%
+  \small
+  \begin{center}\bfseries\abstractname\end{center}
+  \quotation
+}{\endquotation}
+
+% --- Définitions de couleurs custom ---
+\definecolor{gris}{RGB}{128,128,128}
+\definecolor{whitesmoke}{rgb}{0.96, 0.96, 0.96}
+
+% Couleurs CSS de secours pour les spans de surlignement
+% ( [texte]{style="background-color: ..."} du Markdown, cf. filtre.lua qui
+% met le nom en minuscules avant de l'utiliser en LaTeX ). yellow/olive/
+% orange existent deja nativement dans xcolor (ses 19 couleurs de base) ;
+% les teintes CSS supplementaires utilisees dans les documents doivent
+% etre declarees ici.
+\providecolor{yellow}{rgb}{1,1,0}
+\providecolor{olive}{RGB}{128,128,0}
+\providecolor{skyblue}{RGB}{135,206,235}
+\providecolor{lightgreen}{RGB}{144,238,144}
+\providecolor{lightsalmon}{RGB}{255,160,122}
+\providecolor{lightpink}{RGB}{255,182,193}
+\providecolor{royalblue}{RGB}{65,105,225}
+\providecolor{forestgreen}{RGB}{34,139,34}
+
+% --- En-têtes et pieds de page (fancyhdr) ---
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\addtocontents{toc}{\protect\hypertarget{toc}{}}
+\fancyhf{}
+\fancyhead[LE,RO]{\small\hyperlink{toc}{\textcolor{gris}{|Sommaire|}}}
+\fancyhead[LO]{\small\textcolor{gris}{\leftmark}}
+\fancyhead[RE]{\small\textcolor{gris}{\rightmark}}
+\fancyfoot[LE,RO]{\small\textcolor{gris}{\thepage}}
+
+% --- Styles des titres de niveau 4 et 5 ---
+\RedeclareSectionCommand[beforeskip=-10pt plus -2pt minus -1pt,afterskip=1sp plus -1sp minus 1sp,font=\normalfont\itshape]{paragraph}
+\RedeclareSectionCommand[beforeskip=-10pt plus -2pt minus -1pt,afterskip=1sp plus -1sp minus 1sp,font=\normalfont\scshape,indent=0pt]{subparagraph}
+
+% --- Redéfinition de longtable pour les grands tableaux ---
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{array}     
+\usepackage{multirow}  
+\usepackage{calc}      
+\usepackage{colortbl}  
+\definecolor{grisEntete}{RGB}{217,217,217}
+\definecolor{grisBordure}{RGB}{169,169,169}
+
+\let\oldlongtable\longtable
+\let\endoldlongtable\endlongtable
+\renewenvironment{longtable}{\sffamily\footnotesize\renewcommand{\arraystretch}{1.6}\arrayrulecolor{grisBordure}\addtolength{\leftmargin}{2cm}\addtolength{\rightmargin}{2cm}\oldlongtable}{\endoldlongtable}
+
+% --- Blocs de code et citations (tcolorbox) -----------------------------
+\usepackage{tcolorbox}
+\tcbuselibrary{breakable,skins}
+\definecolor{fondCode}{RGB}{248,248,248}
+
+% Blocs de code avec cadre fin gris et coins arrondis[cite: 2].
+\ifcsname Shaded\endcsname\else
+  \newenvironment{Shaded}{}{}
+\fi
+\renewenvironment{Shaded}
+  {\begin{tcolorbox}[breakable,enhanced,colback=fondCode,colframe=grisBordure,
+     boxrule=0.5pt,arc=2.5mm,left=2mm,right=2mm,top=1mm,bottom=1mm]}
+  {\end{tcolorbox}}
+
+% Citations stylisées avec un trait vertical[cite: 2].
+\let\oldquote\quote
+\let\endoldquote\endquote
+\renewenvironment{quote}
+  {\oldquote\begin{tcolorbox}[breakable,blanker,
+     borderline west={1pt}{0pt}{grisBordure},left=3mm]}
+  {\end{tcolorbox}\endoldquote}
+
+% --- Code inline (`...`) : pastille grise --------------------------------
+% conf/filtre.lua enveloppe chaque code inline dans \inlinecode. Le
+% \fboxsep est reduit dans un groupe : la pastille colle au texte sans
+% modifier les autres boites du document. Meme gris que le fond du code
+% inline de la Liseuse (--background-contrast-grey).
+\definecolor{fondCodeInline}{RGB}{238,238,238}
+\newcommand{\inlinecode}[1]{{\setlength{\fboxsep}{1.5pt}\colorbox{fondCodeInline}{#1}}}
+
+% --- Encadres « callout » ( ::: {.callout-note} ... ::: ) -----------------
+% conf/filtre.lua emet, pour chaque bloc callout :
+%   \begin{calloutbox}{<options tcolorbox>}{<titre>} ... \end{calloutbox}
+% Les options portent la couleur du type et, si le Markdown fixe un
+% style="width: NN%", la largeur (+ « center » si margin: auto).
+% Couleurs alignees sur les jetons DSFR de la Liseuse HTML.
+\definecolor{calloutNote}{HTML}{0063CB}      % info      (bleu)
+\definecolor{calloutTip}{HTML}{18753C}       % success   (vert)
+\definecolor{calloutWarning}{HTML}{B34000}   % warning   (orange)
+\definecolor{calloutCaution}{HTML}{716043}   % tournesol (ocre)
+\definecolor{calloutImportant}{HTML}{CE0500} % error     (rouge)
+\definecolor{lightyellow}{HTML}{FFFFE0}
+
+% Le titre est mis entre accolades : sans elles, une virgule dans le
+% titre serait lue comme un separateur de cles par tcolorbox.
+\newenvironment{calloutbox}[2]{\begin{tcolorbox}[#1,title={#2}]}{\end{tcolorbox}}
+
+% --- Surlignage de texte ---
+\let\ul\relax % Évite le conflit avec le package 'ulem' qui définit aussi \ul
+\let\st\relax % Évite le conflit sur \st (strikethrough)
+\let\hl\relax % Évite le conflit sur \hl (highlight)
+\usepackage{soulutf8}
+\sethlcolor{yellow}
+
+% --- Listes et niveaux d'imbrication ---
+\usepackage{enumitem}
+\setlistdepth{5}
+\setlist[itemize]{label=\textendash}  % puce = tiret pour tous les niveaux[cite: 2]
+
+% --- Numérotation limitée ---
+% Seuls les titres de niveau 1 (chapitres, "#") sont numérotés.
+\setcounter{secnumdepth}{1}
+
+% --- Sommaire (table des matières) ---
+% Le sommaire est désormais généré par le mécanisme natif de Pandoc
+% (toc: true dans defaults-single.yaml), qui place \tableofcontents
+% juste après \maketitle (et le résumé éventuel), donc sous le titre.
+% toc-depth: 6 dans le YAML pilote la profondeur du sommaire. On ajoute
+% simplement un saut de page après le sommaire pour que le corps du
+% document démarre sur une nouvelle page.
+\let\oldtableofcontents\tableofcontents
+\renewcommand{\tableofcontents}{\oldtableofcontents\clearpage}
+
+% --- Options KOMA diverses ---
+% \setkomafont{subtitle}{\normalfont\itshape\Large}
+% \KOMAoptions{titlepage=false}

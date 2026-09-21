@@ -900,6 +900,33 @@ body { overflow: hidden; }
   .outline { display: none; }
 }
 
+/* ------------------------------------------------------------ ascenseurs */
+
+/* Les ascenseurs des deux volets et des deux surfaces d'édition se retirent
+   ensemble, par un réglage du projet. Le contenu défile toujours — molette,
+   clavier, sélection — : seul le rail cesse de se dessiner, et la place qu'il
+   prenait revient au texte.
+
+   Un attribut sur la racine, comme `data-theme` et `data-focus`, et non une
+   variable comme le reste des paramètres du projet : il faut ici deux
+   déclarations dans deux syntaxes — `scrollbar-width` est la propriété
+   standard, que WebKitGTK n'a apprise que tard, et `::-webkit-scrollbar`
+   couvre la webview de Linux comme celle de Windows. Une seule valeur ne
+   saurait servir les deux.
+
+   Les volets sont désignés sous `#body-edition` : la même classe porte le
+   volet des fils de « Veille », qui ne se règle pas par projet. */
+:root[data-scrollbars="hidden"] #body-edition .panel__list,
+:root[data-scrollbars="hidden"] .editor__area,
+:root[data-scrollbars="hidden"] .editor__rich {
+  scrollbar-width: none;
+}
+:root[data-scrollbars="hidden"] #body-edition .panel__list::-webkit-scrollbar,
+:root[data-scrollbars="hidden"] .editor__area::-webkit-scrollbar,
+:root[data-scrollbars="hidden"] .editor__rich::-webkit-scrollbar {
+  display: none;
+}
+
 /* ------------------------------------------------- rendu « Modifier » / « Voir » */
 
 .editor__rich {
@@ -1388,6 +1415,16 @@ body.is-resizing .resizer::after { background: var(--color-accent); }
   padding: var(--space-2) var(--space-8) var(--space-6);
 }
 
+/* La colonne du milieu porte deux groupes l'un sous l'autre — « Mise en page »,
+   puis « Gestion des modèles ». Une pile et non deux cases de la grille : les
+   rangées d'une grille s'alignent sur la plus haute, et le second groupe
+   décollerait du premier dès qu'une autre colonne serait plus longue que lui.
+   Quatre colonnes ont été essayées avant : elles resserraient tout. */
+.settings__stack {
+  display: flex; flex-direction: column; gap: var(--space-8);
+  min-width: 0;
+}
+
 .settings__col {
   display: flex; flex-direction: column; gap: var(--space-6);
   min-width: 0;
@@ -1531,6 +1568,19 @@ body.is-resizing .resizer::after { background: var(--color-accent); }
 /* Un modèle que Rust refuse : l'aperçu dit pourquoi, à l'accent. */
 .pandoc__preview--bad { background: var(--color-accent-100); color: var(--color-accent-800); }
 .pandoc__preview--bad::before { content: ""; }
+/* Le modèle en vigueur se lit d'un coup d'œil : c'est la seule chose du groupe
+   qui dise l'état du projet, le reste étant de quoi le changer. Sans modèle
+   appliqué, la mention s'efface — il n'y a rien à lire. */
+.modeles__current {
+  margin: 0;
+  font-family: var(--font-heading); font-weight: var(--font-heading-weight);
+  font-size: 15px; line-height: 1.2;
+}
+.modeles__current--none {
+  font-family: inherit; font-weight: inherit; font-size: 13px;
+  color: color-mix(in srgb, var(--color-text) 55%, transparent);
+}
+
 /* La légende des variables : le nom à gauche, en étiquette, ce qu'il vaut à
    droite. */
 .pandoc__legend {
